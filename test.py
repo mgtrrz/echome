@@ -1,5 +1,6 @@
 import libvirt
 import sys
+from vm_manager import vmManager
 
 conn = libvirt.openReadOnly(None)
 if conn == None:
@@ -19,3 +20,6 @@ else:
         print('  '+str(domainID))
 
 conn.close()
+
+vmHost = vmManager()
+vmHost.closeConnection()
