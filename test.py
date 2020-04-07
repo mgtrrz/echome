@@ -22,4 +22,4 @@ else:
 conn.close()
 
 vmHost = vmManager()
-vmHost.closeConnection()
+vmHost.createInstance("standard", "small")
