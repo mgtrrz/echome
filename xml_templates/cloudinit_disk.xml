@@ -1,0 +1,6 @@
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <source file="$VM_USER_CLOUDINIT_IMG_PATH"/>
+      <target dev="hda" bus="ide"/>
+      <readonly/>
+    </disk>

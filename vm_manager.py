@@ -43,12 +43,17 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType, instanceSize):
+    def createInstance(self, instanceType, instanceSize, cloudInitConfig=""):
+
+        # cloudInitConfig = {
+        #     "path": "/test/just/testing"
+        # }
 
         config = {
             "cpu": instanceSizes[instanceType][instanceSize]["cpu"],
             "memory": instanceSizes[instanceType][instanceSize]["memory_megabytes"],
-            "xml_template": instanceSizes[instanceType]["xml_template"]
+            "xml_template": instanceSizes[instanceType]["xml_template"],
+            "cloud_init_path": None,
         }
 
         xmldoc = self.__generate_new_vm_template(config)
@@ -57,11 +62,22 @@ class vmManager:
 
     def __generate_new_vm_template(self, config):
 
+        cloudinit_xml = ""
+        
+        if config["cloud_init_path"]:
+            with open(f"./xml_templates/cloudinit_disk.xml", 'r') as filehandle:
+                cloudinit_xml = Template(filehandle.read())
+                replace = {
+                    'VM_USER_CLOUDINIT_IMG_PATH': config["cloud_init_path"]
+                }
+                cloudinit_xml = cloudinit_xml.substitute(replace)
+
         with open(f"./xml_templates/{config['xml_template']}", 'r') as filehandle:
             src = Template(filehandle.read())
             replace = {
                 'VM_NAME': str(uuid.uuid1()).replace("-", "")[0:16],
                 'VM_CPU_COUNT': config["cpu"], 
-                'VM_MEMORY': config["memory"], 
+                'VM_MEMORY': config["memory"],
+                'CLOUDINIT_DISK': cloudinit_xml
             }
             return src.substitute(replace)
