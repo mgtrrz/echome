@@ -56,14 +56,12 @@ class vmManager:
         
 
     def __generate_new_vm_template(self, config):
-        # TODO: Proper with file open so we can properly close it afterwards
-        filein = open(f"./xml_templates/{config['xml_template']}")
-        #read it
-        src = Template(filein.read())
-        #do the substitution
-        replace = {
-            'VM_NAME': str(uuid.uuid1()).replace("-", "")[0:16],
-            'VM_CPU_COUNT': config["cpu"], 
-            'VM_MEMORY': config["memory"], 
-        }
-        return src.substitute(replace)
+
+        with open(f"./xml_templates/{config['xml_template']}", 'r') as filehandle:
+            src = Template(filehandle.read())
+            replace = {
+                'VM_NAME': str(uuid.uuid1()).replace("-", "")[0:16],
+                'VM_CPU_COUNT': config["cpu"], 
+                'VM_MEMORY': config["memory"], 
+            }
+            return src.substitute(replace)
