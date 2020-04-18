@@ -21,5 +21,9 @@ else:
 
 conn.close()
 
+###
+
 vmHost = vmManager()
-vmHost.createInstance("standard", "small")
+
+instanceType = ["standard", "small"]
+vmHost.createInstance(instanceType)

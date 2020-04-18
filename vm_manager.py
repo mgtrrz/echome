@@ -43,22 +43,30 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType, instanceSize, cloudInitConfig=""):
+    def createInstance(self, instanceType, cloudInitConfig=""):
+        
+        # If we have Cloud-init config, build and test it
 
         # cloudInitConfig = {
         #     "path": "/test/just/testing"
         # }
 
+        iType = instanceType[0]
+        iSize = instanceType[1]
+
         config = {
-            "cpu": instanceSizes[instanceType][instanceSize]["cpu"],
-            "memory": instanceSizes[instanceType][instanceSize]["memory_megabytes"],
-            "xml_template": instanceSizes[instanceType]["xml_template"],
+            "cpu": instanceSizes[iType][iSize]["cpu"],
+            "memory": instanceSizes[iType][iSize]["memory_megabytes"],
+            "xml_template": instanceSizes[iType]["xml_template"],
             "cloud_init_path": None,
         }
 
         xmldoc = self.__generate_new_vm_template(config)
+        standard_cloudinit_config = self.__generate_cloudinit_config(config)
+
         print(xmldoc)
-        
+        print(standard_cloudinit_config)
+    
 
     def __generate_new_vm_template(self, config):
 
@@ -81,3 +89,13 @@ class vmManager:
                 'CLOUDINIT_DISK': cloudinit_xml
             }
             return src.substitute(replace)
+    
+    def __generate_cloudinit_config(self, config):
+        cloud_init = """#cloud-config
+chpasswd: { expire: False }
+ssh_pwauth: False
+hostname: test
+ssh_authorized_keys:
+        """
+
+        return cloud_init
