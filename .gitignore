@@ -1,3 +1,6 @@
+# Config files
+database.ini
+
 # Logs and databases #
 ######################
 *.log
