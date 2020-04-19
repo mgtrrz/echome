@@ -38,9 +38,9 @@ user = {
 
 vmHost = vmManager()
 instanceType = Instance("standard", "small")
-vm_params = {
+cloudinit_params = {
     "cloudinit_key": keystore.get_key(db, user, "test_key"),
     "network": "local", # local, private, public?
     "private_ip": "172.16.9.10/24"
 }
-vmHost.createInstance(instanceType, vm_params)
+vmHost.createInstance(instanceType, cloudinit_params)

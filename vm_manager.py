@@ -14,7 +14,7 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType:Instance, cloudInitConfig=""):
+    def createInstance(self, instanceType:Instance, cloudinit_params):
         
         # If we have Cloud-init config, build and test it
 
@@ -22,24 +22,30 @@ class vmManager:
         #     "path": "/test/just/testing"
         # }
 
-        config = {
+        vm_id = self.__generate_vm_id()
+
+        # Generate cloudinit config
+        cloudinit_params["vm_id"] = vm_id
+        standard_cloudinit_config = self.__generate_cloudinit_config(cloudinit_params)
+
+        # Generate VM
+        vm_config = {
+            "vm_id": vm_id,
             "cpu": instanceType.get_cpu(),
             "memory": instanceType.get_memory(),
             "xml_template": instanceType.get_xml_template(),
             "cloud_init_path": None,
         }
-
-        xmldoc = self.__generate_new_vm_template(config)
-        standard_cloudinit_config = self.__generate_cloudinit_config(config)
+        xmldoc = self.__generate_new_vm_template(vm_config)
 
         print(xmldoc)
         print(standard_cloudinit_config)
     
 
     def __generate_new_vm_template(self, config):
-
         cloudinit_xml = ""
         
+        # Generate disk XML
         if config["cloud_init_path"]:
             with open(f"./xml_templates/cloudinit_disk.xml", 'r') as filehandle:
                 cloudinit_xml = Template(filehandle.read())
@@ -48,22 +54,31 @@ class vmManager:
                 }
                 cloudinit_xml = cloudinit_xml.substitute(replace)
 
+        # Generate the rest of the vm XML
         with open(f"./xml_templates/{config['xml_template']}", 'r') as filehandle:
             src = Template(filehandle.read())
             replace = {
-                'VM_NAME': str(uuid.uuid1()).replace("-", "")[0:16],
+                'VM_NAME': config["vm_id"],
                 'VM_CPU_COUNT': config["cpu"], 
                 'VM_MEMORY': config["memory"],
                 'CLOUDINIT_DISK': cloudinit_xml
             }
-            return src.substitute(replace)
+        
+        return src.substitute(replace)
     
     def __generate_cloudinit_config(self, config):
-        cloud_init = """#cloud-config
-chpasswd: { expire: False }
-ssh_pwauth: False
-hostname: test
-ssh_authorized_keys:
-        """
+        # If hostname is not supplied, use the instance ID
+        if "hostname" not in config or config["hostname"] == "":
+            config["hostname"] = config["vm_id"]
 
+        cloud_init = """#cloud-config
+chpasswd: {{ expire: False }}
+ssh_pwauth: False
+hostname: {}
+ssh_authorized_keys:
+  - {}
+        """.format(config["hostname"], config["cloudinit_key"])
         return cloud_init
+
+    def __generate_vm_id(self):
+        return "vm-" + str(uuid.uuid1()).replace("-", "")[0:8]
