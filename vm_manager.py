@@ -1,7 +1,10 @@
 import libvirt
 from string import Template
 import uuid
+import pathlib
 from instance_definitions import Instance
+
+VM_ROOT_DIR = "/data/ssd_storage/user_instances"
 
 class vmManager:
 
@@ -37,6 +40,8 @@ class vmManager:
             "cloud_init_path": None,
         }
         xmldoc = self.__generate_new_vm_template(vm_config)
+
+        self.__generate_tmp_path("12345", vm_id)
 
         print(xmldoc)
         print(standard_cloudinit_config)
@@ -82,3 +87,8 @@ ssh_authorized_keys:
 
     def __generate_vm_id(self):
         return "vm-" + str(uuid.uuid1()).replace("-", "")[0:8]
+
+    def __generate_tmp_path(self, account_id, vm_id):
+        tmp_path = f"{VM_ROOT_DIR}/{account_id}/tmp/{vm_id}"
+        pathlib.Path(tmp_path).mkdir(parents=True, exist_ok=True)
+        return tmp_path
