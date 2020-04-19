@@ -1,6 +1,7 @@
 import libvirt
 import sys
 from vm_manager import vmManager
+from database import Database
 
 conn = libvirt.openReadOnly(None)
 if conn == None:
@@ -22,6 +23,8 @@ else:
 conn.close()
 
 ###
+
+db = Database("./database.ini")
 
 vmHost = vmManager()
 
