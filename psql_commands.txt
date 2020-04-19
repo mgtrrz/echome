@@ -9,6 +9,6 @@ CREATE TABLE user_keys (
     created         timestamp,
     account_user    VARCHAR(50),
     key_name        VARCHAR(50),
-    fingerprint     text,
+    fingerprint     text UNIQUE,
     public_key      text
 );
