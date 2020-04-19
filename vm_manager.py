@@ -1,7 +1,7 @@
 import libvirt
 from string import Template
 import uuid
-from instance_definitions import InstanceSizes
+from instance_definitions import Instance
 
 class vmManager:
 
@@ -14,7 +14,7 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType, cloudInitConfig=""):
+    def createInstance(self, instanceType:Instance, cloudInitConfig=""):
         
         # If we have Cloud-init config, build and test it
 
@@ -22,13 +22,10 @@ class vmManager:
         #     "path": "/test/just/testing"
         # }
 
-        iType = instanceType[0]
-        iSize = instanceType[1]
-
         config = {
-            "cpu": InstanceSizes.instanceSizes[iType][iSize]["cpu"],
-            "memory": InstanceSizes.instanceSizes[iType][iSize]["memory_megabytes"],
-            "xml_template": InstanceSizes.instanceSizes[iType]["xml_template"],
+            "cpu": instanceType.get_cpu(),
+            "memory": instanceType.get_memory(),
+            "xml_template": instanceType.get_xml_template(),
             "cloud_init_path": None,
         }
 

@@ -34,4 +34,13 @@ class Database:
     def insert(self, query, data):
         cursor = self.db_connection.cursor()
         cursor.execute(query, data)
+        cursor.close()
         self.db_connection.commit()
+    
+    def select(self, query, data):
+        cursor = self.db_connection.cursor()
+        cursor.execute(query, data)
+        rows = cursor.fetchall()
+        cursor.close()
+        rows=[i[0] for i in rows]
+        return rows

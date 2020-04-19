@@ -1,5 +1,5 @@
 
-class InstanceSizes:
+class Instance:
     instanceSizes = {
         "standard": {
             "nano": {
@@ -30,5 +30,15 @@ class InstanceSizes:
         }
     }
 
-    #def get_all_instance_sizes(self):
-    #    return self.instanceSizes
+    def __init__(self, instance_type="", instance_size=""):
+        self.itype = instance_type
+        self.isize = instance_size
+
+    def get_cpu(self):
+        return self.instanceSizes[self.itype][self.isize]["cpu"]
+    
+    def get_memory(self):
+        return self.instanceSizes[self.itype][self.isize]["memory_megabytes"]
+    
+    def get_xml_template(self):
+        return self.instanceSizes[self.itype]["xml_template"]
