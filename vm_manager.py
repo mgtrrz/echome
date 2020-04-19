@@ -1,36 +1,7 @@
 import libvirt
 from string import Template
 import uuid
-
-instanceSizes = {
-    "standard": {
-        "nano": {
-            "cpu": 1,
-            "memory_megabytes": 512,
-        },
-        "micro": {
-            "cpu": 1,
-            "memory_megabytes": 1024,
-        },
-        "small": {
-            "cpu": 2,
-            "memory_megabytes": 2048,
-        },
-        "medium": {
-            "cpu": 2,
-            "memory_megabytes": 4096,
-        },
-        "large": {
-            "cpu": 4,
-            "memory_megabytes": 4096,
-        },
-        "xlarge": {
-            "cpu": 8,
-            "memory_megabytes": 8192,
-        },
-        "xml_template": "create_vm.xml"
-    }
-}
+from instance_definitions import InstanceSizes
 
 class vmManager:
 
@@ -55,9 +26,9 @@ class vmManager:
         iSize = instanceType[1]
 
         config = {
-            "cpu": instanceSizes[iType][iSize]["cpu"],
-            "memory": instanceSizes[iType][iSize]["memory_megabytes"],
-            "xml_template": instanceSizes[iType]["xml_template"],
+            "cpu": InstanceSizes.instanceSizes[iType][iSize]["cpu"],
+            "memory": InstanceSizes.instanceSizes[iType][iSize]["memory_megabytes"],
+            "xml_template": InstanceSizes.instanceSizes[iType]["xml_template"],
             "cloud_init_path": None,
         }
 
