@@ -2,6 +2,7 @@ import libvirt
 from string import Template
 import uuid
 import pathlib
+import logging
 from instance_definitions import Instance
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
@@ -25,7 +26,9 @@ class vmManager:
         #     "path": "/test/just/testing"
         # }
 
+        logging.debug("Generating vm-id")
         vm_id = self.__generate_vm_id()
+        logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generate cloudinit config
         cloudinit_params["vm_id"] = vm_id
@@ -41,10 +44,24 @@ class vmManager:
         }
         xmldoc = self.__generate_new_vm_template(vm_config)
 
-        self.__generate_tmp_path("12345", vm_id)
+        # Generating the tmp path for creating/copying/validating files
+        tmpdir = self.__generate_tmp_path("12345", vm_id)
+        logging.debug(f"Temp logging directory: {tmpdir}")
 
-        print(xmldoc)
-        print(standard_cloudinit_config)
+        
+        # Write the cloudinit file, validate, and create the img for it
+        with open(f"{tmpdir}/cloudinit.yaml", "w") as filehandle:
+            logging.debug("Writing cloudinit yaml: cloudinit.yaml")
+            filehandle.write(standard_cloudinit_config)
+
+
+        # Create the actual files in the tmp dir
+        with open(f"{tmpdir}/vm.xml", 'w') as filehandle:
+            logging.debug("Writing virtual machine doc: vm.xml")
+            filehandle.write(xmldoc)
+
+        #print(xmldoc)
+        #print(standard_cloudinit_config)
     
 
     def __generate_new_vm_template(self, config):

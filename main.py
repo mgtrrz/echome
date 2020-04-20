@@ -4,6 +4,9 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
 from instance_definitions import Instance
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 conn = libvirt.openReadOnly(None)
 if conn == None:
