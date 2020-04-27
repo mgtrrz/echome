@@ -26,7 +26,7 @@
     <emulator>/usr/bin/kvm-spice</emulator>
     <disk type="file" device="disk">
       <driver name="qemu" type="qcow2"/>
-      <source file="VM_USER_IMG_PATH"/>
+      <source file="$VM_USER_IMG_PATH"/>
       <target dev="vda" bus="virtio"/>
     </disk>
 $CLOUDINIT_DISK
@@ -42,7 +42,6 @@ $CLOUDINIT_DISK
     </controller>
     <interface type="bridge">
       <source bridge="br0"/>
-      <mac address="52:54:00:ce:4b:60"/>
     </interface>
     <console type="pty"/>
   </devices>

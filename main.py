@@ -46,4 +46,4 @@ cloudinit_params = {
     "network": "local", # local, private, public?
     "private_ip": "172.16.9.10/24"
 }
-vmHost.createInstance(instanceType, cloudinit_params)
+vmHost.createInstance(instanceType, cloudinit_params, "bionic-server-cloudimg-amd64.img")

@@ -4,9 +4,12 @@ import uuid
 import pathlib
 import logging
 import subprocess
+import random
+import shutil
 from instance_definitions import Instance
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
+VM_GUEST_IMGS = "/data/ssd_storage/guest_images"
 
 # Flow for VM Creation
 # 1. Generate a VM Id
@@ -28,7 +31,7 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType:Instance, cloudinit_params):
+    def createInstance(self, instanceType:Instance, cloudinit_params, image):
         
         # If we have Cloud-init config, build and test it
 
@@ -59,6 +62,10 @@ class vmManager:
         # Validate and create the cloudinit iso
         cloudinit_iso_path = self.__create_cloudinit_iso(tmpdir)
 
+        # Create a copy of the VM image
+        shutil.copy2(f"{VM_GUEST_IMGS}/{image}", tmpdir)
+        vm_img = f"{tmpdir}/{image}"
+
         # Generate VM
         vm_config = {
             "vm_id": vm_id,
@@ -66,6 +73,7 @@ class vmManager:
             "memory": instanceType.get_memory(),
             "xml_template": instanceType.get_xml_template(),
             "cloud_init_path": cloudinit_iso_path,
+            "vm_img": vm_img
         }
         xmldoc = self.__generate_new_vm_template(vm_config)
 
@@ -97,7 +105,8 @@ class vmManager:
                 'VM_NAME': config["vm_id"],
                 'VM_CPU_COUNT': config["cpu"], 
                 'VM_MEMORY': config["memory"],
-                'CLOUDINIT_DISK': cloudinit_xml
+                'CLOUDINIT_DISK': cloudinit_xml,
+                'VM_USER_IMG_PATH': config["vm_img"]
             }
         
         return src.substitute(replace)
@@ -118,10 +127,10 @@ ssh_authorized_keys:
     
 
     def __create_cloudinit_iso(self, tmpdir):
-
         cloudinit_yaml_file_path = f"{tmpdir}/cloudinit.yaml"
 
         # Validate the yaml file
+        logging.debug("Validating Cloudinit config yaml.")
         process = subprocess.Popen(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_yaml_file_path], 
                            stdout=subprocess.PIPE,
                            universal_newlines=True)
@@ -129,9 +138,8 @@ ssh_authorized_keys:
         print(output.strip())
         # Do something else
         return_code = process.poll()
-        print(return_code)
+        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
         if return_code is not None:
-            print('RETURN CODE', return_code)
             # There was an issue with the cloud init file
             #TODO: Condition on error
             # Process has finished, read rest of the output 
@@ -149,25 +157,31 @@ ssh_authorized_keys:
         print(output.strip())
         # Do something else
         return_code = process.poll()
-        print(return_code)
+        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
         if return_code is not None:
-            print('RETURN CODE', return_code)
             # There was an issue with the cloud init file
             #TODO: Condition on error
             # Process has finished, read rest of the output 
             for output in process.stdout.readlines():
                 print(output.strip())
-        
+        logging.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
+
         return cloudinit_iso_path
 
     def __generate_vm_id(self):
         return "vm-" + str(uuid.uuid1()).replace("-", "")[0:8]
 
+    def __generate_mac_addr(self):
+        mac = [ 0x00, 0x16, 0x3e,
+            random.randint(0x00, 0x7f),
+            random.randint(0x00, 0xff),
+            random.randint(0x00, 0xff) ]
+        return ':'.join(map(lambda x: "%02x" % x, mac))
+
     def __generate_tmp_path(self, account_id, vm_id):
         tmp_path = f"{VM_ROOT_DIR}/{account_id}/tmp/{vm_id}"
         pathlib.Path(tmp_path).mkdir(parents=True, exist_ok=True)
         return tmp_path
-
 
     def __delete_tmp_path(self, account_id, vm_id):
         tmp_path = f"{VM_ROOT_DIR}/{account_id}/tmp/{vm_id}"
