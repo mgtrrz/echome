@@ -31,7 +31,7 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType:Instance, cloudinit_params, image):
+    def createInstance(self, instanceType:Instance, cloudinit_params, server_params):
 
         account_id = "12345"
         
@@ -65,8 +65,8 @@ class vmManager:
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir)
 
         # Create a copy of the VM image
-        shutil.copy2(f"{VM_GUEST_IMGS}/{image}", vmdir)
-        vm_img = f"{vmdir}/{image}"
+        shutil.copy2(f"{VM_GUEST_IMGS}/{server_params['image']}", vmdir)
+        vm_img = f"{vmdir}/{server_params['image']}"
 
         # Generate VM
         vm_config = {
@@ -87,7 +87,7 @@ class vmManager:
         print(xmldoc)
         print(standard_cloudinit_config)
 
-        process = subprocess.Popen(['qemu-img', 'resize', vm_img, vm_config["disk_size"]], 
+        process = subprocess.Popen(['qemu-img', 'resize', vm_img, server_params["disk_size"]], 
                            stdout=subprocess.PIPE,
                            universal_newlines=True)
         output = process.stdout.readline()
@@ -102,6 +102,37 @@ class vmManager:
                 print(output.strip())
         
         print(f"Successfully created VM: {vm_id} : {vmdir}")
+        
+        logging.debug("Attempting to define XML with virsh..")
+        self.currentConnection.defineXML(xmldoc)
+        logging.info("Starting VM..")
+        self.start_vm(vm_id)
+
+
+    def start_vm(self, vm_id):
+        try:
+            vm = self.currentConnection.lookupByName(vm_id)
+        except libvirt.libvirtError:
+            # Error code 42 = Domain not found
+            if (e.get_error_code() == 42):
+                print(e)
+                exit(1)
+            else:
+                raise(e)
+
+        if vm.isActive():
+            logging.info(f"VM '{vm_id}' already started")
+
+        while not vm.isActive():
+            logging.info(f"Starting VM '{vm_id}'")
+            vm.create()
+            time.sleep(1)
+            if vm.isActive():
+                try:
+                    print("Waiting for {} seconds before trying to start the next VM '{}'".format(wait_time, vm_start_list[i + 1]))
+                    time.sleep(wait_time)
+                except IndexError:
+                    break
 
     def __generate_new_vm_template(self, config):
         cloudinit_xml = ""
