@@ -44,6 +44,7 @@ instanceType = Instance("standard", "small")
 cloudinit_params = {
     "cloudinit_key": keystore.get_key(db, user, "test_key"),
     "network": "local", # local, private, public?
-    "private_ip": "172.16.9.10/24"
+    "private_ip": "172.16.9.10/24",
+    "disk_size": "50G"
 }
 vmHost.createInstance(instanceType, cloudinit_params, "bionic-server-cloudimg-amd64.img")

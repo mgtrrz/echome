@@ -32,6 +32,8 @@ class vmManager:
         self.currentConnection.close()
 
     def createInstance(self, instanceType:Instance, cloudinit_params, image):
+
+        account_id = "12345"
         
         # If we have Cloud-init config, build and test it
 
@@ -44,15 +46,15 @@ class vmManager:
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
-        tmpdir = self.__generate_tmp_path("12345", vm_id)
-        logging.debug(f"Temp logging directory: {tmpdir}")
+        vmdir = self.__generate_vm_path(account_id, vm_id)
+        logging.debug(f"Create VM directory: {vmdir}")
 
 
         # Generate cloudinit config
         cloudinit_params["vm_id"] = vm_id
         standard_cloudinit_config = self.__generate_cloudinit_config(cloudinit_params)
         # Create the Cloudinit yaml in tmp dir
-        cloudinit_yaml_file_path = f"{tmpdir}/cloudinit.yaml"
+        cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
 
         with open(cloudinit_yaml_file_path, "w") as filehandle:
             logging.debug("Writing cloudinit yaml: cloudinit.yaml")
@@ -60,11 +62,11 @@ class vmManager:
         # TODO: Catch errors 
 
         # Validate and create the cloudinit iso
-        cloudinit_iso_path = self.__create_cloudinit_iso(tmpdir)
+        cloudinit_iso_path = self.__create_cloudinit_iso(vmdir)
 
         # Create a copy of the VM image
-        shutil.copy2(f"{VM_GUEST_IMGS}/{image}", tmpdir)
-        vm_img = f"{tmpdir}/{image}"
+        shutil.copy2(f"{VM_GUEST_IMGS}/{image}", vmdir)
+        vm_img = f"{vmdir}/{image}"
 
         # Generate VM
         vm_config = {
@@ -78,13 +80,28 @@ class vmManager:
         xmldoc = self.__generate_new_vm_template(vm_config)
 
         # Create the actual files in the tmp dir
-        with open(f"{tmpdir}/vm.xml", 'w') as filehandle:
+        with open(f"{vmdir}/vm.xml", 'w') as filehandle:
             logging.debug("Writing virtual machine doc: vm.xml")
             filehandle.write(xmldoc)
 
         print(xmldoc)
         print(standard_cloudinit_config)
-    
+
+        process = subprocess.Popen(['qemu-img', 'resize', vm_img, vm_config["disk_size"]], 
+                           stdout=subprocess.PIPE,
+                           universal_newlines=True)
+        output = process.stdout.readline()
+        print(output.strip())
+        return_code = process.poll()
+        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
+        if return_code is not None:
+            # There was an issue with the resize
+            #TODO: Condition on error
+            # Process has finished, read rest of the output 
+            for output in process.stdout.readlines():
+                print(output.strip())
+        
+        print(f"Successfully created VM: {vm_id} : {vmdir}")
 
     def __generate_new_vm_template(self, config):
         cloudinit_xml = ""
@@ -126,8 +143,8 @@ ssh_authorized_keys:
         return cloud_init
     
 
-    def __create_cloudinit_iso(self, tmpdir):
-        cloudinit_yaml_file_path = f"{tmpdir}/cloudinit.yaml"
+    def __create_cloudinit_iso(self, vmdir):
+        cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
 
         # Validate the yaml file
         logging.debug("Validating Cloudinit config yaml.")
@@ -149,7 +166,7 @@ ssh_authorized_keys:
         #TODO: Network config file
 
         # Create cloud_init disk image
-        cloudinit_iso_path = f"{tmpdir}/cloudinit.iso"
+        cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
         process = subprocess.Popen(['cloud-localds', '-v', cloudinit_iso_path, cloudinit_yaml_file_path], 
                            stdout=subprocess.PIPE,
                            universal_newlines=True)
@@ -178,10 +195,10 @@ ssh_authorized_keys:
             random.randint(0x00, 0xff) ]
         return ':'.join(map(lambda x: "%02x" % x, mac))
 
-    def __generate_tmp_path(self, account_id, vm_id):
-        tmp_path = f"{VM_ROOT_DIR}/{account_id}/tmp/{vm_id}"
-        pathlib.Path(tmp_path).mkdir(parents=True, exist_ok=True)
-        return tmp_path
+    def __generate_vm_path(self, account_id, vm_id):
+        vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        pathlib.Path(vm_path).mkdir(parents=True, exist_ok=True)
+        return vm_path
 
-    def __delete_tmp_path(self, account_id, vm_id):
-        tmp_path = f"{VM_ROOT_DIR}/{account_id}/tmp/{vm_id}"
+    def __delete_vm_path(self, account_id, vm_id):
+        tmp_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
