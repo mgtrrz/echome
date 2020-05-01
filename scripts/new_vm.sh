@@ -25,7 +25,7 @@ ethernets:
         dhcp4: false
         dhcp6: false
         addresses:
-          - 172.16.9.9/24
+          - 172.16.9.10/24
         gateway4: 172.16.9.1
         nameservers:
           addresses:
@@ -41,7 +41,7 @@ cloud-localds -v $path_to_new_vm/cloudinit.iso $path_to_new_vm/cloudinit.yaml --
 
 # Make a copy of the "master" image
 #qemu-img convert cirros-0.5.1-x86_64-disk.img new_instance/cirros-0.5.1-x86_64-disk.img
-cp /root/$vm $path_to_new_vm/$vm
+cp /data/ssd_storage/guest_images/$vm $path_to_new_vm/$vm
 
 # Resize the image to user specified dimensions
 qemu-img resize $path_to_new_vm/$vm $disk_size
@@ -61,4 +61,3 @@ virt-install --name $name \
             --network bridge:br0 \
             --import \
             --noautoconsole \
-            --print-xml

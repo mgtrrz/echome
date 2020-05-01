@@ -6,6 +6,7 @@ import logging
 import subprocess
 import random
 import shutil
+import time
 from instance_definitions import Instance
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
@@ -34,12 +35,6 @@ class vmManager:
     def createInstance(self, instanceType:Instance, cloudinit_params, server_params):
 
         account_id = "12345"
-        
-        # If we have Cloud-init config, build and test it
-
-        # cloudInitConfig = {
-        #     "path": "/test/just/testing"
-        # }
 
         logging.debug("Generating vm-id")
         vm_id = self.__generate_vm_id()
@@ -61,8 +56,19 @@ class vmManager:
             filehandle.write(standard_cloudinit_config)
         # TODO: Catch errors 
 
+        # If we set a static IP for the instance, create a network config file
+        network_yaml_file_path = ""
+        if "private_ip" in cloudinit_params:
+            network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
+            network_yaml_file_path = f"{vmdir}/network.yaml"
+
+            with open(network_yaml_file_path, "w") as filehandle:
+                logging.debug("Writing cloudinit yaml: network.yaml")
+                filehandle.write(network_cloudinit_config)
+            # TODO: Catch errors 
+
         # Validate and create the cloudinit iso
-        cloudinit_iso_path = self.__create_cloudinit_iso(vmdir)
+        cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
         # Create a copy of the VM image
         shutil.copy2(f"{VM_GUEST_IMGS}/{server_params['image']}", vmdir)
@@ -112,11 +118,10 @@ class vmManager:
     def start_vm(self, vm_id):
         try:
             vm = self.currentConnection.lookupByName(vm_id)
-        except libvirt.libvirtError:
+        except libvirt.libvirtError as e:
             # Error code 42 = Domain not found
             if (e.get_error_code() == 42):
                 print(e)
-                exit(1)
             else:
                 raise(e)
 
@@ -126,13 +131,6 @@ class vmManager:
         while not vm.isActive():
             logging.info(f"Starting VM '{vm_id}'")
             vm.create()
-            time.sleep(1)
-            if vm.isActive():
-                try:
-                    print("Waiting for {} seconds before trying to start the next VM '{}'".format(wait_time, vm_start_list[i + 1]))
-                    time.sleep(wait_time)
-                except IndexError:
-                    break
 
     def __generate_new_vm_template(self, config):
         cloudinit_xml = ""
@@ -166,16 +164,33 @@ class vmManager:
 
         cloud_init = """#cloud-config
 chpasswd: {{ expire: False }}
-ssh_pwauth: False
+ssh_pwauth: True
 hostname: {}
 ssh_authorized_keys:
   - {}
         """.format(config["hostname"], config["cloudinit_key"])
         return cloud_init
+
+
+    def __generate_network_cloudinit_config(self, config):
+        cloud_network_init = f"""version: 2
+ethernets:
+    ens2:
+        dhcp4: false
+        dhcp6: false
+        addresses:
+          - {config['private_ip']}
+        gateway4: {config['gateway_ip']}
+        nameservers:
+          addresses:
+            - 1.1.1.1
+            - 1.0.0.1
+        """
+
+        return cloud_network_init
     
 
-    def __create_cloudinit_iso(self, vmdir):
-        cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
+    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=""):
 
         # Validate the yaml file
         logging.debug("Validating Cloudinit config yaml.")
@@ -194,11 +209,35 @@ ssh_authorized_keys:
             for output in process.stdout.readlines():
                 print(output.strip())
 
-        #TODO: Network config file
+        if cloudinit_network_yaml_file_path:
+            logging.debug("Validating Cloudinit Network config yaml.")
+            process = subprocess.Popen(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_network_yaml_file_path], 
+                            stdout=subprocess.PIPE,
+                            universal_newlines=True)
+            output = process.stdout.readline()
+            print(output.strip())
+            # Do something else
+            return_code = process.poll()
+            logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
+            if return_code is not None:
+                # There was an issue with the cloud init network file
+                #TODO: Condition on error
+                # Process has finished, read rest of the output 
+                for output in process.stdout.readlines():
+                    print(output.strip())
 
         # Create cloud_init disk image
         cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
-        process = subprocess.Popen(['cloud-localds', '-v', cloudinit_iso_path, cloudinit_yaml_file_path], 
+
+        args = ['cloud-localds', '-v', cloudinit_iso_path, cloudinit_yaml_file_path]
+
+        if cloudinit_network_yaml_file_path:
+            args.append(f"--network-config={cloudinit_network_yaml_file_path}")
+            #args.append(cloudinit_network_yaml_file_path)
+
+        print(args)
+
+        process = subprocess.Popen(args, 
                            stdout=subprocess.PIPE,
                            universal_newlines=True)
         output = process.stdout.readline()
