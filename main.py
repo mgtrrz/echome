@@ -8,25 +8,6 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-conn = libvirt.openReadOnly(None)
-if conn == None:
-    print('Failed to open connection to the hypervisor')
-    sys.exit(1)
-
-
-domainIDs = conn.listDomainsID()
-if domainIDs == None:
-    print('Failed to get a list of domain IDs', file=sys.stderr)
-
-print("Active domain IDs:")
-if len(domainIDs) == 0:
-    print('  None')
-else:
-    for domainID in domainIDs:
-        print('  '+str(domainID))
-
-conn.close()
-
 ###
 
 db = Database("./database.ini")
@@ -41,14 +22,18 @@ user = {
 
 vmHost = vmManager()
 instanceType = Instance("standard", "small")
+
 cloudinit_params = {
     "cloudinit_key": keystore.get_key(db, user, "test_key"),
     "network": "local", # local, private, public?
-    "private_ip": "172.16.9.11/24",
+    "private_ip": "172.16.9.12/24",
     "gateway_ip": "172.16.9.1"
 }
 server_params = {
-    "image": "ubuntu-16.04-server-cloudimg-amd64-disk1.img",
+    #"image": "ubuntu-18.04-server-cloudimg-amd64.img",
+    "vmi": "vmi-293de.qcow2",
     "disk_size": "30G",
 }
-vmHost.createInstance(instanceType, cloudinit_params, server_params)
+#vmHost.createInstance(instanceType, cloudinit_params, server_params)
+#vmHost.stop_vm("vm-04a800da")
+vmHost.terminateInstance("vm-04a800da")

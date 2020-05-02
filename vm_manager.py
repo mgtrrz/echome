@@ -70,11 +70,25 @@ class vmManager:
         # Validate and create the cloudinit iso
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
+        # Is this a guest image or a user-created virtual machine image?
+        if "image" in server_params:
+            img_type = "base guest image"
+            img_name = server_params['image']
+            image_base_dir = f"{VM_GUEST_IMGS}"
+        else:
+            img_type = "user virtual machine image"
+            img_name = server_params["vmi"]
+            image_base_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
+
         # Create a copy of the VM image
-        shutil.copy2(f"{VM_GUEST_IMGS}/{server_params['image']}", vmdir)
-        vm_img = f"{vmdir}/{server_params['image']}"
+        logging.debug(f"Copying {img_type}: {image_base_dir}/{img_name} TO {vmdir}")
+        shutil.copy2(f"{image_base_dir}/{img_name}", vmdir)
+        vm_img = f"{vmdir}/{img_name}"
+        logging.debug(f"Final image: {vm_img}")
+
 
         # Generate VM
+        logging.debug(f"Generating vm config")
         vm_config = {
             "vm_id": vm_id,
             "cpu": instanceType.get_cpu(),
@@ -83,6 +97,7 @@ class vmManager:
             "cloud_init_path": cloudinit_iso_path,
             "vm_img": vm_img
         }
+        logging.debug(vm_config)
         xmldoc = self.__generate_new_vm_template(vm_config)
 
         # Create the actual files in the tmp dir
@@ -90,9 +105,10 @@ class vmManager:
             logging.debug("Writing virtual machine doc: vm.xml")
             filehandle.write(xmldoc)
 
-        print(xmldoc)
-        print(standard_cloudinit_config)
+        logging.debug(xmldoc)
+        logging.debug(standard_cloudinit_config)
 
+        logging.debug(f"Resizing image size to {server_params['disk_size']}")
         process = subprocess.Popen(['qemu-img', 'resize', vm_img, server_params["disk_size"]], 
                            stdout=subprocess.PIPE,
                            universal_newlines=True)
@@ -107,15 +123,15 @@ class vmManager:
             for output in process.stdout.readlines():
                 print(output.strip())
         
-        print(f"Successfully created VM: {vm_id} : {vmdir}")
-        
         logging.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
         logging.info("Starting VM..")
-        self.start_vm(vm_id)
+        self.startInstance(vm_id)
+
+        print(f"Successfully created VM: {vm_id} : {vmdir}")
 
 
-    def start_vm(self, vm_id):
+    def startInstance(self, vm_id):
         try:
             vm = self.currentConnection.lookupByName(vm_id)
         except libvirt.libvirtError as e:
@@ -131,6 +147,63 @@ class vmManager:
         while not vm.isActive():
             logging.info(f"Starting VM '{vm_id}'")
             vm.create()
+    
+    def stopInstance(self, vm_id):
+        logging.debug(f"Stopping vm: {vm_id}")
+        try:
+            vm = self.currentConnection.lookupByName(vm_id)
+        except libvirt.libvirtError as e:
+            # Error code 42 = Domain not found
+            if (e.get_error_code() == 42):
+                print(e)
+            else:
+                raise(e)
+
+        if not vm.isActive():
+            logging.info(f"VM '{vm_id}' already stopped")
+            return 
+
+        if vm.isActive():
+            print(f"Stopping VM '{vm_id}'")
+        else:
+            print(f"VM '{vm_id}' is already stopped")
+
+        vm_force_stop_time = 240
+        seconds_waited = 0
+        while vm.isActive():
+            try:
+                vm.shutdown()
+                time.sleep(1)
+                seconds_waited += 1
+                if seconds_waited >= vm_force_stop_time:
+                    logging.warning(f"Timeout was reached and VM '{vm_id}' hasn't stopped yet. Force shutting down...")
+                    vm.destroy()
+            except libvirt.libvirtError as e:
+                # Error code 55 = Not valid operation: domain is not running
+                if (e.get_error_code() == 55):
+                    pass
+                else:
+                    raise(e)
+        
+    def terminateInstance(self, vm_id):
+        self.stopInstance(vm_id)
+        logging.debug(f"Terminating vm: {vm_id}")
+        try:
+            vm = self.currentConnection.lookupByName(vm_id)
+        except libvirt.libvirtError as e:
+            # Error code 42 = Domain not found
+            if (e.get_error_code() == 42):
+                print(e)
+            else:
+                raise(e)
+        
+        try:
+            vm.undefine()
+            print(f"Successfully terminated instance {vm_id}")
+        except libvirt.libvirtError as e:
+            logging.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
+
+
 
     def __generate_new_vm_template(self, config):
         cloudinit_xml = ""
@@ -272,3 +345,4 @@ ethernets:
 
     def __delete_vm_path(self, account_id, vm_id):
         tmp_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        shutil.rmtree(tmp_path)
