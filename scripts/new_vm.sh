@@ -1,3 +1,6 @@
+# bash script for quick provisioning of VM
+# Used mainly for demonstration and understanding of how these commands work locally
+
 name=$1
 vm=$2
 disk_size=$3
@@ -8,8 +11,6 @@ set -e
 
 path_to_new_vm="/data/ssd_storage/user_instances/$user/$uniq_timestamp"
 mkdir -pv $path_to_new_vm
-
-
 
 echo '''#cloud-config
 chpasswd: { expire: False }
