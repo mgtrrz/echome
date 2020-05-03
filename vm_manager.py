@@ -83,8 +83,15 @@ class vmManager:
             image_base_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
 
         # Create a copy of the VM image
-        logging.debug(f"Copying {img_type}: {image_base_dir}/{img_name} TO {vmdir}")
-        shutil.copy2(f"{image_base_dir}/{img_name}", vmdir)
+        try:
+            logging.debug(f"Copying {img_type}: {image_base_dir}/{img_name} TO {vmdir}")
+            shutil.copy2(f"{image_base_dir}/{img_name}", vmdir)
+        except:
+            logging.error("Encountered an error on VM copy. Cannot continue.")
+            if CLEAN_UP_ON_FAIL:
+                self.__delete_vm_path(account_id, vm_id)
+            raise
+
         vm_img = f"{vmdir}/{img_name}"
         logging.debug(f"Final image: {vm_img}")
 
@@ -111,19 +118,12 @@ class vmManager:
         logging.debug(standard_cloudinit_config)
 
         logging.debug(f"Resizing image size to {server_params['disk_size']}")
-        process = subprocess.Popen(['qemu-img', 'resize', vm_img, server_params["disk_size"]], 
-                           stdout=subprocess.PIPE,
-                           universal_newlines=True)
-        output = process.stdout.readline()
-        print(output.strip())
-        return_code = process.poll()
-        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        if return_code is not None:
+        output = self.__run_command(['qemu-img', 'resize', vm_img, server_params["disk_size"]])
+        if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
-            # Process has finished, read rest of the output 
-            for output in process.stdout.readlines():
-                print(output.strip())
+            print("Return code not None")
+
         
         logging.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
@@ -139,16 +139,20 @@ class vmManager:
             "reason": "",
         }
 
+    def createVirtualMachineImage(self, vm_id):
+        # Instance needs to be turned off to create an image
+        self.stopInstance(vm_id)
+
+
 
     def startInstance(self, vm_id):
-        try:
-            vm = self.currentConnection.lookupByName(vm_id)
-        except libvirt.libvirtError as e:
-            # Error code 42 = Domain not found
-            if (e.get_error_code() == 42):
-                print(e)
-            else:
-                raise(e)
+        vm = self.__get_vm_connection(vm_id)
+        if not vm:
+            return {
+                "success": False,
+                "meta_data": {},
+                "reason": f"VM {vm_id} does not exist",
+            }
 
         if vm.isActive():
             logging.info(f"VM '{vm_id}' already started")
@@ -165,14 +169,13 @@ class vmManager:
     
     def stopInstance(self, vm_id):
         logging.debug(f"Stopping vm: {vm_id}")
-        try:
-            vm = self.currentConnection.lookupByName(vm_id)
-        except libvirt.libvirtError as e:
-            # Error code 42 = Domain not found
-            if (e.get_error_code() == 42):
-                print(e)
-            else:
-                raise(e)
+        vm = self.__get_vm_connection(vm_id)
+        if not vm:
+            return {
+                "success": False,
+                "meta_data": {},
+                "reason": f"VM {vm_id} does not exist",
+            }
 
         if not vm.isActive():
             logging.info(f"VM '{vm_id}' already stopped")
@@ -205,20 +208,23 @@ class vmManager:
             "meta_data": {},
             "reason": "",
         }
-        
+
+    # Terminate the instance 
     def terminateInstance(self, vm_id):
-        self.stopInstance(vm_id)
         logging.debug(f"Terminating vm: {vm_id}")
+
+        vm = self.__get_vm_connection(vm_id)
+        if not vm:
+            return {
+                "success": False,
+                "meta_data": {},
+                "reason": f"VM {vm_id} does not exist",
+            }
+
         try:
-            vm = self.currentConnection.lookupByName(vm_id)
-        except libvirt.libvirtError as e:
-            # Error code 42 = Domain not found
-            if (e.get_error_code() == 42):
-                print(e)
-            else:
-                raise(e)
-        
-        try:
+            # Stop the instance
+            self.stopInstance(vm_id)
+            # Undefine it to remove it from virt
             vm.undefine()
             print(f"Successfully terminated instance {vm_id}")
             return {
@@ -234,8 +240,16 @@ class vmManager:
                 "reason": f"Could not terminate instance {vm_id}: libvirtError {e}",
             }
 
+    # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
+    def __get_vm_connection(self, vm_id):
+        try:
+            return self.currentConnection.lookupByName(vm_id)
+        except libvirt.libvirtError as e:
+            # Error code 42 = Domain not found
+            if (e.get_error_code() == 42):
+                return False
 
-
+    # Generate XML template for virt to create the image with
     def __generate_new_vm_template(self, config):
         cloudinit_xml = ""
         
@@ -261,6 +275,7 @@ class vmManager:
         
         return src.substitute(replace)
     
+    # Generate cloudinit yaml string
     def __generate_cloudinit_config(self, config):
         # If hostname is not supplied, use the instance ID
         if "hostname" not in config or config["hostname"] == "":
@@ -276,6 +291,7 @@ ssh_authorized_keys:
         return cloud_init
 
 
+    # Generate network config for cloudinit yaml string
     def __generate_network_cloudinit_config(self, config):
         cloud_network_init = f"""version: 2
 ethernets:
@@ -293,42 +309,25 @@ ethernets:
 
         return cloud_network_init
     
-
+    # Generate an ISO from the cloudinit YAML files
     def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=""):
 
         # Validate the yaml file
-        logging.debug("Validating Cloudinit config yaml.")
-        process = subprocess.Popen(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_yaml_file_path], 
-                           stdout=subprocess.PIPE,
-                           universal_newlines=True)
-        output = process.stdout.readline()
-        print(output.strip())
-        # Do something else
-        return_code = process.poll()
-        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        if return_code is not None:
-            # There was an issue with the cloud init file
+        logging.debug("Validating Cloudinit config yaml.")        
+        output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_yaml_file_path])
+        if output["return_code"] is not None:
+            # There was an issue with the resize
             #TODO: Condition on error
-            # Process has finished, read rest of the output 
-            for output in process.stdout.readlines():
-                print(output.strip())
+            print("Return code not None")
 
         if cloudinit_network_yaml_file_path:
             logging.debug("Validating Cloudinit Network config yaml.")
-            process = subprocess.Popen(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_network_yaml_file_path], 
-                            stdout=subprocess.PIPE,
-                            universal_newlines=True)
-            output = process.stdout.readline()
-            print(output.strip())
-            # Do something else
-            return_code = process.poll()
-            logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-            if return_code is not None:
-                # There was an issue with the cloud init network file
+            output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_network_yaml_file_path])
+            if output["return_code"] is not None:
+                # There was an issue with the resize
                 #TODO: Condition on error
-                # Process has finished, read rest of the output 
-                for output in process.stdout.readlines():
-                    print(output.strip())
+                print("Return code not None")
+
 
         # Create cloud_init disk image
         cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
@@ -337,30 +336,32 @@ ethernets:
 
         if cloudinit_network_yaml_file_path:
             args.append(f"--network-config={cloudinit_network_yaml_file_path}")
-            #args.append(cloudinit_network_yaml_file_path)
 
-        print(args)
-
-        process = subprocess.Popen(args, 
-                           stdout=subprocess.PIPE,
-                           universal_newlines=True)
-        output = process.stdout.readline()
-        print(output.strip())
-        # Do something else
-        return_code = process.poll()
-        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        if return_code is not None:
-            # There was an issue with the cloud init file
+        output = self.__run_command(args)
+        if output["return_code"] is not None:
+            # There was an issue with the resize
             #TODO: Condition on error
-            # Process has finished, read rest of the output 
-            for output in process.stdout.readlines():
-                print(output.strip())
+            print("Return code not None")
+
         logging.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
 
         return cloudinit_iso_path
 
-    def __generate_vm_id(self):
-        return "vm-" + str(uuid.uuid1()).replace("-", "")[0:8]
+    # Generate a unique ID.
+    def __generate_vm_id(self, type="vm", length=""):
+        # Use default length unless length is manually specified
+        default_vm_length = 8
+        default_vmi_length = 8
+
+        if type == "vm":
+            prefix = "vm-"
+            len = default_vm_length if length == "" else length 
+        elif type  == "vmi":
+            prefix = "vmi-"
+            len = default_vmi_length if length == "" else length 
+
+        uid = str(uuid.uuid1()).replace("-", "")[0:len]
+        return f"{prefix}{uid}"
 
     def __generate_mac_addr(self):
         mac = [ 0x00, 0x16, 0x3e,
@@ -369,6 +370,7 @@ ethernets:
             random.randint(0x00, 0xff) ]
         return ':'.join(map(lambda x: "%02x" % x, mac))
 
+    # Create a path for the files to be created in
     def __generate_vm_path(self, account_id, vm_id):
         vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
         try:
@@ -378,9 +380,25 @@ ethernets:
             logging.error("Encountered an error when attempting to generate VM path. Cannot continue.")
             raise
 
+    # Delete the path for the files
     def __delete_vm_path(self, account_id, vm_id):
         path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        logging.debug(f"Deleting VM Path: {path}")
+
         try:
             shutil.rmtree(path)
         except:
             logging.error("Encountered an error when atempting to delete VM path.")
+
+    def __run_command(self, cmd: list):
+        logging.debug("Running command: ")
+        logging.debug(cmd)
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        output = process.stdout.readline()
+        logging.debug(output.strip())
+        return_code = process.poll()
+        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
+        return {
+            "return_code": return_code,
+            "output": output,
+        }

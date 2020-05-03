@@ -30,10 +30,10 @@ cloudinit_params = {
     "gateway_ip": "172.16.9.1"
 }
 server_params = {
-    #"image": "ubuntu-18.04-server-cloudimg-amd64.img",
-    "vmi": "vmi-293de.qcow2",
+    "image": "ubuntu-18.04-server-cloudimg-amd64.img",
+    #"vmi": "vmi-293de.qcow2",
     "disk_size": "30G",
 }
 #vmHost.createInstance(instanceType, cloudinit_params, server_params)
 #vmHost.stop_vm("vm-04a800da")
-vmHost.terminateInstance("vm-04a800da")
+vmHost.terminateInstance("vm-c947f642")
