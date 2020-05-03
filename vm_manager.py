@@ -12,6 +12,8 @@ from instance_definitions import Instance
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
 VM_GUEST_IMGS = "/data/ssd_storage/guest_images"
 
+CLEAN_UP_ON_FAIL = True
+
 # Flow for VM Creation
 # 1. Generate a VM Id
 # 2. Generate the cloudinit config
@@ -129,6 +131,13 @@ class vmManager:
         self.startInstance(vm_id)
 
         print(f"Successfully created VM: {vm_id} : {vmdir}")
+        return {
+            "success": True,
+            "meta_data": {
+                "vm_id": vm_id
+            },
+            "reason": "",
+        }
 
 
     def startInstance(self, vm_id):
@@ -147,6 +156,12 @@ class vmManager:
         while not vm.isActive():
             logging.info(f"Starting VM '{vm_id}'")
             vm.create()
+        
+        return {
+            "success": True,
+            "meta_data": {},
+            "reason": "",
+        }
     
     def stopInstance(self, vm_id):
         logging.debug(f"Stopping vm: {vm_id}")
@@ -184,6 +199,12 @@ class vmManager:
                     pass
                 else:
                     raise(e)
+
+        return {
+            "success": True,
+            "meta_data": {},
+            "reason": "",
+        }
         
     def terminateInstance(self, vm_id):
         self.stopInstance(vm_id)
@@ -200,8 +221,18 @@ class vmManager:
         try:
             vm.undefine()
             print(f"Successfully terminated instance {vm_id}")
+            return {
+                "success": True,
+                "meta_data": {},
+                "reason": "",
+            }
         except libvirt.libvirtError as e:
             logging.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
+            return {
+                "success": False,
+                "meta_data": {},
+                "reason": f"Could not terminate instance {vm_id}: libvirtError {e}",
+            }
 
 
 
@@ -340,9 +371,16 @@ ethernets:
 
     def __generate_vm_path(self, account_id, vm_id):
         vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
-        pathlib.Path(vm_path).mkdir(parents=True, exist_ok=True)
-        return vm_path
+        try:
+            pathlib.Path(vm_path).mkdir(parents=True, exist_ok=False)
+            return vm_path
+        except:
+            logging.error("Encountered an error when attempting to generate VM path. Cannot continue.")
+            raise
 
     def __delete_vm_path(self, account_id, vm_id):
-        tmp_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
-        shutil.rmtree(tmp_path)
+        path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        try:
+            shutil.rmtree(path)
+        except:
+            logging.error("Encountered an error when atempting to delete VM path.")
