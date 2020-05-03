@@ -1,0 +1,14 @@
+create user echome with password '';
+create database echome;
+# TODO: Fix privileges
+GRANT ALL PRIVILEGES ON DATABASE "echome" to echome;
+
+CREATE TABLE user_keys (
+    id              SERIAL PRIMARY KEY,
+    account         VARCHAR(25),
+    created         timestamp,
+    account_user    VARCHAR(50),
+    key_name        VARCHAR(50),
+    fingerprint     text UNIQUE,
+    public_key      text
+);

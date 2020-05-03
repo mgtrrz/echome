@@ -1,0 +1,4 @@
+flask
+xmltodict
+psycopg2
+sshpubkeys
