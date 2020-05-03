@@ -139,11 +139,50 @@ class vmManager:
             "reason": "",
         }
 
-    def createVirtualMachineImage(self, vm_id):
+    def createVirtualMachineImage(self, account_id, vm_id, vm_name):
+        logging.debug(f"Creating VMI from {vm_name}")
         # Instance needs to be turned off to create an image
         self.stopInstance(vm_id)
 
+        vmi_id = self.__generate_vm_id("vmi")
 
+        user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
+        # Create it if doesn't exist
+        pathlib.Path(user_vmi_dir).mkdir(parents=True, exist_ok=True)
+
+        new_image_full_path = f"{user_vmi_dir}/{vmi_id}.qcow2"
+
+        try:
+            logging.debug(f"Copying image: {vm_name} TO {vmi_id}")
+            shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
+        except:
+            logging.error("Encountered an error on VM copy. Cannot continue.")
+            raise
+        
+        logging.debug(f"Running Sysprep on: {new_image_full_path}")
+        output = self.__run_command(["sudo", "virt-sysprep", "-a", new_image_full_path])
+        if output["return_code"] is not None:
+            # There was an issue with the resize
+            #TODO: Condition on error
+            print("Return code not None")
+
+        logging.debug(f"Running Sparsify on: {new_image_full_path}")
+        self.__run_command(["sudo", "virt-sparsify", "--compress", new_image_full_path])
+        if output["return_code"] is not None:
+            # There was an issue with the resize
+            #TODO: Condition on error
+            print("Return code not None")
+        
+        return {
+            "success": True,
+            "meta_data": {
+                "vmi_id": vmi_id,
+                "vmi_id_file_name": f"{vmi_id}.qcow2",
+            },
+            "reason": "",
+        }
+
+            
 
     def startInstance(self, vm_id):
         vm = self.__get_vm_connection(vm_id)
@@ -210,7 +249,7 @@ class vmManager:
         }
 
     # Terminate the instance 
-    def terminateInstance(self, vm_id):
+    def terminateInstance(self, account_id, vm_id):
         logging.debug(f"Terminating vm: {vm_id}")
 
         vm = self.__get_vm_connection(vm_id)
@@ -226,6 +265,8 @@ class vmManager:
             self.stopInstance(vm_id)
             # Undefine it to remove it from virt
             vm.undefine()
+            # Delete folder/path
+            self.__delete_vm_path(account_id, vm_id)
             print(f"Successfully terminated instance {vm_id}")
             return {
                 "success": True,
