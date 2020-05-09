@@ -1,51 +1,64 @@
 from database import Database
 import sshpubkeys
+import logging
+from sqlalchemy import select, and_
 
 class EchKeystore:
 
-    def store_key(self, database_conneciton_obj: Database, user_obj, key_name, key):
-
+    @staticmethod
+    def store_key(user_obj, key_name, key):
+        db = Database()
         sshkey_obj = sshpubkeys.SSHKey(key)
 
-        query = """
-        INSERT INTO user_keys (
-            account, 
-            created, 
-            account_user, 
-            key_name, 
-            fingerprint, 
-            public_key
+        # Check to make sure a key with this name doesn't already exist
+        select_stmt = select(
+            [db.user_keys.c.key_name]
+        ).where(
+            and_(
+                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.key_name == key_name
+            )
         )
-        VALUES (
-            %s, 
-            'now', 
-            %s, 
-            %s, 
-            %s, 
-            %s
+        results = db.connection.execute(select_stmt).fetchall()
+        if results:
+            logging.error(f"Key with that name already exists. key_name={key_name}")
+            return {
+                "success": False,
+                "meta_data": {
+                    "key_name": key_name
+                },
+                "reason": "Key with that name already exists.",
+            }
+        
+        stmt = db.user_keys.insert().values(
+            account=user_obj["account_id"], 
+            account_user=user_obj["account_user_id"], 
+            key_name=key_name, 
+            fingerprint=sshkey_obj.hash_md5(), 
+            public_key=key
         )
-        """
-        data = (
-            user_obj["account_id"],
-            user_obj["account_user_id"],
-            key_name,
-            sshkey_obj.hash_md5(),
-            key,
-        )
-        print(data)
-        # TODO: Get if command worked or not
-        database_conneciton_obj.insert(query, data)
+        result = db.connection.execute(stmt)
+        if result:
+            return {
+                "success": True,
+                "meta_data": {
+                    "key_name": key_name
+                },
+                "reason": "",
+            }
     
-    def get_key(self, database_conneciton_obj: Database, user_obj, key_name):
+    @staticmethod
+    def get_key(user_obj, key_name):
+        db = Database()
 
-        query = """
-        SELECT public_key from user_keys WHERE account=%s AND key_name=%s
-        """
-        data = (
-            user_obj["account_id"],
-            key_name,
+        select_stmt = select(
+            [db.user_keys.c.public_key]
+        ).where(
+            and_(
+                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.key_name == key_name
+            )
         )
-
-        values = database_conneciton_obj.select(query, data)
-
-        return values[0]
+        results = db.connection.execute(select_stmt).fetchall()
+        if results:
+            return results[0][0]

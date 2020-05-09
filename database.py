@@ -1,46 +1,74 @@
-import psycopg2
 import logging
 from configparser import ConfigParser
 from datetime import datetime
+import sqlalchemy as db
+from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import select
 
-SECTION_NAME = "echome_db"
+SECTION_NAME = "database"
+DB_CONFIG_FILE = "./database.ini"
 
 class Database:
 
-    def __init__(self, config_file_path):
-        self.db_connection = self.get_connection_by_config(config_file_path)
+    metadata = MetaData()
+    user_keys = Table("user_keys", metadata, 
+        Column("id", Integer, primary_key=True),
+        Column("account", String(25)),
+        Column("created", DateTime(timezone=True), server_default=func.now()),
+        Column("account_user", String(50)),
+        Column("key_name", String(50)),
+        Column("fingerprint", TEXT),
+        Column("public_key", TEXT)
+    )
+
+    user_instances = Table("user_instances", metadata, 
+        Column("id", Integer, primary_key=True),
+        Column("account", String(25)),
+        Column("created", DateTime(timezone=True), server_default=func.now()),
+        Column("instance_id", String(20), unique=True),
+        Column("host", String(50)),
+        Column("instance_type", String(20)),
+        Column("instance_size", String(20)),
+        Column("account_user", String(50)),
+        Column("attached_interfaces", JSONB),
+        Column("attached_storage", JSONB),
+        Column("key_name", String(50)),
+        Column("assoc_firewall_rules", JSONB),
+        Column("tags", JSONB)
+    )
+
+    def __init__(self):
+        self.engine = db.engine_from_config(self.get_connection_by_config(DB_CONFIG_FILE), prefix='db.')
+        self.connection = self.engine.connect()
+        self.metadata.create_all(self.engine)
+
+        # s = select([self.user_keys])
+        # result = self.connection.execute(s).fetchall()
+        # print(result)
 
     def get_connection_by_config(self, config_file_path):
+        #TODO: Check if config file exists
         if(len(config_file_path) > 0 and len(SECTION_NAME) > 0):
 
             parser = ConfigParser()
             parser.read(config_file_path)
-
-            if(parser.has_section(SECTION_NAME)):
-
+            if (parser.has_section(SECTION_NAME)):
                 params = parser.items(SECTION_NAME)
                 db_conn_dict = {}
-
                 for param in params:
-                    key = param[0]
-                    value = param[1]
-                    db_conn_dict[key] = value
+                    db_conn_dict[param[0]] = param[1]
+                
+            return db_conn_dict
 
-                self.db_connection = psycopg2.connect(**db_conn_dict)
-                return self.db_connection
         else:
             logging.error("Cannot make a database connection without config file path.")
     
     def insert(self, query, data):
-        cursor = self.db_connection.cursor()
-        cursor.execute(query, data)
-        cursor.close()
-        self.db_connection.commit()
+        print("yes yes yes")
+        result = self.connection.execute(query, data)
+        return result
     
     def select(self, query, data):
-        cursor = self.db_connection.cursor()
-        cursor.execute(query, data)
-        rows = cursor.fetchall()
-        cursor.close()
-        rows=[i[0] for i in rows]
-        return rows
+        result = self.connection.execute(query, data).fetchall()
+        return result
