@@ -7,6 +7,8 @@ import subprocess
 import random
 import shutil
 import time
+from database import Database
+from sqlalchemy import select, and_
 from instance_definitions import Instance
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
@@ -34,16 +36,14 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, instanceType:Instance, cloudinit_params, server_params):
-
-        account_id = "12345"
+    def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params):
 
         logging.debug("Generating vm-id")
         vm_id = self.__generate_vm_id()
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
-        vmdir = self.__generate_vm_path(account_id, vm_id)
+        vmdir = self.__generate_vm_path(user["account_id"], vm_id)
         logging.debug(f"Create VM directory: {vmdir}")
 
 
@@ -80,7 +80,7 @@ class vmManager:
         else:
             img_type = "user virtual machine image"
             img_name = server_params["vmi"]
-            image_base_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
+            image_base_dir = f"{VM_ROOT_DIR}/{user['account_id']}/user_vmi"
 
         # Create a copy of the VM image
         try:
@@ -89,7 +89,7 @@ class vmManager:
         except:
             logging.error("Encountered an error on VM copy. Cannot continue.")
             if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(account_id, vm_id)
+                self.__delete_vm_path(user["account_id"], vm_id)
             raise
 
         vm_img = f"{vmdir}/{img_name}"
@@ -130,6 +130,23 @@ class vmManager:
         logging.info("Starting VM..")
         self.startInstance(vm_id)
 
+        # Add the information for this VM in the db
+        db = Database()
+        stmt = db.user_instances.insert().values(
+            account = user["account_id"],
+            instance_id = vm_id,
+            host = "localhost",
+            instance_type = instanceType.itype,
+            instance_size = instanceType.isize,
+            account_user = user["account_user_id"],
+            attached_interfaces = {},
+            attached_storage = {},
+            key_name = cloudinit_params["cloudinit_key_name"],
+            assoc_firewall_rules = {},
+            tags = tags
+        )
+        result = db.connection.execute(stmt)
+
         print(f"Successfully created VM: {vm_id} : {vmdir}")
         return {
             "success": True,
@@ -138,8 +155,21 @@ class vmManager:
             },
             "reason": "",
         }
+    
+    def getInstanceMetaData(self, user_obj, vm_id):
+        db = Database()
 
-    def createVirtualMachineImage(self, account_id, vm_id, vm_name):
+        select_stmt = select([db.user_instances]).where(
+            and_(
+                db.user_instances.c.account == user_obj["account_id"], 
+                db.user_instances.c.instance_id == vm_id
+            )
+        )
+        results = db.connection.execute(select_stmt).fetchall()
+        print(results)
+        return results
+
+    def createVirtualMachineImage(self, user, account_id, vm_id, vm_name):
         logging.debug(f"Creating VMI from {vm_name}")
         # Instance needs to be turned off to create an image
         self.stopInstance(vm_id)
@@ -259,7 +289,6 @@ class vmManager:
                 "meta_data": {},
                 "reason": f"VM {vm_id} does not exist",
             }
-
         try:
             # Stop the instance
             self.stopInstance(vm_id)
@@ -267,12 +296,7 @@ class vmManager:
             vm.undefine()
             # Delete folder/path
             self.__delete_vm_path(account_id, vm_id)
-            print(f"Successfully terminated instance {vm_id}")
-            return {
-                "success": True,
-                "meta_data": {},
-                "reason": "",
-            }
+
         except libvirt.libvirtError as e:
             logging.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
             return {
@@ -280,6 +304,19 @@ class vmManager:
                 "meta_data": {},
                 "reason": f"Could not terminate instance {vm_id}: libvirtError {e}",
             }
+        
+        self.__delete_vm_path(account_id, vm_id)
+
+        # delete entry in db
+        db = Database()
+        del_stmt = db.user_instances.delete().where(db.user_instances.c.instance_id == vm_id)
+        db.connection.execute(del_stmt)
+
+        return {
+            "success": True,
+            "meta_data": {},
+            "reason": "",
+        }
 
     # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
     def __get_vm_connection(self, vm_id):
@@ -328,7 +365,7 @@ ssh_pwauth: True
 hostname: {}
 ssh_authorized_keys:
   - {}
-        """.format(config["hostname"], config["cloudinit_key"])
+        """.format(config["hostname"], config["cloudinit_public_key"])
         return cloud_init
 
 

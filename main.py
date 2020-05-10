@@ -8,7 +8,6 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-#keystore = EchKeystore()
 user = {
     "account_id": "12345",
     "account_user_id": "11119",
@@ -18,8 +17,12 @@ user = {
 vmHost = vmManager()
 instanceType = Instance("standard", "small")
 
+
+key_meta = EchKeystore().get_key(user, "test_key")
+
 cloudinit_params = {
-    "cloudinit_key": EchKeystore().get_key(user, "test_key"),
+    "cloudinit_key_name": key_meta["key_name"],
+    "cloudinit_pulic_key": key_meta["public_key"],
     "network": "local", # local, private, public?
     "private_ip": "172.16.9.12/24",
     "gateway_ip": "172.16.9.1"
@@ -29,8 +32,15 @@ server_params = {
     #"vmi": "vmi-293de.qcow2",
     "disk_size": "10G",
 }
-print(cloudinit_params)
-#vmHost.createInstance(instanceType, cloudinit_params, server_params)
+tags = {
+    "Name": "examplename",
+    "org": "Testorg",
+    "env": "sandbox",
+    "type": "Random type, maybe kubernetes?"
+}
+#print(cloudinit_params)
+#vmHost.createInstance(user, instanceType, cloudinit_params, server_params)
+vmHost.createInstanceEx(user, instanceType, cloudinit_params, server_params, tags)
 #vmHost.stop_vm("vm-04a800da")
 #vmHost.terminateInstance("vm-c947f642")
 

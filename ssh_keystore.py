@@ -29,7 +29,7 @@ class EchKeystore:
                 },
                 "reason": "Key with that name already exists.",
             }
-        
+
         stmt = db.user_keys.insert().values(
             account=user_obj["account_id"], 
             account_user=user_obj["account_user_id"], 
@@ -51,14 +51,25 @@ class EchKeystore:
     def get_key(user_obj, key_name):
         db = Database()
 
-        select_stmt = select(
-            [db.user_keys.c.public_key]
-        ).where(
+        columns = [
+            db.user_keys.c.key_name, 
+            db.user_keys.c.fingerprint,
+            db.user_keys.c.public_key, 
+        ]
+
+        select_stmt = select(columns).where(
             and_(
                 db.user_keys.c.account == user_obj["account_id"], 
                 db.user_keys.c.key_name == key_name
             )
         )
         results = db.connection.execute(select_stmt).fetchall()
+
         if results:
-            return results[0][0]
+            key_meta = {}
+            i = 0
+            for column in columns:
+                key_meta[column.name] = results[0][i]
+                i += 1
+
+            return key_meta
