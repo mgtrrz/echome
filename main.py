@@ -22,9 +22,9 @@ key_meta = EchKeystore().get_key(user, "test_key")
 
 cloudinit_params = {
     "cloudinit_key_name": key_meta["key_name"],
-    "cloudinit_pulic_key": key_meta["public_key"],
+    "cloudinit_public_key": key_meta["public_key"],
     "network": "local", # local, private, public?
-    "private_ip": "172.16.9.12/24",
+    "private_ip": "172.16.9.13/24",
     "gateway_ip": "172.16.9.1"
 }
 server_params = {
@@ -39,9 +39,16 @@ tags = {
     "type": "Random type, maybe kubernetes?"
 }
 #print(cloudinit_params)
-#vmHost.createInstance(user, instanceType, cloudinit_params, server_params)
-vmHost.createInstanceEx(user, instanceType, cloudinit_params, server_params, tags)
+
+#instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
+#id = instance_data["meta_data"]["vm_id"]
+
+vmHost.getInstanceMetaData(user, "vm-a411285c")
+
+
+
+
 #vmHost.stop_vm("vm-04a800da")
-#vmHost.terminateInstance("vm-c947f642")
+#vmHost.terminateInstance(user, "vm-97bfcda8")
 
 #vmHost.createVirtualMachineImage(user["account_id"], "vm-5946343e", "ubuntu-18.04-server-cloudimg-amd64.img")

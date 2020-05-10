@@ -7,6 +7,7 @@ import subprocess
 import random
 import shutil
 import time
+import json
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
@@ -36,10 +37,10 @@ class vmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
-    def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params):
+    def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags):
 
         logging.debug("Generating vm-id")
-        vm_id = self.__generate_vm_id()
+        vm_id = self.generate_vm_id()
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
@@ -130,6 +131,10 @@ class vmManager:
         logging.info("Starting VM..")
         self.startInstance(vm_id)
 
+        interfaces = {
+            
+        }
+
         # Add the information for this VM in the db
         db = Database()
         stmt = db.user_instances.insert().values(
@@ -145,6 +150,7 @@ class vmManager:
             assoc_firewall_rules = {},
             tags = tags
         )
+        print(stmt)
         result = db.connection.execute(stmt)
 
         print(f"Successfully created VM: {vm_id} : {vmdir}")
@@ -166,7 +172,16 @@ class vmManager:
             )
         )
         results = db.connection.execute(select_stmt).fetchall()
-        print(results)
+        if results:
+            data = {}
+            i = 0
+            for col in db.user_instances.columns:
+                data[col.name] = results[0][i]
+                i += 1
+        # obj = {
+        #     vm_id = results
+        # }
+        print(json.dumps(data, indent=4))
         return results
 
     def createVirtualMachineImage(self, user, account_id, vm_id, vm_name):
@@ -174,7 +189,7 @@ class vmManager:
         # Instance needs to be turned off to create an image
         self.stopInstance(vm_id)
 
-        vmi_id = self.__generate_vm_id("vmi")
+        vmi_id = self.generate_vm_id("vmi")
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
         # Create it if doesn't exist
@@ -279,8 +294,9 @@ class vmManager:
         }
 
     # Terminate the instance 
-    def terminateInstance(self, account_id, vm_id):
+    def terminateInstance(self, user_obj, vm_id):
         logging.debug(f"Terminating vm: {vm_id}")
+        account_id = user_obj["account_id"]
 
         vm = self.__get_vm_connection(vm_id)
         if not vm:
@@ -294,9 +310,6 @@ class vmManager:
             self.stopInstance(vm_id)
             # Undefine it to remove it from virt
             vm.undefine()
-            # Delete folder/path
-            self.__delete_vm_path(account_id, vm_id)
-
         except libvirt.libvirtError as e:
             logging.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
             return {
@@ -305,6 +318,7 @@ class vmManager:
                 "reason": f"Could not terminate instance {vm_id}: libvirtError {e}",
             }
         
+        # Delete folder/path
         self.__delete_vm_path(account_id, vm_id)
 
         # delete entry in db
@@ -426,7 +440,8 @@ ethernets:
         return cloudinit_iso_path
 
     # Generate a unique ID.
-    def __generate_vm_id(self, type="vm", length=""):
+    @staticmethod
+    def generate_vm_id(type="vm", length=""):
         # Use default length unless length is manually specified
         default_vm_length = 8
         default_vmi_length = 8

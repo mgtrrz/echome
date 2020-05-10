@@ -2,9 +2,9 @@ import logging
 from configparser import ConfigParser
 from datetime import datetime
 import sqlalchemy as db
-from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, func
+from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.sql import select
+from sqlalchemy.sql import select, func
 
 SECTION_NAME = "database"
 DB_CONFIG_FILE = "./database.ini"
@@ -25,16 +25,29 @@ class Database:
     user_instances = Table("user_instances", metadata, 
         Column("id", Integer, primary_key=True),
         Column("account", String(25)),
-        Column("created", DateTime(timezone=True), server_default=func.now()),
+        Column("created", DateTime(), nullable=False, server_default=func.now()),
         Column("instance_id", String(20), unique=True),
         Column("host", String(50)),
         Column("instance_type", String(20)),
         Column("instance_size", String(20)),
+        Column("vm_image_metadata", JSONB),
         Column("account_user", String(50)),
         Column("attached_interfaces", JSONB),
         Column("attached_storage", JSONB),
         Column("key_name", String(50)),
         Column("assoc_firewall_rules", JSONB),
+        Column("tags", JSONB)
+    )
+
+    guest_images = Table("guest_images", metadata,
+        Column("id", Integer, primary_key=True),
+        Column("created", DateTime(), nullable=False, server_default=func.now()),
+        Column("guest_image_id", String(20), unique=True),
+        Column("name", String()),
+        Column("description", String()),
+        Column("host", String(50)),
+        Column("minimum_requirements", JSONB),
+        Column("guest_image_metadata", JSONB),
         Column("tags", JSONB)
     )
 
