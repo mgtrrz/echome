@@ -3,6 +3,7 @@ import os.path
 import json
 from database import Database
 from sqlalchemy import select, and_
+from vm_manager import vmManager
 import subprocess
 
 class GuestImage:
@@ -12,7 +13,7 @@ class GuestImage:
     def __init__(self):
         pass
 
-    def registerImage(self, img_path, img_name, img_description, img_metadata):
+    def registerImage(self, img_path, img_name, img_description, img_metadata, host="localhost"):
         db = Database()
 
         # Check to see if a file exists at that path
@@ -25,7 +26,21 @@ class GuestImage:
         obj = json.loads(result["output"])
         print(obj["format"])
 
-        #db.guest_images 
+        img_metadata["format"] = obj["format"]
+        img_metadata["location"] = img_path
+        img_metadata["actual-size"] = obj["actual-size"]
+        img_metadata["virtual-size"] = obj["virtual-size"]
+
+        stmt = db.guest_images.insert().values(
+            guest_image_id=vmManager.generate_vm_id(type="gmi"), 
+            name=img_name, 
+            description=img_description, 
+            host=host,
+            minimum_requirements={},
+            guest_image_metadata=img_metadata,
+            tags={}
+        )
+        print(stmt)
 
     def __str__(self):
         return
