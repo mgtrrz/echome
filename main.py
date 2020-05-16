@@ -4,6 +4,7 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
 from instance_definitions import Instance
+from guest_image import GuestImage
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -52,3 +53,8 @@ vmHost.getInstanceMetaData(user, "vm-a411285c")
 #vmHost.terminateInstance(user, "vm-97bfcda8")
 
 #vmHost.createVirtualMachineImage(user["account_id"], "vm-5946343e", "ubuntu-18.04-server-cloudimg-amd64.img")
+
+
+## Registering images
+gmi = GuestImage()
+gmi.registerImage("/data/ssd_storage/guest_images/ubuntu-16.04-server-cloudimg-amd64-disk1.img", "test", "test description", {"yes":"yes"})
