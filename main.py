@@ -30,7 +30,8 @@ cloudinit_params = {
     "gateway_ip": "172.16.9.1"
 }
 server_params = {
-    "image": "ubuntu-18.04-server-cloudimg-amd64.img",
+    # ubuntu-18.04-server-cloudimg-amd64.img
+    "image_id": "gmi-fc1c9a62",
     #"vmi": "vmi-293de.qcow2",
     "disk_size": "10G",
 }
@@ -42,21 +43,5 @@ tags = {
 }
 #print(cloudinit_params)
 
-#instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
-#id = instance_data["meta_data"]["vm_id"]
-
-vmHost.getInstanceMetaData(user, "vm-a411285c")
-
-
-
-
-#vmHost.stop_vm("vm-04a800da")
-#vmHost.terminateInstance(user, "vm-97bfcda8")
-
-#vmHost.createVirtualMachineImage(user["account_id"], "vm-5946343e", "ubuntu-18.04-server-cloudimg-amd64.img")
-
-
-gmi = GuestImage()
-#results = gmi.getImageMeta("gmi-fc1c9a62")
-results = gmi.getAllImages()
-print(results)
+instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
+print(instance_data["meta_data"]["vm_id"])

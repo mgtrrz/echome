@@ -11,6 +11,7 @@ import json
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
+import guest_image
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
 VM_GUEST_IMGS = "/data/ssd_storage/guest_images"
@@ -74,28 +75,38 @@ class vmManager:
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
         # Is this a guest image or a user-created virtual machine image?
-        if "image" in server_params:
-            img_type = "base guest image"
-            img_name = server_params['image']
-            image_base_dir = f"{VM_GUEST_IMGS}"
+        gmi = guest_image.GuestImage()
+        if "image_id" in server_params:
+            try:
+                img = gmi.getImageMeta(server_params['image_id'])
+                img_type = "base guest image"
+                img_path = img["guest_image_path"]
+                img_format = img["guest_image_metadata"]["format"]
+                #image_base_dir = f"{VM_GUEST_IMGS}"
+            except guest_image.InvalidImageId as e:
+                logging.error(e)
+                if CLEAN_UP_ON_FAIL:
+                    self.__delete_vm_path(user["account_id"], vm_id)
+                raise
+
         else:
+            #TODO: Modify this to use user defined virtual machines using class based off of GuestImage
             img_type = "user virtual machine image"
             img_name = server_params["vmi"]
             image_base_dir = f"{VM_ROOT_DIR}/{user['account_id']}/user_vmi"
 
         # Create a copy of the VM image
+        vm_img = f"{vmdir}/{vm_id}.{img_format}"
         try:
-            logging.debug(f"Copying {img_type}: {image_base_dir}/{img_name} TO {vmdir}")
-            shutil.copy2(f"{image_base_dir}/{img_name}", vmdir)
+            logging.debug(f"Copying {img_type}: {img_path} TO directory {vmdir} as {vm_id}.{img_format}")
+            shutil.copy2(img_path, vm_img)
         except:
             logging.error("Encountered an error on VM copy. Cannot continue.")
             if CLEAN_UP_ON_FAIL:
                 self.__delete_vm_path(user["account_id"], vm_id)
             raise
 
-        vm_img = f"{vmdir}/{img_name}"
         logging.debug(f"Final image: {vm_img}")
-
 
         # Generate VM
         logging.debug(f"Generating vm config")
