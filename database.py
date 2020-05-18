@@ -43,6 +43,7 @@ class Database:
         Column("id", Integer, primary_key=True),
         Column("created", DateTime(), nullable=False, server_default=func.now()),
         Column("guest_image_id", String(20), unique=True),
+        Column("guest_image_path", String(), nullable=False),
         Column("name", String()),
         Column("description", String()),
         Column("host", String(50)),
@@ -55,10 +56,6 @@ class Database:
         self.engine = db.engine_from_config(self.get_connection_by_config(DB_CONFIG_FILE), prefix='db.')
         self.connection = self.engine.connect()
         self.metadata.create_all(self.engine)
-
-        # s = select([self.user_keys])
-        # result = self.connection.execute(s).fetchall()
-        # print(result)
 
     def get_connection_by_config(self, config_file_path):
         #TODO: Check if config file exists

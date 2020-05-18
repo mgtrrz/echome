@@ -1,5 +1,6 @@
 import libvirt
 import sys
+import json
 from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
@@ -55,6 +56,7 @@ vmHost.getInstanceMetaData(user, "vm-a411285c")
 #vmHost.createVirtualMachineImage(user["account_id"], "vm-5946343e", "ubuntu-18.04-server-cloudimg-amd64.img")
 
 
-## Registering images
 gmi = GuestImage()
-gmi.registerImage("/data/ssd_storage/guest_images/ubuntu-16.04-server-cloudimg-amd64-disk1.img", "test", "test description", {"yes":"yes"})
+#results = gmi.getImageMeta("gmi-fc1c9a62")
+results = gmi.getAllImages()
+print(results)
