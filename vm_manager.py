@@ -8,6 +8,7 @@ import random
 import shutil
 import time
 import json
+import datetime
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
@@ -31,6 +32,7 @@ class vmManager:
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
+        self.db = Database()
 
     def getConnection(self):
         return self.currentConnection
@@ -147,8 +149,7 @@ class vmManager:
         }
 
         # Add the information for this VM in the db
-        db = Database()
-        stmt = db.user_instances.insert().values(
+        stmt = self.db.user_instances.insert().values(
             account = user["account_id"],
             instance_id = vm_id,
             host = "localhost",
@@ -162,7 +163,7 @@ class vmManager:
             tags = tags
         )
         print(stmt)
-        result = db.connection.execute(stmt)
+        result = self.db.connection.execute(stmt)
 
         print(f"Successfully created VM: {vm_id} : {vmdir}")
         return {
@@ -173,27 +174,55 @@ class vmManager:
             "reason": "",
         }
     
+    # Get information about a instance/VM
     def getInstanceMetaData(self, user_obj, vm_id):
-        db = Database()
 
-        select_stmt = select([db.user_instances]).where(
+        select_stmt = select([self.db.user_instances]).where(
             and_(
-                db.user_instances.c.account == user_obj["account_id"], 
-                db.user_instances.c.instance_id == vm_id
+                self.db.user_instances.c.account == user_obj["account_id"], 
+                self.db.user_instances.c.instance_id == vm_id
             )
         )
-        results = db.connection.execute(select_stmt).fetchall()
-        if results:
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        instances = []
+        if rows:
+            result = rows[0]
             data = {}
             i = 0
-            for col in db.user_instances.columns:
-                data[col.name] = results[0][i]
+            for col in self.db.user_instances.columns:
+                data[col.name] = str(result[i])
                 i += 1
-        # obj = {
-        #     vm_id = results
-        # }
-        print(json.dumps(data, indent=4))
-        return results
+            instances.append(data)
+
+        return instances
+    
+    # Returns all instances belonging to the account/user
+    def getAllInstances(self, user_obj):
+        columns = [
+            self.db.user_instances.c.created,
+            self.db.user_instances.c.instance_id,
+            self.db.user_instances.c.instance_type,
+            self.db.user_instances.c.instance_size,
+            self.db.user_instances.c.vm_image_metadata,
+            self.db.user_instances.c.account_user,
+            self.db.user_instances.c.attached_interfaces,
+            self.db.user_instances.c.attached_storage,
+            self.db.user_instances.c.key_name,
+            self.db.user_instances.c.assoc_firewall_rules,
+            self.db.user_instances.c.tags
+        ]
+        select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj["account_id"])
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        instances = []
+        if rows:
+            for row in rows:
+                instance = {}
+                i = 0
+                for col in columns:
+                    instance[col.name] = str(row[i])
+                    i += 1
+                instances.append(instance)
+        return instances
 
     def createVirtualMachineImage(self, user, account_id, vm_id, vm_name):
         logging.debug(f"Creating VMI from {vm_name}")
@@ -333,9 +362,8 @@ class vmManager:
         self.__delete_vm_path(account_id, vm_id)
 
         # delete entry in db
-        db = Database()
-        del_stmt = db.user_instances.delete().where(db.user_instances.c.instance_id == vm_id)
-        db.connection.execute(del_stmt)
+        del_stmt = self.db.user_instances.delete().where(self.db.user_instances.c.instance_id == vm_id)
+        self.db.connection.execute(del_stmt)
 
         return {
             "success": True,

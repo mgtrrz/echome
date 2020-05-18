@@ -17,6 +17,8 @@ user = {
 #EchKeystore().store_key(user, "echome", "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1Rkow4SIse59g2J16ykUBOYPRBMCShd9H/bwgFLRARESOsOiYazxVIBL++YPvDj2d+ZAmmiF+RbOBDsTqUO1FXaBQk2tz9WmkNU+22C+yNr54Mup63/yKKlGqJIUe/jH3VzmHFzBoBiSqBuR+ae9L1Wdy0Pj8vvP56vnbU1vuNQCmQMUAWlkjx346d/18O5IjSyc6VMeA3AXUlOHw061Mxq+qfwEx0X4Ndv13y6LBhSfySVXe8IDEnpad2PhlFTCzOkMn4/ZonPKrz52CScEuTID0WY+n964+3I2fL1Z/+iBnOzHWyLx44fhnDq0Gb8s7Mv8lUCRMLKcL9Cv6Kr4Ty38MEnsvtanTDU4W6tjz5G5ZxKXqC6XGOPjiUxmc4b1/+EPQASvd/0eBlQ/4g+Tlj6orcWq+ZK3Bgp4gVk+qFtOIlh9n0oeOiWkV5a9lhUdZzzmWh5VHYPWdU367UPcZEVHlpiEr6wNE7XA7D4rlvKvMY3r6a1LLXGWRHx2sfQk= mark@Marcuss-MacBook-Pro.local")
 
 vmHost = vmManager()
+vmHost.getAllInstances(user)
+print(vmHost)
 instanceType = Instance("standard", "small")
 
 
@@ -43,5 +45,7 @@ tags = {
 }
 #print(cloudinit_params)
 
-instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
-print(instance_data["meta_data"]["vm_id"])
+#instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
+#print(instance_data["meta_data"]["vm_id"])
+
+
