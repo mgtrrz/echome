@@ -12,3 +12,19 @@ CREATE TABLE user_keys (
     fingerprint     text UNIQUE,
     public_key      text
 );
+
+CREATE TABLE user_instances (
+    id              SERIAL PRIMARY KEY,
+    account         VARCHAR(25),
+    created         timestamp,
+    instance_id     VARCHAR(20) UNIQUE,
+    host            VARCHAR(50),
+    instance_type   VARCHAR(12),
+    instance_size   VARCHAR(12),
+    account_user    VARCHAR(50),
+    attached_interfaces      JSONB,
+    attached_storage JSONB,
+    key_name        VARCHAR(50),
+    assoc_firewall_rules JSONB,
+    tags            JSONB
+);
