@@ -166,13 +166,7 @@ class vmManager:
         result = self.db.connection.execute(stmt)
 
         print(f"Successfully created VM: {vm_id} : {vmdir}")
-        return {
-            "success": True,
-            "meta_data": {
-                "vm_id": vm_id
-            },
-            "reason": "",
-        }
+        return vm_id
     
     # Get information about a instance/VM
     def getInstanceMetaData(self, user_obj, vm_id):

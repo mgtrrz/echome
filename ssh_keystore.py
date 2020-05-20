@@ -73,3 +73,8 @@ class EchKeystore:
                 i += 1
 
             return key_meta
+        else:
+            raise KeyDoesNotExist("Specified key name does not exist.")
+
+class KeyDoesNotExist(Exception):
+    pass
