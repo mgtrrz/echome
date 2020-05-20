@@ -21,6 +21,11 @@ user = {
 def home():
     return {}
 
+# curl -X POST 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
+# \&InstanceSize=standard.small \
+# \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
+# \&NetworkInterfaceGatewayIp=172.16.9.1 \
+# \&KeyName=test_key
 @app.route('/v1/vm/create', methods=['POST'])
 def api_vm_create():
     vm = vmManager()
