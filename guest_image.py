@@ -31,13 +31,9 @@ class GuestImage:
             images = []
             image_meta = {}
             for row in results:
-                print(row)
                 i = 0
                 for column in columns:
-                    if column.name == "created":
-                        print(type(row[i]))
-                    
-                    image_meta[column.name] = row[i]
+                    image_meta[column.name] = str(row[i])
                     i += 1
                 images.append(image_meta)
 
@@ -68,7 +64,7 @@ class GuestImage:
             image_meta = {}
             i = 0
             for column in columns:
-                image_meta[column.name] = results[0][i]
+                image_meta[column.name] = str(results[0][i])
                 i += 1
             return image_meta
         else:

@@ -16,8 +16,14 @@ user = {
 }
 
 vmHost = vmManager()
-vmHost.getAllInstances(user)
-print(vmHost)
+print("--all--instances---")
+instances = vmHost.getAllInstances(user)
+print(json.dumps(instances, indent=4))
+
+print("--specific--instance---")
+results = vmHost.getInstanceMetaData(user, "vm-a8b30fda")
+print(results)
+
 instanceType = Instance("standard", "small")
 
 

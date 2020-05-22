@@ -17,6 +17,8 @@ user = {
     "account_user_id": "11119",
 }
 
+vm = vmManager()
+
 @app.route('/', methods=['GET'])
 def home():
     return {}
@@ -26,9 +28,9 @@ def home():
 # \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
 # \&NetworkInterfaceGatewayIp=172.16.9.1 \
 # \&KeyName=test_key
-@app.route('/v1/vm/create', methods=['POST'])
+@app.route('/v1/vm/create', methods=['GET'])
 def api_vm_create():
-    vm = vmManager()
+    
 
     if not "ImageId" in request.args:
         return {"error": "ImageId must be provided when creating a VM."}, 400
@@ -86,9 +88,24 @@ def api_vm_create():
     
     return jsonify({"success": True, "vm_id": vm_id})
 
+
+@app.route('/v1/vm/stop/<vm_id>', methods=['GET'])
+def api_vm_stop(vm_id):
+    return jsonify(vm.stopInstance(vm_id))
+
+
+@app.route('/v1/vm/start/<vm_id>', methods=['GET'])
+def api_vm_start(vm_id):
+    return jsonify(vm.startInstance(vm_id))
+
+
+@app.route('/v1/vm/terminate/<vm_id>', methods=['GET'])
+def api_vm_terminate(vm_id):
+    return jsonify(vm.terminateInstance(user, vm_id))
+
+
 @app.route('/v1/vm/describe/all', methods=['GET'])
 def api_vm_all():
-    vm = vmManager()
     return jsonify(vm.getAllInstances(user))
 
 @app.route('/v1/vm/describe/<vm_id>', methods=['GET'])
@@ -96,17 +113,17 @@ def api_vm_meta(vm_id=None):
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
 
-    vm = vmManager()
     return jsonify(vm.getInstanceMetaData(user, vm_id))
 
-@app.route('/v1/vm/<vm_id>', methods=['POST'])
+
+@app.route('/v1/vm/modify/<vm_id>', methods=['POST'])
 def api_vm_modification(vm_id=None):
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
     
     print(request)
 
-    vm = vmManager()
+    
     return jsonify(vm.getInstanceMetaData(user, vm_id))
 
 app.run(host="0.0.0.0")
