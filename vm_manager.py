@@ -12,6 +12,7 @@ import datetime
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
+from id_gen import IdGenerator
 import guest_image
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
@@ -43,7 +44,7 @@ class vmManager:
     def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags):
 
         logging.debug("Generating vm-id")
-        vm_id = self.generate_vm_id()
+        vm_id = IdGenerator.generate()
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
@@ -223,7 +224,7 @@ class vmManager:
         # Instance needs to be turned off to create an image
         self.stopInstance(vm_id)
 
-        vmi_id = self.generate_vm_id("vmi")
+        vmi_id = IdGenerator.generate("vmi")
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
         # Create it if doesn't exist
@@ -471,27 +472,6 @@ ethernets:
         logging.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
 
         return cloudinit_iso_path
-
-    # Generate a unique ID.
-    @staticmethod
-    def generate_vm_id(type="vm", length=""):
-        # Use default length unless length is manually specified
-        default_vm_length = 8
-        default_vmi_length = 8
-        default = 8
-
-        if type == "vm":
-            prefix = "vm-"
-            len = default_vm_length if length == "" else length 
-        elif type  == "vmi":
-            prefix = "vmi-"
-            len = default_vmi_length if length == "" else length 
-        else:
-            prefix = f"{type}-"
-            len = default if length == "" else length 
-
-        uid = str(uuid.uuid1()).replace("-", "")[0:len]
-        return f"{prefix}{uid}"
 
     def __generate_mac_addr(self):
         mac = [ 0x00, 0x16, 0x3e,
