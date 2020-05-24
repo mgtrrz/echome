@@ -5,7 +5,7 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
 from instance_definitions import Instance
-from guest_image import GuestImage
+#from guest_image import GuestImage
 import logging
 
 logging.basicConfig(level=logging.DEBUG)

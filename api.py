@@ -12,6 +12,7 @@ from guest_image import GuestImage
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+logging.basicConfig(level=logging.DEBUG)
 
 user = {
     "account_id": "12345",
@@ -90,9 +91,9 @@ def api_vm_create():
         "disk_size": dsize,
     }
 
+
     try:
-        vm_id = "1"
-        #vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
+        vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
     except :
         return {"error": "There was an error when creating the instance."}, 500
     

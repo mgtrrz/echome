@@ -81,26 +81,33 @@ class vmManager:
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
         # Is this a guest image or a user-created virtual machine image?
+        logging.debug("Determining image metadata..")
         gmi = guest_image.GuestImage()
         if "image_id" in server_params:
             try:
+                logging.debug(f"Using 'image_id', grabbing image metadata from {server_params['image_id']}")
                 img = gmi.getImageMeta(server_params['image_id'])
-                img_type = "base guest image"
-                img_path = img["guest_image_path"]
-                img_format = img["guest_image_metadata"]["format"]
-                #image_base_dir = f"{VM_GUEST_IMGS}"
             except guest_image.InvalidImageId as e:
+                logging.debug("Uh oh, invalid image Id")
                 logging.error(e)
                 if CLEAN_UP_ON_FAIL:
                     self.__delete_vm_path(user["account_id"], vm_id)
-                raise
-
+                return False
+                #raise guest_image.InvalidImageId(e)
+                
+            logging.debug(json.dumps(img, indent=4))
+            img_type = "base guest image"
+            img_path = img["guest_image_path"]
+            img_format = img["guest_image_metadata"]["format"]
+            #image_base_dir = f"{VM_GUEST_IMGS}"
         else:
             #TODO: Modify this to use user defined virtual machines using class based off of GuestImage
+            logging.debug("Using user virtual machine image")
             img_type = "user virtual machine image"
             img_name = server_params["vmi"]
             image_base_dir = f"{VM_ROOT_DIR}/{user['account_id']}/user_vmi"
 
+        logging.debug("Creating copy of VM Image")
         # Create a copy of the VM image
         vm_img = f"{vmdir}/{vm_id}.{img_format}"
         try:

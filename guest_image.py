@@ -65,7 +65,10 @@ class GuestImage:
             image_meta = {}
             i = 0
             for column in columns:
-                image_meta[column.name] = str(results[0][i])
+                if column.name == "guest_image_metadata":
+                    image_meta[column.name] = results[0][i]
+                else:
+                    image_meta[column.name] = str(results[0][i])
                 i += 1
             return image_meta
         else:
