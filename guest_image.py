@@ -3,6 +3,7 @@ import os.path
 import json
 from database import Database
 from sqlalchemy import select, and_
+from id_gen import IdGenerator
 import datetime
 import subprocess
 
@@ -102,7 +103,7 @@ class GuestImage:
         img_metadata["actual-size"] = obj["actual-size"]
         img_metadata["virtual-size"] = obj["virtual-size"]
 
-        id = vmManager.generate_vm_id(type="gmi")
+        id = IdGenerator.generate(type="gmi")
 
         stmt = self.db.guest_images.insert().values(
             guest_image_id=id, 
