@@ -29,7 +29,7 @@ def home():
 # \&InstanceSize=standard.small \
 # \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
 # \&NetworkInterfaceGatewayIp=172.16.9.1 \
-# \&KeyName=test_key
+# \&KeyName=echome
 @app.route('/v1/vm/create', methods=['GET'])
 def api_vm_create():
     if not "ImageId" in request.args:
@@ -44,10 +44,27 @@ def api_vm_create():
     except InvalidInstanceType:
         return {"error": "Provided InstanceSize is not a valid type or size."}, 400
 
-    print(request.args["Tags"] if "Tags" in request.args else {})
+    tags = {}
+    if "Tags" in request.args:
+        there_are_tags = True
+        x = 1
+        while there_are_tags:
+            if f"Tag.{x}.Key" in request.args:
+
+                keyname = request.args[f"Tag.{x}.Key"]
+                if f"Tag.{x}.Value" in request.args:
+                    value = request.args[f"Tag.{x}.Value"]
+                else:
+                    value = ""
+
+                tags[keyname] = value
+            else:
+                there_are_tags = False
+                continue
+            x = x + 1
 
     dsize = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
-    tags = request.args["Tags"] if "Tags" in request.args else {}
+    
     priv_ip = request.args["NetworkInterfacePrivateIp"] if "NetworkInterfacePrivateIp" in request.args else ""
     gateway_ip = request.args["NetworkInterfaceGatewayIp"] if "NetworkInterfaceGatewayIp" in request.args else ""
     
@@ -74,11 +91,12 @@ def api_vm_create():
     }
 
     try:
-        vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
+        vm_id = "1"
+        #vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
     except :
         return {"error": "There was an error when creating the instance."}, 500
     
-    return jsonify({"success": True, "vm_id": vm_id})
+    return jsonify({"vm_id": vm_id})
 
 
 @app.route('/v1/vm/stop/<vm_id>', methods=['GET'])
@@ -112,6 +130,11 @@ def api_vm_modification(vm_id=None):
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
     return jsonify(vm.getInstanceMetaData(user, vm_id))
+
+####################
+# Namespace: vm 
+# Component: images
+# vm/images
 
 @app.route('/v1/vm/images/guest/all', methods=['GET'])
 def api_guest_image_all():

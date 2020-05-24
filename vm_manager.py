@@ -65,7 +65,10 @@ class vmManager:
 
         # If we set a static IP for the instance, create a network config file
         network_yaml_file_path = ""
+        network_config_at_launch = {}
         if "private_ip" in cloudinit_params:
+            network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
+            network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
             network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
             network_yaml_file_path = f"{vmdir}/network.yaml"
 
@@ -146,7 +149,7 @@ class vmManager:
         self.startInstance(vm_id)
 
         interfaces = {
-            
+            "config_at_launch": network_config_at_launch
         }
 
         # Add the information for this VM in the db
@@ -157,7 +160,7 @@ class vmManager:
             instance_type = instanceType.itype,
             instance_size = instanceType.isize,
             account_user = user["account_user_id"],
-            attached_interfaces = {},
+            attached_interfaces = interfaces,
             attached_storage = {},
             key_name = cloudinit_params["cloudinit_key_name"],
             assoc_firewall_rules = {},
