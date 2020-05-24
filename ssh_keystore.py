@@ -3,8 +3,37 @@ import sshpubkeys
 import logging
 from sqlalchemy import select, and_
 from id_gen import IdGenerator
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend as crypto_default_backend
+
 
 class EchKeystore:
+
+    @staticmethod
+    def create_key(user_obj, key_name):
+        key = rsa.generate_private_key(
+            backend=crypto_default_backend(), 
+            public_exponent=65537, 
+            key_size=2048
+        )
+        private_key = key.private_bytes(
+            crypto_serialization.Encoding.PEM, 
+            crypto_serialization.PrivateFormat.TraditionalOpenSSL, 
+            crypto_serialization.NoEncryption()
+        ).decode("utf-8")
+        public_key = key.public_key().public_bytes(
+            crypto_serialization.Encoding.OpenSSH, 
+            crypto_serialization.PublicFormat.OpenSSH
+        ).decode("utf-8")
+
+        try:
+            result = EchKeystore.store_key(user_obj, key_name, public_key)
+            result["PrivateKey"] = private_key
+        except KeyNameAlreadyExists as e:
+            raise KeyNameAlreadyExists(e)
+
+        return result
 
     @staticmethod
     def store_key(user_obj, key_name, key):
@@ -60,6 +89,7 @@ class EchKeystore:
             return {
                 "key_name": key_name,
                 "key_id": new_id,
+                "fingerprint": new_md5,
             }
     
     @staticmethod
@@ -68,12 +98,14 @@ class EchKeystore:
 
         if get_public_key:
             columns = [
+                db.user_keys.c.key_id,
                 db.user_keys.c.key_name, 
                 db.user_keys.c.fingerprint,
                 db.user_keys.c.public_key, 
             ]
         else:
             columns = [
+                db.user_keys.c.key_id,
                 db.user_keys.c.key_name, 
                 db.user_keys.c.fingerprint,
             ]
@@ -102,6 +134,7 @@ class EchKeystore:
         db = Database()
 
         columns = [
+            db.user_keys.c.key_id,
             db.user_keys.c.key_name, 
             db.user_keys.c.fingerprint,
         ]
@@ -121,8 +154,22 @@ class EchKeystore:
                 keys.append(key_meta)
 
             return keys
-        else:
-            raise KeyDoesNotExist("Specified key name does not exist.")
+
+    
+    @staticmethod
+    def delete_key(user_obj, key_name):
+        try:
+            result = EchKeystore.get_key(user_obj, key_name, get_public_key=False)
+        except KeyDoesNotExist as e:
+            raise KeyDoesNotExist(e)
+
+        db = Database()
+
+        # delete entry in db
+        del_stmt = db.user_keys.delete().where(db.user_keys.c.key_id == result["key_id"])
+        db.connection.execute(del_stmt)
+        return {"success": True}
+
 
 
 class KeyDoesNotExist(Exception):

@@ -118,6 +118,11 @@ def api_guest_image_all():
     gmi = GuestImage()
     return jsonify(gmi.getAllImages())
 
+####################
+# Namespace: vm 
+# Application: ssh_key
+# vm/ssh_key
+
 @app.route('/v1/vm/ssh_key/all', methods=['GET'])
 def api_ssh_keys_all():
     return jsonify(EchKeystore.get_all_keys(user))
@@ -125,6 +130,24 @@ def api_ssh_keys_all():
 @app.route('/v1/vm/ssh_key/<ssh_key_name>', methods=['GET'])
 def api_ssh_key(ssh_key_name=None):
     return jsonify(EchKeystore.get_key(user, ssh_key_name, get_public_key=False))
+
+@app.route('/v1/vm/ssh_key/create', methods=['GET'])
+def api_ssh_key_create():
+    if not "KeyName" in request.args:
+        return {"error": "KeyName must be provided when creating an ssh key."}, 400
+
+    try:
+        result = EchKeystore.create_key(user, request.args["KeyName"])
+    except KeyNameAlreadyExists:
+        return {"error": "Key (KeyName) with that name already exists."}, 400
+
+    return jsonify(result)
+
+@app.route('/v1/vm/ssh_key/delete', methods=['GET'])
+def api_ssh_key_delete():
+    if not "KeyName" in request.args:
+        return {"error": "KeyName must be provided when deleting an ssh key."}, 400
+    return jsonify(EchKeystore.delete_key(user, request.args["KeyName"]))
 
 @app.route('/v1/vm/ssh_key/import', methods=['GET'])
 def api_ssh_key_store():
@@ -144,7 +167,7 @@ def api_ssh_key_store():
     try:
         results = EchKeystore.store_key(user, request.args["KeyName"], pub_key)
     except KeyNameAlreadyExists:
-        return {"error": "Key with that name (KeyName) already exists."}, 400
+        return {"error": "Key (KeyName) with that name already exists."}, 400
     except PublicKeyAlreadyExists:
         return {"error": "Public Key (PublicKey) with that fingerprint already exists."}, 400
 
