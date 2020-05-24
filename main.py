@@ -5,7 +5,7 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
 from instance_definitions import Instance
-from guest_image import GuestImage
+#from guest_image import GuestImage
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -14,9 +14,16 @@ user = {
     "account_id": "12345",
     "account_user_id": "11119",
 }
-#EchKeystore().store_key(user, "echome", "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1Rkow4SIse59g2J16ykUBOYPRBMCShd9H/bwgFLRARESOsOiYazxVIBL++YPvDj2d+ZAmmiF+RbOBDsTqUO1FXaBQk2tz9WmkNU+22C+yNr54Mup63/yKKlGqJIUe/jH3VzmHFzBoBiSqBuR+ae9L1Wdy0Pj8vvP56vnbU1vuNQCmQMUAWlkjx346d/18O5IjSyc6VMeA3AXUlOHw061Mxq+qfwEx0X4Ndv13y6LBhSfySVXe8IDEnpad2PhlFTCzOkMn4/ZonPKrz52CScEuTID0WY+n964+3I2fL1Z/+iBnOzHWyLx44fhnDq0Gb8s7Mv8lUCRMLKcL9Cv6Kr4Ty38MEnsvtanTDU4W6tjz5G5ZxKXqC6XGOPjiUxmc4b1/+EPQASvd/0eBlQ/4g+Tlj6orcWq+ZK3Bgp4gVk+qFtOIlh9n0oeOiWkV5a9lhUdZzzmWh5VHYPWdU367UPcZEVHlpiEr6wNE7XA7D4rlvKvMY3r6a1LLXGWRHx2sfQk= mark@Marcuss-MacBook-Pro.local")
 
 vmHost = vmManager()
+print("--all--instances---")
+instances = vmHost.getAllInstances(user)
+print(json.dumps(instances, indent=4))
+
+print("--specific--instance---")
+results = vmHost.getInstanceMetaData(user, "vm-a8b30fda")
+print(results)
+
 instanceType = Instance("standard", "small")
 
 
@@ -43,5 +50,5 @@ tags = {
 }
 #print(cloudinit_params)
 
-instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
-print(instance_data["meta_data"]["vm_id"])
+#instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
+#print(instance_data["meta_data"]["vm_id"])

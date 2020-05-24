@@ -8,9 +8,11 @@ import random
 import shutil
 import time
 import json
+import datetime
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
+from id_gen import IdGenerator
 import guest_image
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
@@ -31,6 +33,7 @@ class vmManager:
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
+        self.db = Database()
 
     def getConnection(self):
         return self.currentConnection
@@ -41,7 +44,7 @@ class vmManager:
     def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags):
 
         logging.debug("Generating vm-id")
-        vm_id = self.generate_vm_id()
+        vm_id = IdGenerator.generate()
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
@@ -62,7 +65,10 @@ class vmManager:
 
         # If we set a static IP for the instance, create a network config file
         network_yaml_file_path = ""
+        network_config_at_launch = {}
         if "private_ip" in cloudinit_params:
+            network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
+            network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
             network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
             network_yaml_file_path = f"{vmdir}/network.yaml"
 
@@ -75,26 +81,33 @@ class vmManager:
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
         # Is this a guest image or a user-created virtual machine image?
+        logging.debug("Determining image metadata..")
         gmi = guest_image.GuestImage()
         if "image_id" in server_params:
             try:
+                logging.debug(f"Using 'image_id', grabbing image metadata from {server_params['image_id']}")
                 img = gmi.getImageMeta(server_params['image_id'])
-                img_type = "base guest image"
-                img_path = img["guest_image_path"]
-                img_format = img["guest_image_metadata"]["format"]
-                #image_base_dir = f"{VM_GUEST_IMGS}"
             except guest_image.InvalidImageId as e:
+                logging.debug("Uh oh, invalid image Id")
                 logging.error(e)
                 if CLEAN_UP_ON_FAIL:
                     self.__delete_vm_path(user["account_id"], vm_id)
-                raise
-
+                return False
+                #raise guest_image.InvalidImageId(e)
+                
+            logging.debug(json.dumps(img, indent=4))
+            img_type = "base guest image"
+            img_path = img["guest_image_path"]
+            img_format = img["guest_image_metadata"]["format"]
+            #image_base_dir = f"{VM_GUEST_IMGS}"
         else:
             #TODO: Modify this to use user defined virtual machines using class based off of GuestImage
+            logging.debug("Using user virtual machine image")
             img_type = "user virtual machine image"
             img_name = server_params["vmi"]
             image_base_dir = f"{VM_ROOT_DIR}/{user['account_id']}/user_vmi"
 
+        logging.debug("Creating copy of VM Image")
         # Create a copy of the VM image
         vm_img = f"{vmdir}/{vm_id}.{img_format}"
         try:
@@ -143,64 +156,85 @@ class vmManager:
         self.startInstance(vm_id)
 
         interfaces = {
-            
+            "config_at_launch": network_config_at_launch
         }
 
         # Add the information for this VM in the db
-        db = Database()
-        stmt = db.user_instances.insert().values(
+        stmt = self.db.user_instances.insert().values(
             account = user["account_id"],
             instance_id = vm_id,
             host = "localhost",
             instance_type = instanceType.itype,
             instance_size = instanceType.isize,
             account_user = user["account_user_id"],
-            attached_interfaces = {},
+            attached_interfaces = interfaces,
             attached_storage = {},
             key_name = cloudinit_params["cloudinit_key_name"],
             assoc_firewall_rules = {},
             tags = tags
         )
         print(stmt)
-        result = db.connection.execute(stmt)
+        result = self.db.connection.execute(stmt)
 
         print(f"Successfully created VM: {vm_id} : {vmdir}")
-        return {
-            "success": True,
-            "meta_data": {
-                "vm_id": vm_id
-            },
-            "reason": "",
-        }
+        return vm_id
     
+    # Get information about a instance/VM
     def getInstanceMetaData(self, user_obj, vm_id):
-        db = Database()
 
-        select_stmt = select([db.user_instances]).where(
+        select_stmt = select([self.db.user_instances]).where(
             and_(
-                db.user_instances.c.account == user_obj["account_id"], 
-                db.user_instances.c.instance_id == vm_id
+                self.db.user_instances.c.account == user_obj["account_id"], 
+                self.db.user_instances.c.instance_id == vm_id
             )
         )
-        results = db.connection.execute(select_stmt).fetchall()
-        if results:
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        instances = []
+        if rows:
+            result = rows[0]
             data = {}
             i = 0
-            for col in db.user_instances.columns:
-                data[col.name] = results[0][i]
+            for col in self.db.user_instances.columns:
+                data[col.name] = str(result[i])
                 i += 1
-        # obj = {
-        #     vm_id = results
-        # }
-        print(json.dumps(data, indent=4))
-        return results
+            instances.append(data)
+
+        return instances
+    
+    # Returns all instances belonging to the account/user
+    def getAllInstances(self, user_obj):
+        columns = [
+            self.db.user_instances.c.created,
+            self.db.user_instances.c.instance_id,
+            self.db.user_instances.c.instance_type,
+            self.db.user_instances.c.instance_size,
+            self.db.user_instances.c.vm_image_metadata,
+            self.db.user_instances.c.account_user,
+            self.db.user_instances.c.attached_interfaces,
+            self.db.user_instances.c.attached_storage,
+            self.db.user_instances.c.key_name,
+            self.db.user_instances.c.assoc_firewall_rules,
+            self.db.user_instances.c.tags
+        ]
+        select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj["account_id"])
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        instances = []
+        if rows:
+            for row in rows:
+                instance = {}
+                i = 0
+                for col in columns:
+                    instance[col.name] = str(row[i])
+                    i += 1
+                instances.append(instance)
+        return instances
 
     def createVirtualMachineImage(self, user, account_id, vm_id, vm_name):
         logging.debug(f"Creating VMI from {vm_name}")
         # Instance needs to be turned off to create an image
         self.stopInstance(vm_id)
 
-        vmi_id = self.generate_vm_id("vmi")
+        vmi_id = IdGenerator.generate("vmi")
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
         # Create it if doesn't exist
@@ -333,9 +367,8 @@ class vmManager:
         self.__delete_vm_path(account_id, vm_id)
 
         # delete entry in db
-        db = Database()
-        del_stmt = db.user_instances.delete().where(db.user_instances.c.instance_id == vm_id)
-        db.connection.execute(del_stmt)
+        del_stmt = self.db.user_instances.delete().where(self.db.user_instances.c.instance_id == vm_id)
+        self.db.connection.execute(del_stmt)
 
         return {
             "success": True,
@@ -449,27 +482,6 @@ ethernets:
         logging.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
 
         return cloudinit_iso_path
-
-    # Generate a unique ID.
-    @staticmethod
-    def generate_vm_id(type="vm", length=""):
-        # Use default length unless length is manually specified
-        default_vm_length = 8
-        default_vmi_length = 8
-        default = 8
-
-        if type == "vm":
-            prefix = "vm-"
-            len = default_vm_length if length == "" else length 
-        elif type  == "vmi":
-            prefix = "vmi-"
-            len = default_vmi_length if length == "" else length 
-        else:
-            prefix = f"{type}-"
-            len = default if length == "" else length 
-
-        uid = str(uuid.uuid1()).replace("-", "")[0:len]
-        return f"{prefix}{uid}"
 
     def __generate_mac_addr(self):
         mac = [ 0x00, 0x16, 0x3e,
