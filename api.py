@@ -120,7 +120,7 @@ def api_guest_image_all():
 
 ####################
 # Namespace: vm 
-# Application: ssh_key
+# Component: ssh_key
 # vm/ssh_key
 
 @app.route('/v1/vm/ssh_key/all', methods=['GET'])
@@ -147,7 +147,13 @@ def api_ssh_key_create():
 def api_ssh_key_delete():
     if not "KeyName" in request.args:
         return {"error": "KeyName must be provided when deleting an ssh key."}, 400
-    return jsonify(EchKeystore.delete_key(user, request.args["KeyName"]))
+
+    try:
+        result = EchKeystore.delete_key(user, request.args["KeyName"])
+    except KeyDoesNotExist:
+        return {"error": "Key (KeyName) with that name does not exist."}, 400
+
+    return jsonify(result)
 
 @app.route('/v1/vm/ssh_key/import', methods=['GET'])
 def api_ssh_key_store():
