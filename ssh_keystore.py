@@ -2,12 +2,43 @@ from database import Database
 import sshpubkeys
 import logging
 from sqlalchemy import select, and_
+from id_gen import IdGenerator
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend as crypto_default_backend
+
 
 class EchKeystore:
 
     @staticmethod
+    def create_key(user_obj, key_name):
+        key = rsa.generate_private_key(
+            backend=crypto_default_backend(), 
+            public_exponent=65537, 
+            key_size=2048
+        )
+        private_key = key.private_bytes(
+            crypto_serialization.Encoding.PEM, 
+            crypto_serialization.PrivateFormat.TraditionalOpenSSL, 
+            crypto_serialization.NoEncryption()
+        ).decode("utf-8")
+        public_key = key.public_key().public_bytes(
+            crypto_serialization.Encoding.OpenSSH, 
+            crypto_serialization.PublicFormat.OpenSSH
+        ).decode("utf-8")
+
+        try:
+            result = EchKeystore.store_key(user_obj, key_name, public_key)
+            result["PrivateKey"] = private_key
+        except KeyNameAlreadyExists as e:
+            raise KeyNameAlreadyExists(e)
+
+        return result
+
+    @staticmethod
     def store_key(user_obj, key_name, key):
         db = Database()
+
         sshkey_obj = sshpubkeys.SSHKey(key)
 
         # Check to make sure a key with this name doesn't already exist
@@ -22,40 +53,62 @@ class EchKeystore:
         results = db.connection.execute(select_stmt).fetchall()
         if results:
             logging.error(f"Key with that name already exists. key_name={key_name}")
-            return {
-                "success": False,
-                "meta_data": {
-                    "key_name": key_name
-                },
-                "reason": "Key with that name already exists.",
-            }
+            raise KeyNameAlreadyExists(f"Key with that name already exists.")
+
+        # Check to make sure that we haven't already imported this key by
+        # checking its MD5
+        new_md5 = sshkey_obj.hash_md5()
+
+        select_stmt = select(
+            [db.user_keys.c.fingerprint]
+        ).where(
+            and_(
+                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.fingerprint == new_md5
+            )
+        )
+        results = db.connection.execute(select_stmt).fetchall()
+        if results:
+            logging.error(f"Key with that fingerprint already exists. key_name={key_name}")
+            raise PublicKeyAlreadyExists(f"Key with that fingerprint already exists.")
+
+        # Store the new key
+        new_id = IdGenerator.generate("key")
+        logging.debug(f"Generating new key id: {new_id}")
 
         stmt = db.user_keys.insert().values(
             account=user_obj["account_id"], 
             account_user=user_obj["account_user_id"], 
+            key_id=new_id,
             key_name=key_name, 
-            fingerprint=sshkey_obj.hash_md5(), 
+            fingerprint=new_md5, 
             public_key=key
         )
         result = db.connection.execute(stmt)
         if result:
             return {
-                "success": True,
-                "meta_data": {
-                    "key_name": key_name
-                },
-                "reason": "",
+                "key_name": key_name,
+                "key_id": new_id,
+                "fingerprint": new_md5,
             }
     
     @staticmethod
-    def get_key(user_obj, key_name):
+    def get_key(user_obj, key_name, get_public_key=True):
         db = Database()
 
-        columns = [
-            db.user_keys.c.key_name, 
-            db.user_keys.c.fingerprint,
-            db.user_keys.c.public_key, 
-        ]
+        if get_public_key:
+            columns = [
+                db.user_keys.c.key_id,
+                db.user_keys.c.key_name, 
+                db.user_keys.c.fingerprint,
+                db.user_keys.c.public_key, 
+            ]
+        else:
+            columns = [
+                db.user_keys.c.key_id,
+                db.user_keys.c.key_name, 
+                db.user_keys.c.fingerprint,
+            ]
 
         select_stmt = select(columns).where(
             and_(
@@ -73,3 +126,57 @@ class EchKeystore:
                 i += 1
 
             return key_meta
+        else:
+            raise KeyDoesNotExist("Specified key name does not exist.")
+
+    @staticmethod
+    def get_all_keys(user_obj):
+        db = Database()
+
+        columns = [
+            db.user_keys.c.key_id,
+            db.user_keys.c.key_name, 
+            db.user_keys.c.fingerprint,
+        ]
+
+        select_stmt = select(columns).where(
+            db.user_keys.c.account == user_obj["account_id"]
+        )
+        results = db.connection.execute(select_stmt).fetchall()
+        if results:
+            keys = []
+            for row in results:
+                key_meta = {}
+                i = 0
+                for column in columns:
+                    key_meta[column.name] = row[i]
+                    i += 1
+                keys.append(key_meta)
+
+            return keys
+
+    
+    @staticmethod
+    def delete_key(user_obj, key_name):
+        try:
+            result = EchKeystore.get_key(user_obj, key_name, get_public_key=False)
+        except KeyDoesNotExist as e:
+            raise KeyDoesNotExist(e)
+
+        db = Database()
+
+        # delete entry in db
+        del_stmt = db.user_keys.delete().where(db.user_keys.c.key_id == result["key_id"])
+        db.connection.execute(del_stmt)
+        return {"success": True}
+
+
+
+class KeyDoesNotExist(Exception):
+    pass
+
+class KeyNameAlreadyExists(Exception):
+    pass
+
+class PublicKeyAlreadyExists(Exception):
+    pass

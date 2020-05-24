@@ -16,6 +16,7 @@ class Database:
         Column("id", Integer, primary_key=True),
         Column("account", String(25)),
         Column("created", DateTime(timezone=True), server_default=func.now()),
+        Column("key_id", String(20), unique=True),
         Column("account_user", String(50)),
         Column("key_name", String(50)),
         Column("fingerprint", TEXT),
