@@ -464,7 +464,7 @@ class vmManager:
 
         cloud_init = """#cloud-config
 chpasswd: {{ expire: False }}
-ssh_pwauth: True
+ssh_pwauth: False
 hostname: {}
 ssh_authorized_keys:
   - {}
