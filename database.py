@@ -42,6 +42,7 @@ class Database:
 
     guest_images = Table("guest_images", metadata,
         Column("id", Integer, primary_key=True),
+        Column("account", String(20), nullable=True),
         Column("created", DateTime(), nullable=False, server_default=func.now()),
         Column("guest_image_id", String(20), unique=True),
         Column("guest_image_path", String(), nullable=False),

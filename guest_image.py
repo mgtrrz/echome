@@ -11,12 +11,17 @@ class GuestImage:
 
     imageType = "guest"
 
-    def __init__(self, id=""):
+    def __init__(self, user=None):
         self.db = Database()
+        if self.imageType == "user":
+            if not user:
+                raise UserImageInvalidUser("User object required when calling UserImage class")
+            self.user = user
     
     def getAllImages(self):
         columns = [
             self.db.guest_images.c.created,
+            self.db.guest_images.c.account,
             self.db.guest_images.c.guest_image_id,
             self.db.guest_images.c.guest_image_path,
             self.db.guest_images.c.name,
@@ -26,7 +31,14 @@ class GuestImage:
             self.db.guest_images.c.guest_image_metadata,
             self.db.guest_images.c.tags,
         ]
-        select_stmt = select(columns)
+
+        if self.imageType == "guest":
+            select_stmt = select(columns)
+        elif self.imageType == "user":
+            select_stmt = select(columns).where(
+                self.db.guest_images.c.account == self.user["account_id"]
+            )
+        
         results = self.db.connection.execute(select_stmt).fetchall()
         if results:
             images = []
@@ -47,6 +59,7 @@ class GuestImage:
 
         columns = [
             self.db.guest_images.c.created,
+            self.db.guest_images.c.account,
             self.db.guest_images.c.guest_image_id,
             self.db.guest_images.c.guest_image_path,
             self.db.guest_images.c.name,
@@ -57,9 +70,19 @@ class GuestImage:
             self.db.guest_images.c.tags,
         ]
 
-        select_stmt = select(columns).where(
-            self.db.guest_images.c.guest_image_id == img_id
-        )
+        if self.imageType == "guest":
+            select_stmt = select(columns).where(
+                self.db.guest_images.c.guest_image_id == img_id
+            )
+        elif self.imageType == "user":
+            select_stmt = select(columns).where(
+                and_(
+                    self.db.guest_images.c.account == self.user["account_id"],
+                    self.db.guest_images.c.guest_image_id == img_id
+                )
+            )
+
+
         results = self.db.connection.execute(select_stmt).fetchall()
         if results:
             image_meta = {}
@@ -86,11 +109,8 @@ class GuestImage:
         # Check to make sure an image at the path already exists
         select_stmt = select(
             [self.db.guest_images.c.guest_image_id]
-        ).where(
-            and_(
-                self.db.guest_images.c.guest_image_path == img_path
-            )
-        )
+        ).where(self.db.guest_images.c.guest_image_path == img_path)
+
         results = self.db.connection.execute(select_stmt).fetchall()
         if results:
             logging.error(f"Image already exists in database. img_path={img_path}")
@@ -108,16 +128,30 @@ class GuestImage:
 
         id = IdGenerator.generate(type="gmi")
 
-        stmt = self.db.guest_images.insert().values(
-            guest_image_id=id, 
-            guest_image_path=img_path,
-            name=img_name, 
-            description=img_description, 
-            host=host,
-            minimum_requirements={},
-            guest_image_metadata=img_metadata,
-            tags={}
-        )
+        if self.imageType == "guest":
+            stmt = self.db.guest_images.insert().values(
+                guest_image_id=id, 
+                guest_image_path=img_path,
+                name=img_name, 
+                description=img_description, 
+                host=host,
+                minimum_requirements={},
+                guest_image_metadata=img_metadata,
+                tags={}
+            )
+        elif self.imageType == "user":
+            stmt = self.db.guest_images.insert().values(
+                account=self.user["account_id"],
+                guest_image_id=id, 
+                guest_image_path=img_path,
+                name=img_name, 
+                description=img_description, 
+                host=host,
+                minimum_requirements={},
+                guest_image_metadata=img_metadata,
+                tags={}
+            )
+        
         result = self.db.connection.execute(stmt)
         if result:
             return id
@@ -141,6 +175,10 @@ class GuestImage:
             "output": output,
         }
 
+class UserImage(GuestImage):
+    imageType = "user"
+    pass
+
 class InvalidImageId(Exception):
     pass
 
@@ -148,4 +186,7 @@ class InvalidImagePath(Exception):
     pass
 
 class InvalidImageAlreadyExists(Exception):
+    pass
+
+class UserImageInvalidUser(Exception):
     pass
