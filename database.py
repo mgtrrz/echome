@@ -2,7 +2,7 @@ import logging
 from configparser import ConfigParser
 from datetime import datetime
 import sqlalchemy as db
-from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine
+from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
 
@@ -21,6 +21,20 @@ class Database:
         Column("key_name", String(50)),
         Column("fingerprint", TEXT),
         Column("public_key", TEXT)
+    )
+
+    users = Table("users", metadata, 
+        Column("id", Integer, primary_key=True),
+        Column("user_id", String(25), unique=True, nullable=False),
+        Column("auth_id", String(25), unique=True, nullable=False),
+        Column("name", String(50), nullable=False),
+        Column("account", String(25)),
+        Column("created", DateTime(timezone=True), server_default=func.now()),
+        Column("token_start",  DateTime(timezone=True)),
+        Column("active_token", TEXT),
+        Column("secret", TEXT),
+        Column("active", Boolean),
+        Column("tags", JSONB),
     )
 
     user_instances = Table("user_instances", metadata, 
