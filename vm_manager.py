@@ -152,8 +152,14 @@ class vmManager:
         
         logging.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
+        
+        logging.debug("Setting autostart to 1")
+        domain = self.__get_virtlib_domain(vm_id)
+        domain.setAutostart(1)
+        
         logging.info("Starting VM..")
         self.startInstance(vm_id)
+
 
         interfaces = {
             "config_at_launch": network_config_at_launch
@@ -275,7 +281,7 @@ class vmManager:
             
 
     def startInstance(self, vm_id):
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -298,7 +304,7 @@ class vmManager:
     
     def stopInstance(self, vm_id):
         logging.debug(f"Stopping vm: {vm_id}")
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -343,7 +349,7 @@ class vmManager:
         logging.debug(f"Terminating vm: {vm_id}")
         account_id = user_obj["account_id"]
 
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -377,7 +383,7 @@ class vmManager:
         }
 
     # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
-    def __get_vm_connection(self, vm_id):
+    def __get_virtlib_domain(self, vm_id):
         try:
             return self.currentConnection.lookupByName(vm_id)
         except libvirt.libvirtError as e:
