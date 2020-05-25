@@ -203,14 +203,13 @@ class vmManager:
             for col in self.db.user_instances.columns:
                 data[col.name] = str(result[i])
                 i += 1
+            # Get instance state
+            state, state_int, _  = self.getVmState(vm_id)
+            data["state"] = {
+                "code": state_int,
+                "state": state,
+            }
             instances.append(data)
-        
-        # Get instance state
-        state, state_int, _  = self.getVmState(vm_id)
-        instances[0]["state"] = {
-            "code": state_int,
-            "state": state,
-        }
 
         return instances
     
