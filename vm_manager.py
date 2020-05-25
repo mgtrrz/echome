@@ -204,6 +204,13 @@ class vmManager:
                 data[col.name] = str(result[i])
                 i += 1
             instances.append(data)
+        
+        # Get instance state
+        state, state_int, _  = self.getVmState(vm_id)
+        instances[0]["state"] = {
+            "code": state_int,
+            "state": state,
+        }
 
         return instances
     
@@ -232,6 +239,12 @@ class vmManager:
                 for col in columns:
                     instance[col.name] = str(row[i])
                     i += 1
+
+                state, state_int, _  = self.getVmState(instance["instance_id"])
+                instance["state"] = {
+                    "code": state_int,
+                    "state": state,
+                }
                 instances.append(instance)
         return instances
 
@@ -277,6 +290,32 @@ class vmManager:
             },
             "reason": "",
         }
+
+    def getVmState(self, vm_id):
+        domain = self.__get_virtlib_domain(vm_id)
+        state_int, reason = domain.state()
+
+        if state_int == libvirt.VIR_DOMAIN_NOSTATE:
+            state_str = "no_state"
+        elif state_int == libvirt.VIR_DOMAIN_RUNNING:
+            state_str = "running"
+        elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
+            state_str = "blocked"
+        elif state_int == libvirt.VIR_DOMAIN_PAUSED:
+            state_str = "paused"
+        elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
+            state_str = "shutdown"
+        elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
+            state_str = "shutoff"
+        elif state_int == libvirt.VIR_DOMAIN_CRASHED:
+            state_str = "crashed"
+        elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
+            # power management (entered into s3 state)
+            state_str = "pm_suspended"
+        else:
+            state_str = "unknown"
+
+        return state_str, state_int, str(reason)
 
             
 
