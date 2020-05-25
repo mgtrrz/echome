@@ -152,8 +152,14 @@ class vmManager:
         
         logging.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
+        
+        logging.debug("Setting autostart to 1")
+        domain = self.__get_virtlib_domain(vm_id)
+        domain.setAutostart(1)
+        
         logging.info("Starting VM..")
         self.startInstance(vm_id)
+
 
         interfaces = {
             "config_at_launch": network_config_at_launch
@@ -197,6 +203,12 @@ class vmManager:
             for col in self.db.user_instances.columns:
                 data[col.name] = str(result[i])
                 i += 1
+            # Get instance state
+            state, state_int, _  = self.getVmState(vm_id)
+            data["state"] = {
+                "code": state_int,
+                "state": state,
+            }
             instances.append(data)
 
         return instances
@@ -226,6 +238,12 @@ class vmManager:
                 for col in columns:
                     instance[col.name] = str(row[i])
                     i += 1
+
+                state, state_int, _  = self.getVmState(instance["instance_id"])
+                instance["state"] = {
+                    "code": state_int,
+                    "state": state,
+                }
                 instances.append(instance)
         return instances
 
@@ -272,10 +290,36 @@ class vmManager:
             "reason": "",
         }
 
+    def getVmState(self, vm_id):
+        domain = self.__get_virtlib_domain(vm_id)
+        state_int, reason = domain.state()
+
+        if state_int == libvirt.VIR_DOMAIN_NOSTATE:
+            state_str = "no_state"
+        elif state_int == libvirt.VIR_DOMAIN_RUNNING:
+            state_str = "running"
+        elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
+            state_str = "blocked"
+        elif state_int == libvirt.VIR_DOMAIN_PAUSED:
+            state_str = "paused"
+        elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
+            state_str = "shutdown"
+        elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
+            state_str = "shutoff"
+        elif state_int == libvirt.VIR_DOMAIN_CRASHED:
+            state_str = "crashed"
+        elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
+            # power management (entered into s3 state)
+            state_str = "pm_suspended"
+        else:
+            state_str = "unknown"
+
+        return state_str, state_int, str(reason)
+
             
 
     def startInstance(self, vm_id):
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -298,7 +342,7 @@ class vmManager:
     
     def stopInstance(self, vm_id):
         logging.debug(f"Stopping vm: {vm_id}")
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -343,7 +387,7 @@ class vmManager:
         logging.debug(f"Terminating vm: {vm_id}")
         account_id = user_obj["account_id"]
 
-        vm = self.__get_vm_connection(vm_id)
+        vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
                 "success": False,
@@ -377,7 +421,7 @@ class vmManager:
         }
 
     # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
-    def __get_vm_connection(self, vm_id):
+    def __get_virtlib_domain(self, vm_id):
         try:
             return self.currentConnection.lookupByName(vm_id)
         except libvirt.libvirtError as e:
@@ -419,7 +463,7 @@ class vmManager:
 
         cloud_init = """#cloud-config
 chpasswd: {{ expire: False }}
-ssh_pwauth: True
+ssh_pwauth: False
 hostname: {}
 ssh_authorized_keys:
   - {}
