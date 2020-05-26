@@ -50,38 +50,14 @@ class Session:
 
     def __get_local_config(self, config_file, profile):
         if(len(config_file) > 0 and len(profile) > 0):
-            # profile == ConfigParser's "section" (e.g. [default])
-            parser = ConfigParser()
-            parser.read(config_file)
-            if (parser.has_section(profile)):
-                params = parser.items(profile)
-
-                config = {}
-                for param in params:
-                    config[param[0]] = param[1]
-            else:
-                logging.error("Config file does not have configuration details for the specified profile.")
-                raise ConfigFileError("Config file does not have configuration details for the specified profile.")
-            return config
+            return self.__parse_file(config_file, profile)
         else:
             logging.error("Config file does not appear to be set up correctly.")
             raise ConfigFileError("Config file does not appear to be set up correctly.")
 
     def __get_local_credentials(self, credentials_file, profile):
         if(len(credentials_file) > 0 and len(profile) > 0):
-            # profile == ConfigParser's "section" (e.g. [default])
-            parser = ConfigParser()
-            parser.read(credentials_file)
-            if (parser.has_section(profile)):
-                params = parser.items(profile)
-
-                creds = {}
-                for param in params:
-                    creds[param[0]] = param[1]
-            else:
-                logging.error("Credentials file does not have credentials for the specified profile.")
-                raise CredentialsFileError("Credentials file does not have credentials for the specified profile.")
-            return creds
+            return self.__parse_file(credentials_file, profile)
         else:
             logging.error("Credentials file does not appear to be set up correctly.")
             raise CredentialsFileError("Credentials file does not appear to be set up correctly.")
@@ -89,6 +65,21 @@ class Session:
     def resource(self, type):
         req_resource = getattr(sys.modules[__name__], type)
         return req_resource(Session())
+    
+    def __parse_file(self, file, profile):
+         # profile == ConfigParser's "section" (e.g. [default])
+        parser = ConfigParser()
+        parser.read(file)
+        if (parser.has_section(profile)):
+            items = parser.items(profile)
+
+            dict_items = {}
+            for item in items:
+                dict_items[item[0]] = item[1]
+        else:
+            logging.error(f"Parsed file {file} does not have items for the specified profile [{profile}].")
+            raise CredentialsFileError(f"Parsed file {file} does not have items for the specified profile [{profile}].")
+        return dict_items
 
 class CredentialsFileError(Exception):
     pass
