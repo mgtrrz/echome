@@ -1,1 +1,1 @@
-from .resource import resource
+from .session import Session

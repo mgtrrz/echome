@@ -1,12 +1,8 @@
-import sys
+# import sys
+# import requests
+# from .session import Session
+# from .vm import vm
 
-def resource(type):
-    req_resource = getattr(sys.modules[__name__], type)
-    return req_resource()
-
-class vm:
-    def __init__(self, session):
-        self.session = ""
-
-    def get_all_vms(self):
-        pass
+# def resource(type, session: Session):
+#     req_resource = getattr(sys.modules[__name__], type)
+#     return req_resource(session)
