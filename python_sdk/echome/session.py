@@ -3,7 +3,7 @@ from configparser import ConfigParser
 from os import getenv
 from pathlib import Path
 import sys
-from .vm import Vm, Images
+from .vm import Vm, Images, SshKey
 
 default_echome_dir = ".echome"
 default_config_file = "config"

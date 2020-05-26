@@ -22,5 +22,12 @@ vm = Session().resource("Vm")
 # print(ret)
 #print(vm.status_code)
 
-ret = Session().resource("Images").guest().describe_all()
+images = Session().resource("Images")
+ret = images.guest().describe_all()
+print(ret)
+
+# SshKeys
+sshkey = Session().resource("SshKey")
+
+ret = sshkey.describe_all()
 print(ret)
