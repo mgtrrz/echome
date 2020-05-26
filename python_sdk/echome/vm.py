@@ -1,5 +1,6 @@
 import requests
 import logging
+import base64
 
 class base_echome:
     def __init__(self, session):
@@ -10,20 +11,15 @@ class Vm (base_echome):
     namespace = "vm"
 
     def describe_all(self):
-        logging.debug(f"Making call to URL: {self.base_url}/describe/all")
         r = requests.get(f"{self.base_url}/describe/all")
         self.status_code = r.status_code
         return r.json()
 
     def describe(self, vm_id):
-        logging.debug(f"Making call to URL: {self.base_url}/describe/{vm_id}")
         r = requests.get(f"{self.base_url}/describe/{vm_id}")
         self.status_code = r.status_code
         return r.json()
 
-    #####
-    # TODO
-    #####
     def create(self, **kwargs):
 
         if "Tags" in kwargs:
@@ -78,6 +74,11 @@ class Images (base_echome):
             self.status_code = r.status_code
             return r.json()
     
+    def __describe_all(self):
+        r = requests.get(f"{self.base_url}/all")
+        self.status_code = r.status_code
+        return r.json()
+    
     def guest(self):
         return self.__guest(self.session)
 
@@ -86,3 +87,36 @@ class Images (base_echome):
 
 class InvalidImageType(Exception):
     pass
+
+class SshKey (base_echome):
+    namespace = "vm/ssh_key"
+
+    def describe_all(self):
+        r = requests.get(f"{self.base_url}/describe/all")
+        self.status_code = r.status_code
+        return r.json()
+    
+    def describe(self, KeyName):
+        r = requests.get(f"{self.base_url}/describe/{KeyName}")
+        self.status_code = r.status_code
+        return r.json()
+    
+    def create(self, KeyName):
+        r = requests.get(f"{self.base_url}/create", params={"KeyName": KeyName})
+        self.status_code = r.status_code
+        return r.json()
+    
+    def delete(self, KeyName):
+        r = requests.get(f"{self.base_url}/delete/{KeyName}")
+        self.status_code = r.status_code
+        return r.json()
+    
+    def import_key(self, KeyName, PublicKey):
+
+        args = {
+            "KeyName": KeyName,
+            "PublicKey": base64.urlsafe_b64encode(PublicKey)
+        }
+        r = requests.get(f"{self.base_url}/import", params=args)
+        self.status_code = r.status_code
+        return r.json()

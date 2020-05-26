@@ -147,11 +147,11 @@ def api_guest_image_all():
 # Component: ssh_key
 # vm/ssh_key
 
-@app.route('/v1/vm/ssh_key/all', methods=['GET'])
+@app.route('/v1/vm/ssh_key/describe/all', methods=['GET'])
 def api_ssh_keys_all():
     return jsonify(EchKeystore.get_all_keys(user))
 
-@app.route('/v1/vm/ssh_key/<ssh_key_name>', methods=['GET'])
+@app.route('/v1/vm/ssh_key/describe/<ssh_key_name>', methods=['GET'])
 def api_ssh_key(ssh_key_name=None):
     return jsonify(EchKeystore.get_key(user, ssh_key_name, get_public_key=False))
 
@@ -167,13 +167,13 @@ def api_ssh_key_create():
 
     return jsonify(result)
 
-@app.route('/v1/vm/ssh_key/delete', methods=['GET'])
-def api_ssh_key_delete():
-    if not "KeyName" in request.args:
+@app.route('/v1/vm/ssh_key/delete/<ssh_key_name>', methods=['GET'])
+def api_ssh_key_delete(ssh_key_name=None):
+    if not ssh_key_name:
         return {"error": "KeyName must be provided when deleting an ssh key."}, 400
 
     try:
-        result = EchKeystore.delete_key(user, request.args["KeyName"])
+        result = EchKeystore.delete_key(user, ssh_key_name)
     except KeyDoesNotExist:
         return {"error": "Key (KeyName) with that name does not exist."}, 400
 
@@ -192,7 +192,7 @@ def api_ssh_key_store():
         pub_key = base64.b64decode(request.args["PublicKey"])
         pub_key = pub_key.decode()
     except TypeError:
-        return {"error": "Could not decode PublicKey string. Retry with a base64 encoded PublicKey string or verify string is base64 properly encoded."}, 400
+        return {"error": "Could not decode PublicKey string. Retry with a base64 encoded PublicKey string or verify string is properly base64 encoded."}, 400
 
     try:
         results = EchKeystore.store_key(user, request.args["KeyName"], pub_key)
