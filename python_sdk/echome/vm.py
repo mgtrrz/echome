@@ -4,14 +4,16 @@ import base64
 import json
 
 class base_resource:
+    namespace = ""
+
     def __init__(self, session, item_id=None):
         self.init_session(session)
     
     def init_session(self, session, namespace=""):
-        self.base_url = f"{session.protocol}{session.server_url}/{session.api_version}/{self.namespace}"
-        self.session = session
         if namespace:
             self.namespace = namespace
+        self.base_url = f"{session.protocol}{session.server_url}/{session.api_version}/{self.namespace}"
+        self.session = session
     
     def unpack_tags(self, tags: dict):
         tag_dict = {}
@@ -132,7 +134,6 @@ class Instance (base_resource):
 # TODO: Return image objects
 
 class Images (base_resource):
-    namespace = "vm/images"
     class __guest (base_resource):
         namespace = "vm/images/guest"
 
@@ -163,44 +164,46 @@ class Images (base_resource):
 class InvalidImageType(Exception):
     pass
 
+
 class SshKey (base_resource):
     namespace = "vm/ssh_key"
 
     def describe_all(self):
         r = requests.get(f"{self.base_url}/describe/all")
-
         self.status_code = r.status_code
+        return r.json()
 
-        if r.status_code == 200:
-            json_res = json.loads(r.text)
-            keys = []
-            for key in json_res:
-                obj = SshKeyObject(
-                    self.session, 
-                    self.namespace,
-                    fingerprint=key["fingerprint"],
-                    key_id=key["key_id"],
-                    key_name=key["key_name"]
-                )
-                keys.append(obj)
-        return keys
+        # if r.status_code == 200:
+        #     json_res = json.loads(r.text)
+        #     keys = []
+        #     for key in json_res:
+        #         obj = SshKeyObject(
+        #             self.session, 
+        #             self.namespace,
+        #             fingerprint=key["fingerprint"],
+        #             key_id=key["key_id"],
+        #             key_name=key["key_name"]
+        #         )
+        #         keys.append(obj)
+        # return keys
     
     def describe(self, KeyName):
         r = requests.get(f"{self.base_url}/describe/{KeyName}")
 
         self.status_code = r.status_code
+        return r.json()
 
-        if r.status_code == 200:
-            json_res = json.loads(r.text)
-            for key in json_res:
-                obj = SshKeyObject(
-                    self.session, 
-                    self.namespace,
-                    fingerprint=key["fingerprint"],
-                    key_id=key["key_id"],
-                    key_name=key["key_name"]
-                )
-        return obj
+        # if r.status_code == 200:
+        #     json_res = json.loads(r.text)
+        #     for key in json_res:
+        #         obj = SshKeyObject(
+        #             self.session, 
+        #             self.namespace,
+        #             fingerprint=key["fingerprint"],
+        #             key_id=key["key_id"],
+        #             key_name=key["key_name"]
+        #         )
+        # return obj
     
     def create(self, KeyName):
         r = requests.get(f"{self.base_url}/create", params={"KeyName": KeyName})

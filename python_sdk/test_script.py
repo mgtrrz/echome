@@ -1,5 +1,6 @@
 from echome import Session, Vm, Images, SshKey
 import logging
+import json
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -9,6 +10,7 @@ logging.basicConfig(level=logging.DEBUG)
 vm_client = Session().client("Vm")
 
 vms = vm_client.describe_all()
+print("VMs__________________________________")
 for vm in vms:
     name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
     print(f"{vm['instance_id']}\t{name}")
@@ -49,9 +51,18 @@ for vm in vms:
 # print(ret)
 #print(vm.status_code)
 
-# images = Session().client("Images")
-# ret = images.guest().describe_all()
-# #print(ret)
+
+guest_images = Session().client("Images").guest().describe_all()
+print("\nGuest Images_______________________")
+for guest_img in guest_images:
+    print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
+
+
+ssh_keys = Session().client("SshKey").describe_all()
+print("\nSSH Keys___________________________")
+for sshkey in ssh_keys:
+    print(f"{sshkey['key_id']}\t{sshkey['key_name']}\t{sshkey['fingerprint']}")
+
 
 # # SshKeys
 # sshkey = Session().client("SshKey")

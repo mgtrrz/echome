@@ -42,8 +42,8 @@ class GuestImage:
         results = self.db.connection.execute(select_stmt).fetchall()
         if results:
             images = []
-            image_meta = {}
             for row in results:
+                image_meta = {}
                 i = 0
                 for column in columns:
                     image_meta[column.name] = str(row[i])
