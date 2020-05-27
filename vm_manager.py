@@ -201,7 +201,10 @@ class vmManager:
             data = {}
             i = 0
             for col in self.db.user_instances.columns:
-                data[col.name] = str(result[i])
+                if col.name == "tags":
+                    data[col.name] = result[i]
+                else:
+                    data[col.name] = str(result[i])
                 i += 1
             # Get instance state
             state, state_int, _  = self.getVmState(vm_id)
@@ -236,7 +239,10 @@ class vmManager:
                 instance = {}
                 i = 0
                 for col in columns:
-                    instance[col.name] = str(row[i])
+                    if col.name == "tags":
+                        instance[col.name] = row[i]
+                    else:
+                        instance[col.name] = str(row[i])
                     i += 1
 
                 state, state_int, _  = self.getVmState(instance["instance_id"])

@@ -118,14 +118,16 @@ class EchKeystore:
         )
         results = db.connection.execute(select_stmt).fetchall()
 
+        keys = []
         if results:
             key_meta = {}
             i = 0
             for column in columns:
                 key_meta[column.name] = results[0][i]
                 i += 1
+            keys.append(key_meta)
 
-            return key_meta
+            return keys
         else:
             raise KeyDoesNotExist("Specified key name does not exist.")
 

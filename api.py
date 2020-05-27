@@ -8,7 +8,7 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from instance_definitions import Instance, InvalidInstanceType
-from guest_image import GuestImage
+from guest_image import GuestImage, UserImage, UserImageInvalidUser
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -75,7 +75,7 @@ def api_vm_create():
         try:
             keyname = request.args["KeyName"]
             key_meta = EchKeystore.get_key(user, keyname)
-            pub_key = key_meta["public_key"]
+            pub_key = key_meta[0]["public_key"]
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
     
@@ -141,6 +141,11 @@ def api_vm_modification(vm_id=None):
 def api_guest_image_all():
     gmi = GuestImage()
     return jsonify(gmi.getAllImages())
+
+@app.route('/v1/vm/images/user/all', methods=['GET'])
+def api_user_image_all():
+    vmi = UserImage()
+    return jsonify(vmi.getAllImages())
 
 ####################
 # Namespace: vm 

@@ -17,15 +17,19 @@ user = {
 
 vmHost = vmManager()
 
+metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
+print(metadata)
+
 # Example Instance definition
 instanceType = Instance("standard", "small")
 
 # Example ssh key definition
 key_meta = EchKeystore().get_key(user, "test_key")
+print(key_meta)
 
 cloudinit_params = {
-    "cloudinit_key_name": key_meta["key_name"],
-    "cloudinit_public_key": key_meta["public_key"],
+    "cloudinit_key_name": key_meta[0]["key_name"],
+    "cloudinit_public_key": key_meta[0]["public_key"],
     "network": "local", # local, private, public?
     "private_ip": "172.16.9.13/24",
     "gateway_ip": "172.16.9.1"

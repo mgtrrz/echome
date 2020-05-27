@@ -62,9 +62,10 @@ class Session:
             logging.error("Credentials file does not appear to be set up correctly.")
             raise CredentialsFileError("Credentials file does not appear to be set up correctly.")
     
-    def resource(self, type):
-        req_resource = getattr(sys.modules[__name__], type)
-        return req_resource(Session())
+    def client(self, type):
+        """Return an API client for the requested type. e.g. .client("vm")"""
+        requested_client = getattr(sys.modules[__name__], type)
+        return requested_client(self)
     
     def __parse_file(self, file, profile):
          # profile == ConfigParser's "section" (e.g. [default])
