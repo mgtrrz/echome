@@ -5,6 +5,7 @@ from vm_manager import vmManager
 from database import Database
 from ssh_keystore import EchKeystore
 from instance_definitions import Instance
+from guest_image import GuestImage
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -49,3 +50,6 @@ tags = {
 
 #instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
 #print(instance_data["meta_data"]["vm_id"])
+
+# img_data = GuestImage().getImageMeta("gmi-fc1c9a62")
+# print(json.dumps(img_data, indent=4))
