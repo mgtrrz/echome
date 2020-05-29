@@ -53,3 +53,5 @@ tags = {
 
 # img_data = GuestImage().getImageMeta("gmi-fc1c9a62")
 # print(json.dumps(img_data, indent=4))
+
+#GuestImage().registerImage("/data/ssd_storage/guest_images/windows_server_2012_r2_standard_eval_kvm_20170321.qcow2", "Windows Server 2020 R2 Standard Eval 64-bit", "Cloud image provided by cloudbase.it/windows-cloud-images/")
