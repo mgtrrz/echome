@@ -30,7 +30,7 @@ CLEAN_UP_ON_FAIL = True
 # 3. Generate the VM XML document
 # 4. Launch new VM with XML document
 
-class vmManager:
+class VmManager:
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
@@ -50,7 +50,7 @@ class vmManager:
 
         # Generating the tmp path for creating/copying/validating files
         vmdir = self.__generate_vm_path(user["account_id"], vm_id)
-        logging.debug(f"Create VM directory: {vmdir}")
+        logging.debug(f"Creating VM directory: {vmdir}")
 
 
         # Generate cloudinit config
@@ -481,7 +481,9 @@ class vmManager:
             ]
         }
 
-        yaml_config = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        configfile = "#cloudinit\n"
+
+        yaml_config = configfile + yaml.dump(config, default_flow_style=False, sort_keys=False)
 
         return yaml_config
 

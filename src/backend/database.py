@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
 
 SECTION_NAME = "database"
-DB_CONFIG_FILE = "./database.ini"
+DB_CONFIG_FILE = "../../database.ini"
 
 class Database:
 
