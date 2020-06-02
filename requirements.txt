@@ -3,3 +3,4 @@ xmltodict
 psycopg2
 sshpubkeys
 sqlalchemy-1.3.16
+PyYAML==5.3.1

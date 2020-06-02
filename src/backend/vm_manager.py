@@ -9,6 +9,7 @@ import shutil
 import time
 import json
 import datetime
+import yaml
 from database import Database
 from sqlalchemy import select, and_
 from instance_definitions import Instance
@@ -471,33 +472,54 @@ class vmManager:
         if "hostname" not in config or config["hostname"] == "":
             config["hostname"] = config["vm_id"]
 
-        cloud_init = """#cloud-config
-chpasswd: {{ expire: False }}
-ssh_pwauth: False
-hostname: {}
-ssh_authorized_keys:
-  - {}
-        """.format(config["hostname"], config["cloudinit_public_key"])
-        return cloud_init
+        config = {
+            "chpasswd": "{{ expire: False }}",
+            "ssh_pwauth": False,
+            "hostname": config['hostname'],
+            "ssh_authorized_keys": [
+                config['cloudinit_public_key']
+            ]
+        }
+
+        yaml_config = yaml.dump(config, default_flow_style=False, sort_keys=False)
+
+        return yaml_config
 
 
     # Generate network config for cloudinit yaml string
     def __generate_network_cloudinit_config(self, config):
-        cloud_network_init = f"""version: 2
-ethernets:
-    ens2:
-        dhcp4: false
-        dhcp6: false
-        addresses:
-          - {config['private_ip']}
-        gateway4: {config['gateway_ip']}
-        nameservers:
-          addresses:
-            - 1.1.1.1
-            - 1.0.0.1
-        """
+        if config["network_type"] == "BridgeToLan":
+            if config["private_ip"]:
+                interface = {
+                    "dhcp4": False,
+                    "dhcp6": False,
+                    "addresses": [
+                        config['private_ip']
+                    ],
+                    "gateway4": config['gateway_ip'],
+                    "nameservers": {
+                        "addresses": [
+                            "1.1.1.1",
+                            "1.0.0.1",
+                        ]
+                    }
+                }
+            else:
+                interface = {
+                    "dhcp4": True,
+                    "dhcp6": False,
+                }
 
-        return cloud_network_init
+            network_config = {
+                "version": 2,
+                "ethernets": {
+                    "ens2": interface
+                }
+            }
+
+        yaml_config = yaml.dump(network_config, default_flow_style=False, sort_keys=False)
+
+        return yaml_config
     
     # Generate an ISO from the cloudinit YAML files
     def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=""):

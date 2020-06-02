@@ -66,6 +66,7 @@ def api_vm_create():
 
     dsize = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
     
+    network_type = request.args["NetworkType"] if "NetworkType" in request.args else ""
     priv_ip = request.args["NetworkInterfacePrivateIp"] if "NetworkInterfacePrivateIp" in request.args else ""
     gateway_ip = request.args["NetworkInterfaceGatewayIp"] if "NetworkInterfaceGatewayIp" in request.args else ""
     
@@ -82,7 +83,7 @@ def api_vm_create():
     cloudinit_params = {
         "cloudinit_key_name": keyname,
         "cloudinit_public_key": pub_key,
-        "network": "local", # local, private, public?
+        "network": network_type,
         "private_ip": priv_ip,
         "gateway_ip": gateway_ip
     }
