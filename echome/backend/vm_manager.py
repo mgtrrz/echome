@@ -10,11 +10,11 @@ import time
 import json
 import datetime
 import yaml
-from database import Database
 from sqlalchemy import select, and_
-from instance_definitions import Instance
-from id_gen import IdGenerator
-import guest_image
+from .database import Database
+from .instance_definitions import Instance
+from .id_gen import IdGenerator
+from .guest_image import GuestImage
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
 VM_GUEST_IMGS = "/data/ssd_storage/guest_images"

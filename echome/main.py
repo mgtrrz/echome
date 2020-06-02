@@ -1,12 +1,12 @@
 import libvirt
 import sys
 import json
-from vm_manager import VmManager
-from database import Database
-from ssh_keystore import EchKeystore
-from instance_definitions import Instance
-from guest_image import GuestImage
 import logging
+from backend.vm_manager import VmManager
+from backend.ssh_keystore import EchKeystore
+from backend.instance_definitions import Instance
+from backend.guest_image import GuestImage
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -16,7 +16,7 @@ user = {
     "account_user_id": "11119",
 }
 
-vmHost = vmManager()
+vmHost = VmManager()
 
 metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
 print(metadata)

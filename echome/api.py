@@ -4,11 +4,10 @@ import json
 import base64
 from markupsafe import escape
 from flask import request, jsonify, url_for
-from vm_manager import vmManager
-from database import Database
-from ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
-from instance_definitions import Instance, InvalidInstanceType
-from guest_image import GuestImage, UserImage, UserImageInvalidUser
+from backend.vm_manager import VmManager
+from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
+from backend.instance_definitions import Instance, InvalidInstanceType
+from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -19,7 +18,7 @@ user = {
     "account_user_id": "11119",
 }
 
-vm = vmManager()
+vm = VmManager()
 
 @app.route('/', methods=['GET'])
 def home():
