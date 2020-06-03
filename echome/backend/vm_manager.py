@@ -485,6 +485,8 @@ class VmManager:
             ]
         }
 
+        # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
+        # I'm unsure if cloudinit would actually just be happy receiving all YAML input.
         configfile = "#cloud-config\n"
         config_yaml = yaml.dump(config_json, default_flow_style=None, indent=2, sort_keys=False)
         ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, indent=2, sort_keys=False)
