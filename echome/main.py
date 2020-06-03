@@ -17,7 +17,7 @@ user = {
 }
 
 vmHost = VmManager()
-vmHost.terminateInstance(user, "vm-1cde03da")
+#vmHost.terminateInstance(user, "vm-1cde03da")
 
 # metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
 # print(metadata)
