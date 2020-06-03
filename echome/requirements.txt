@@ -1,0 +1,10 @@
+cffi==1.14.0
+cryptography==2.9.2
+ecdsa==0.15
+libvirt-python==6.3.0
+psycopg2==2.8.5
+pycparser==2.20
+PyYAML==5.3.1
+six==1.15.0
+SQLAlchemy==1.3.17
+sshpubkeys==3.1.0

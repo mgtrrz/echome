@@ -15,3 +15,5 @@ usermod -s /usr/sbin/nologin echome
 
 echo '# User rules for echome' >> /etc/sudoers.d/echome
 echo 'echome ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/echome
+
+sudo pip3 install pipenv
