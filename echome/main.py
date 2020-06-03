@@ -17,6 +17,7 @@ user = {
 }
 
 vmHost = VmManager()
+vmHost.terminateInstance(user, "vm-1cde03da")
 
 # metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
 # print(metadata)
@@ -25,8 +26,7 @@ vmHost = VmManager()
 # instanceType = Instance("standard", "small")
 
 # Example ssh key definition
-key_meta = EchKeystore().get_key(user, "test_key")
-print(key_meta)
+key_meta = EchKeystore().get_key(user, "echome")
 
 cloudinit_params = {
     "cloudinit_key_name": key_meta[0]["key_name"],
@@ -48,13 +48,6 @@ tags = {
     "type": "Random type, maybe kubernetes?"
 }
 #print(cloudinit_params)
-print(repr(cloudinit_params["cloudinit_public_key"]))
-status = vmHost._VmManager__generate_cloudinit_config(cloudinit_params)
-print(status)
-print("\n##########\n")
-
-status = vmHost._VmManager__generate_network_cloudinit_config(cloudinit_params)
-print(status)
 
 #instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
 #print(instance_data["meta_data"]["vm_id"])

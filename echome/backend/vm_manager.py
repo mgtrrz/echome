@@ -15,10 +15,11 @@ from sqlalchemy import select, and_
 from .database import Database
 from .instance_definitions import Instance
 from .id_gen import IdGenerator
-from .guest_image import GuestImage
+from .guest_image import GuestImage, InvalidImageId
 
 VM_ROOT_DIR = "/data/ssd_storage/user_instances"
 VM_GUEST_IMGS = "/data/ssd_storage/guest_images"
+XML_TEMPLATES_DIR = "/opt/echome/apps/backend/xml_templates"
 
 CLEAN_UP_ON_FAIL = True
 
@@ -84,7 +85,7 @@ class VmManager:
 
         # Is this a guest image or a user-created virtual machine image?
         logging.debug("Determining image metadata..")
-        gmi = guest_image.GuestImage()
+        gmi = GuestImage()
         if "image_id" not in server_params:
             msg = f"Image Id was not found in launch configuration. Cannot continue!"
             logging.error(msg)
@@ -95,11 +96,11 @@ class VmManager:
         try:
             logging.debug(f"Using 'image_id', grabbing image metadata from {server_params['image_id']}")
             img = gmi.getImageMeta(server_params['image_id'])
-        except guest_image.InvalidImageId as e:
+        except InvalidImageId as e:
             logging.error(e)
             if CLEAN_UP_ON_FAIL:
                 self.__delete_vm_path(user["account_id"], vm_id)
-            raise guest_image.InvalidImageId(e)
+            raise InvalidImageId(e)
             
         logging.debug(json.dumps(img, indent=4))
         img_type = "base guest image"
@@ -447,7 +448,7 @@ class VmManager:
         
         # Generate disk XML
         if config["cloud_init_path"]:
-            with open(f"./xml_templates/cloudinit_disk.xml", 'r') as filehandle:
+            with open(f"{XML_TEMPLATES_DIR}/cloudinit_disk.xml", 'r') as filehandle:
                 cloudinit_xml = Template(filehandle.read())
                 replace = {
                     'VM_USER_CLOUDINIT_IMG_PATH': config["cloud_init_path"]
@@ -455,7 +456,7 @@ class VmManager:
                 cloudinit_xml = cloudinit_xml.substitute(replace)
 
         # Generate the rest of the vm XML
-        with open(f"./xml_templates/{config['xml_template']}", 'r') as filehandle:
+        with open(f"{XML_TEMPLATES_DIR}/{config['xml_template']}", 'r') as filehandle:
             src = Template(filehandle.read())
             replace = {
                 'VM_NAME': config["vm_id"],
@@ -488,8 +489,8 @@ class VmManager:
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
         # I'm unsure if cloudinit would actually just be happy receiving all YAML input.
         configfile = "#cloud-config\n"
-        config_yaml = yaml.dump(config_json, default_flow_style=None, indent=2, sort_keys=False)
-        ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, indent=2, sort_keys=False)
+        config_yaml = yaml.dump(config_json, default_flow_style=None, sort_keys=False)
+        ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
 
         yaml_config = configfile + config_yaml + ssh_keys_yaml
 

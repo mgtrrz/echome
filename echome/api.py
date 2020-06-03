@@ -44,6 +44,9 @@ def api_vm_create():
     except InvalidInstanceType:
         return {"error": "Provided InstanceSize is not a valid type or size."}, 400
 
+    if not "NetworkType" in request.args:
+        return {"error": "NetworkType must be provided when creating a VM."}, 400
+
     tags = {}
     if "Tags" in request.args:
         there_are_tags = True
@@ -65,7 +68,7 @@ def api_vm_create():
 
     dsize = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
     
-    network_type = request.args["NetworkType"] if "NetworkType" in request.args else ""
+    network_type = request.args["NetworkType"]
     priv_ip = request.args["NetworkInterfacePrivateIp"] if "NetworkInterfacePrivateIp" in request.args else ""
     gateway_ip = request.args["NetworkInterfaceGatewayIp"] if "NetworkInterfaceGatewayIp" in request.args else ""
     
