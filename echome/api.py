@@ -82,7 +82,7 @@ def api_vm_create():
     cloudinit_params = {
         "cloudinit_key_name": keyname,
         "cloudinit_public_key": pub_key,
-        "network": network_type,
+        "network_type": network_type,
         "private_ip": priv_ip,
         "gateway_ip": gateway_ip
     }

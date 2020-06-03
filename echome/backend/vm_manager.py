@@ -1,4 +1,5 @@
 import libvirt
+import sys
 from string import Template
 import uuid
 import pathlib
@@ -472,18 +473,23 @@ class VmManager:
         if "hostname" not in config or config["hostname"] == "":
             config["hostname"] = config["vm_id"]
 
-        config = {
-            "chpasswd": "{{ expire: False }}",
+        config_json = {
+            "chpasswd": { "expire": False },
             "ssh_pwauth": False,
             "hostname": config['hostname'],
+        }
+
+        ssh_keys_json = {
             "ssh_authorized_keys": [
                 config['cloudinit_public_key']
             ]
         }
 
-        configfile = "#cloudinit\n"
+        configfile = "#cloud-config\n"
+        config_yaml = yaml.dump(config_json, default_flow_style=None, indent=2, sort_keys=False)
+        ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, indent=2, sort_keys=False)
 
-        yaml_config = configfile + yaml.dump(config, default_flow_style=False, sort_keys=False)
+        yaml_config = configfile + config_yaml + ssh_keys_yaml
 
         return yaml_config
 
@@ -519,9 +525,7 @@ class VmManager:
                 }
             }
 
-        yaml_config = yaml.dump(network_config, default_flow_style=False, sort_keys=False)
-
-        return yaml_config
+        return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
     
     # Generate an ISO from the cloudinit YAML files
     def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=""):

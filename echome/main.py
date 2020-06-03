@@ -18,11 +18,11 @@ user = {
 
 vmHost = VmManager()
 
-metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
-print(metadata)
+# metadata = vmHost.getInstanceMetaData(user, "vm-b49c2840")
+# print(metadata)
 
 # Example Instance definition
-instanceType = Instance("standard", "small")
+# instanceType = Instance("standard", "small")
 
 # Example ssh key definition
 key_meta = EchKeystore().get_key(user, "test_key")
@@ -31,9 +31,10 @@ print(key_meta)
 cloudinit_params = {
     "cloudinit_key_name": key_meta[0]["key_name"],
     "cloudinit_public_key": key_meta[0]["public_key"],
-    "network": "BridgeToLan", # local, private, public?
+    "network_type": "BridgeToLan", # local, private, public?
     "private_ip": "172.16.9.13/24",
-    "gateway_ip": "172.16.9.1"
+    "gateway_ip": "172.16.9.1",
+    "vm_id": "vmkdmkd"
 }
 server_params = {
     "image_id": "gmi-fc1c9a62",
@@ -47,6 +48,13 @@ tags = {
     "type": "Random type, maybe kubernetes?"
 }
 #print(cloudinit_params)
+print(repr(cloudinit_params["cloudinit_public_key"]))
+status = vmHost._VmManager__generate_cloudinit_config(cloudinit_params)
+print(status)
+print("\n##########\n")
+
+status = vmHost._VmManager__generate_network_cloudinit_config(cloudinit_params)
+print(status)
 
 #instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
 #print(instance_data["meta_data"]["vm_id"])
