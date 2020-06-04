@@ -2,7 +2,7 @@ from echome import Session, Vm, Images, SshKey
 import logging
 import json
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 
 #session = echome.Session()
@@ -11,7 +11,7 @@ vm_client = Session().client("Vm")
 
 
 vms = vm_client.describe_all()
-#vm_client.terminate("vm-b8391faa")
+#vm_client.terminate("vm-52c904f0")
 print("VMs__________________________________")
 for vm in vms:
     name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
@@ -23,15 +23,15 @@ for vm in vms:
 # print(our_vm.tags)
 
 
-ret = vm_client.create(
-    ImageId="gmi-fc1c9a62", 
-    InstanceSize="standard.micro",
-    NetworkType="BridgeToLan",
-    NetworkInterfacePrivateIp="172.16.9.26/24",
-    NetworkInterfaceGatewayIp="172.16.9.1",
-    KeyName="echome",
-    DiskSize="10G",
-    Tags={"Name": "test_instance", "Env": "staging", "Created_by": "mgutierrez"})
+# ret = vm_client.create(
+#     ImageId="gmi-fc1c9a62", 
+#     InstanceSize="standard.micro",
+#     NetworkType="BridgeToLan",
+#     NetworkInterfacePrivateIp="172.16.9.26/24",
+#     NetworkInterfaceGatewayIp="172.16.9.1",
+#     KeyName="echome",
+#     DiskSize="10G",
+#     Tags={"Name": "test_instance", "Env": "staging", "Created_by": "mgutierrez"})
 
 # ret = vm_client.create(
 #     ImageId="gmi-fc1c9a62", 
