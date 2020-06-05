@@ -8,8 +8,11 @@ from .vm import Vm, Images, SshKey
 default_echome_dir = ".echome"
 default_config_file = "config"
 default_credential_file = "credentials"
+
 default_profile = "default"
+
 default_connection = "insecure"
+default_format = "table"
 api_version = "v1"
 
 # Grabs the config and credentials from the user's home dir
@@ -46,6 +49,7 @@ class Session:
         else:
             raise ConfigFileError(f"Unknown connection type specified. Use either 'secure' or 'insecure'. A blank value defaults to {default_connection}")
 
+        self.format      = getenv("ECHOME_FORMAT", config_from_file["format"] if "format" in config_from_file else default_format)
         self.api_version = api_version
 
     def __get_local_config(self, config_file, profile):

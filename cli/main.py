@@ -53,13 +53,14 @@ class ecHomeCli_Vm:
             parser.print_help()
             exit(1)
         
-        self.client = Session().client("Vm")
+        self.session = Session()
+        self.client = self.session.client("Vm")
         # use dispatch pattern to invoke method with same name
         getattr(self, subcommand)()
     
     def describe_all(self):
         parser = argparse.ArgumentParser(description='Describe all virtual machines', prog="echome vm describe-all")
-        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"])
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
         args = parser.parse_args(sys.argv[3:])
 
         if args.format == "table":
@@ -72,7 +73,7 @@ class ecHomeCli_Vm:
     def describe(self):
         parser = argparse.ArgumentParser(description='Describe a virtual machine', prog="echome vm describe")
         parser.add_argument('vm_id',  help='Virtual Machine Id', metavar="<vm-id>")
-        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"])
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
         args = parser.parse_args(sys.argv[3:])
 
         if args.format == "table":
