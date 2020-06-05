@@ -46,7 +46,6 @@ class Vm (base_resource):
 
         resp = json.loads(r.text)
         for vm in resp:
-            print(type(vm["tags"]))
             instobj = Instance(
                 self.session, 
                 self.namespace, 
