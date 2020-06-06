@@ -24,6 +24,9 @@ vm = VmManager()
 def home():
     return {}
 
+@app.route('/v1/ping', methods=['GET'])
+def ping():
+    return {"response": "pong"}
 
 # curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
 # \&InstanceSize=standard.small \
