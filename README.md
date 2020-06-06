@@ -4,7 +4,27 @@ Deploy cloud images to your local home network for ultra fast provisioning of li
 
 This is a work-in-progress and not fully installable yet from this repo. Currently, the installation steps only support Ubuntu 18.04.
 
-There are four components to ecHome: Backend/API, Frontend/Web-Interface, Python-SDK, CLI
+## Requirements
+
+### Application requirements
+
+* A clean Ubuntu 18.04 installation
+* Python 3.6
+* Postgres 11
+* QEMU 2.11
+
+A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT repository only has version 2.11. In the future, we'll look into installing and utilizing more recent QEMU versions. For now, we're focusing on a lot of the base functionality.
+
+The `./host_server_setup.sh`, while incomplete, will be able to setup an Ubuntu installation for virtualization and ecHome support.
+
+### Server requirements
+
+* Virtualization enabled in the BIOS for your Intel/AMD CPU.
+* Enough disk space for guest images and your virtual machines
+
+In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor.
+
+## Components
 
 ### Backend/API
 
