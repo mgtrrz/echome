@@ -4,6 +4,10 @@ Deploy cloud images to your local home network for ultra fast provisioning of li
 
 This is a work-in-progress and not fully installable yet from this repo. Currently, the installation steps only support Ubuntu 18.04.
 
+Changes will be continuously pushed to **Master** until I feel that we've reached a point with features where we can put in a version number. However, if there's any objection to that, please let me know. 
+
+If there's any issues, bugs, or features you'd like to see, please use the Issues tab above.
+
 ## Requirements
 
 ### Application requirements
@@ -30,7 +34,11 @@ In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 
 
 At the root of the stack is the API. The API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
 
-Code for this service exists in `./echome/backend/`
+ecHome uses the `libvirt-python` library to coordinate virtual machine management with the Libvirt API. The `VmManager` class in `./echome/backend/vm_manager.py` has methods that create, terminate, and get information about a virtual machine using Libvirt.
+
+There is not yet a web server installed or configured to serve requests to the Python API. See the section below for running the API in debug mode using Flask's built-in webserver.
+
+Code for all of the services exists in `./echome/backend/`
 
 #### Running the API in debug mode.
 
@@ -45,7 +53,7 @@ $ curl 172.16.9.6:5000/v1/ping
 }
 ```
 
-In ecHome's current iteration, there is no user authentication and administrator requests can be made to the server.
+In ecHome's current iteration, there is no user authentication and all implemented ecHome requests can be made to the server.
 
 You can interact with the HTTP API directly to manage your ecHome host, however, it's preferred you use the Web Interface, Python-SDK (programmatic) or the CLI to do everything you need. However, an example request to create a virtual machine with the HTTP API would look like:
 
@@ -164,3 +172,14 @@ $ python3 main.py sshkeys describe test_key --format json
     }
 ]
 ```
+
+
+## Authors
+
+* **mgtrrz** - *Initial work* - [Github](https://github.com/mgtrrz) - [Twitter](https://twitter.com/marknine)
+
+See also the list of [contributors](https://github.com/mgtrrz/echome/contributors) who participated in this project.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
