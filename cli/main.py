@@ -7,84 +7,109 @@ sys.path.insert(0, '../python_sdk/')
 from echome import Session
 
 
+APP_NAME="echome"
+
 class ecHomeCli:
     def __init__(self):
         parser = argparse.ArgumentParser(
             description='ecHome CLI',
             usage='''echome <service> <subcommand> [<args>]
 
-The most commonly used ecHome commands are:
+The most commonly used ecHome service commands are:
    vm         Interact with ecHome virtual machines.
-   fetch      Download objects and refs from another repository
+   sshkeys    Interact with SSH keys used for virtual machines.
 ''')
-        parser.add_argument('command', help='Service to interact with')
+        parser.add_argument('service', help='Service to interact with')
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
         args = parser.parse_args(sys.argv[1:2])
-        if not hasattr(self, args.command):
-            print('Unrecognized command')
+        if not hasattr(self, args.service):
+            print('Unrecognized service')
             parser.print_help()
             exit(1)
         # use dispatch pattern to invoke method with same name
-        getattr(self, args.command)()
+        getattr(self, args.service)()
 
     def vm(self):
         ecHomeCli_Vm()
 
+    def sshkeys(self):
+        ecHomeCli_SshKeys()
 
-    def fetch(self):
-        parser = argparse.ArgumentParser(
-            description='Download objects and refs from another repository')
-        # NOT prefixing the argument with -- means it's not optional
-        parser.add_argument('repository')
-        args = parser.parse_args(sys.argv[2:])
-        print(f"Running git fetch, repository={args.repository}")
+class ecHomeParent:
 
-class ecHomeCli_Vm:
+    # Parent service argument parser 
+    # Landing pad for this service.
+    def parent_service_argparse(self):
 
-    def __init__(self):
-        parser = argparse.ArgumentParser(description='Interact with the Virtual Machine service')
+        parser = argparse.ArgumentParser(description=f"Interact with the {self.parent_full_name} service", prog=f"{APP_NAME} {self.parent_service}")
 
-        parser.add_argument('subcommand', help='Subcommand for the vm service.')
+        callable_methods = self.get_list_of_methods()
+
+        parser.add_argument('subcommand', help=f"Subcommand for the {self.parent_service} service.", choices=callable_methods)
         args = parser.parse_args(sys.argv[2:3])
         subcommand = str(args.subcommand).replace("-", "_")
         if not hasattr(self, subcommand):
             print('Unrecognized subcommand')
             parser.print_help()
             exit(1)
+
+        # use dispatch pattern to invoke method with same name
+        getattr(self, subcommand)()
+
+    # Gets the list of public methods for the class. 
+    # Converts underscores to dashes to automatically add into the ArgumentParser's choices variable
+    def get_list_of_methods(self, exclude=[]):
+        method_list = [func for func in dir(self) if callable(getattr(self, func))]
+        exclude.append("get_list_of_methods")
+        exclude.append("parent_service_argparse")
+
+        methods = []
+        for method in method_list:
+            if not method.startswith("_") and not method in exclude:
+                methods.append(method.replace("_", "-"))
+
+        return methods
+
+
+class ecHomeCli_Vm(ecHomeParent):
+
+    def __init__(self):
+        self.parent_service = "vm"
+        self.parent_full_name = "Virtual Machine"
         
         self.session = Session()
         self.client = self.session.client("Vm")
-        # use dispatch pattern to invoke method with same name
-        getattr(self, subcommand)()
+
+        self.parent_service_argparse()
     
     def describe_all(self):
-        parser = argparse.ArgumentParser(description='Describe all virtual machines', prog="echome vm describe-all")
+        parser = argparse.ArgumentParser(description='Describe all virtual machines', prog=f"{APP_NAME} {self.parent_service} describe-all")
         parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
         args = parser.parse_args(sys.argv[3:])
 
         if args.format == "table":
             vms = self.client.describe_all()
-            self.print_table(vms)
+            self.__print_table(vms)
         elif args.format == "json":
             print(json.dumps(self.client.describe_all(), indent=4))
 
     
     def describe(self):
-        parser = argparse.ArgumentParser(description='Describe a virtual machine', prog="echome vm describe")
+        parser = argparse.ArgumentParser(description='Describe a virtual machine', prog=f"{APP_NAME} {self.parent_service} describe")
         parser.add_argument('vm_id',  help='Virtual Machine Id', metavar="<vm-id>")
         parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
         args = parser.parse_args(sys.argv[3:])
 
         if args.format == "table":
             vm = self.client.describe(args.vm_id)
-            self.print_table(vm)
+            self.__print_table(vm)
         elif args.format == "json":
             print(json.dumps(self.client.describe(args.vm_id), indent=4))
 
     
     def create(self):
-        parser = argparse.ArgumentParser(description='Create a virtual machine', prog="echome vm create")
+        parser = argparse.ArgumentParser(description='Create a virtual machine', prog=f"{APP_NAME} {self.parent_service} create")
 
         parser.add_argument('--image-id', help='Image Id', required=True, metavar="<value>", dest="ImageId")
         parser.add_argument('--instance-size', help='Instance Size', required=True, metavar="<value>", dest="InstanceSize")
@@ -100,10 +125,28 @@ class ecHomeCli_Vm:
         # ImageId=gmi-12345, InstanceSize=standard.small, etc.
         print(self.client.create(**vars(args)))
     
-    def stop(self):
-        pass
+    def start(self):
+        parser = argparse.ArgumentParser(description='Start a virtual machine', prog=f"{APP_NAME} {self.parent_service} start")
+        parser.add_argument('vm_id',  help='Virtual Machine Id', metavar="<vm-id>")
+        args = parser.parse_args(sys.argv[3:])
 
-    def print_table(self, vm_list):
+        print(self.client.start(args.vm_id))
+    
+    def stop(self):
+        parser = argparse.ArgumentParser(description='Stop a virtual machine', prog=f"{APP_NAME} {self.parent_service} stop")
+        parser.add_argument('vm_id',  help='Virtual Machine Id', metavar="<vm-id>")
+        args = parser.parse_args(sys.argv[3:])
+
+        print(self.client.stop(args.vm_id))
+    
+    def terminate(self):
+        parser = argparse.ArgumentParser(description='Terminate a virtual machine', prog=f"{APP_NAME} {self.parent_service} terminate")
+        parser.add_argument('vm_id',  help='Virtual Machine Id', metavar="<vm-id>")
+        args = parser.parse_args(sys.argv[3:])
+
+        print(self.client.terminate(args.vm_id))
+
+    def __print_table(self, vm_list):
         headers = ["Name", "Vm Id", "Instance Size", "State", "IP", "Image", "Created"]
         all_vms = []
         for vm in vm_list:
@@ -123,6 +166,87 @@ class ecHomeCli_Vm:
             all_vms.append(v)
 
         print(tabulate(all_vms, headers))
+
+
+class ecHomeCli_SshKeys(ecHomeParent):
+
+    def __init__(self):
+        self.parent_service = "sshkeys"
+        self.parent_full_name = "SSH Keys"
+
+        self.session = Session()
+        self.client = self.session.client("SshKey")
+
+        self.parent_service_argparse()
+    
+    def describe_all(self):
+        parser = argparse.ArgumentParser(description='Describe all SSH Keys', prog=f"{APP_NAME} {self.parent_service} describe-all")
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
+        args = parser.parse_args(sys.argv[3:])
+        
+        if args.format == "table":
+            keys = self.client.describe_all()
+            self.__print_table(keys)
+        elif args.format == "json":
+            print(json.dumps(self.client.describe_all(), indent=4))
+    
+    def describe(self):
+        parser = argparse.ArgumentParser(description='Describe an SSH Key', prog=f"{APP_NAME} {self.parent_service} describe")
+        parser.add_argument('key_name',  help='SSH Key Name', metavar="<key-name>")
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
+        args = parser.parse_args(sys.argv[3:])
+        
+        if args.format == "table":
+            key = self.client.describe(args.key_name)
+            self.__print_table(key)
+        elif args.format == "json":
+            print(json.dumps(self.client.describe(args.key_name), indent=4))
+    
+    def create(self):
+        parser = argparse.ArgumentParser(description='Create an SSH Key', prog=f"{APP_NAME} {self.parent_service} create")
+        parser.add_argument('key_name',  help='SSH Key Name', metavar="<key-name>")
+
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('--file',  help='Where a new file will be created with the contents of the private key', metavar="<./key-name.pem>")
+        group.add_argument('--no-file',  help='Output only the PEM key in JSON to stdout instead of a file.', action='store_true')
+
+        args = parser.parse_args(sys.argv[3:])
+
+        response = self.client.create(args.key_name)
+        if "error" in response:
+           print(response)
+           exit(1)
+
+        if args.no_file:
+            print(json.dumps(response, indent=4))
+            exit(0)
+        else:
+            try:
+                with open(args.file, "a") as file_object:
+                    # Append 'hello' at the end of file
+                    file_object.write(response["PrivateKey"])
+                    response["PrivateKey"] = args.file
+            except Exception as error:
+                print(error)
+                exit(1)
+
+        print(json.dumps(response, indent=4))
+
+    def delete(self):
+        parser = argparse.ArgumentParser(description='Delete an SSH Key', prog=f"{APP_NAME} {self.parent_service} delete")
+        parser.add_argument('key_name',  help='SSH Key Name', metavar="<key-name>")
+        args = parser.parse_args(sys.argv[3:])
+
+        print(json.dumps(self.client.delete(args.key_name), indent=4))
+    
+    def __print_table(self, list):
+        headers = ["Name", "Key Id", "Fingerprint"]
+        all_keys = []
+        for key in list:
+            k = [key["key_name"], key["key_id"], key["fingerprint"]]
+            all_keys.append(k)
+
+        print(tabulate(all_keys, headers))
 
 if __name__ == "__main__":
     ecHomeCli()

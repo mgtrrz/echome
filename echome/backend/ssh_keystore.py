@@ -166,8 +166,10 @@ class EchKeystore:
 
         db = Database()
 
+        print(result)
+
         # delete entry in db
-        del_stmt = db.user_keys.delete().where(db.user_keys.c.key_id == result["key_id"])
+        del_stmt = db.user_keys.delete().where(db.user_keys.c.key_id == result[0]["key_id"])
         db.connection.execute(del_stmt)
         return {"success": True}
 
