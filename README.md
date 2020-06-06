@@ -8,7 +8,7 @@ There are four components to ecHome: Backend/API, Frontend/Web-Interface, Python
 
 ### Backend/API
 
-At the root of the stack is the API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
+At the root of the stack is the API. The API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
 
 Code for this service exists in `./echome/backend/`
 
