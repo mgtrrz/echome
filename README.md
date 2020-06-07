@@ -19,7 +19,6 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 
 A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT repository only has version 2.11. In the future, we'll look into installing and utilizing more recent QEMU versions. For now, we're focusing on a lot of the base functionality.
 
-The `./host_server_setup.sh`, while incomplete, will be able to setup an Ubuntu installation for virtualization and ecHome support.
 
 ### Server requirements
 
@@ -27,6 +26,28 @@ The `./host_server_setup.sh`, while incomplete, will be able to setup an Ubuntu 
 * Enough disk space for guest images and your virtual machines
 
 In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor.
+
+## Installation
+
+The `./host_server_setup.sh` script is currently set up to run as if you'll develop on the instance meaning it'll git clone the echome repo and symlink some directories to `echome`'s user/app directory. In the future, this is subject to change but will work for now.
+
+Setup a clean install of Ubuntu 18.04 on your server to start and generate an ssh key with `ssh-keygen` for your user (not root). Add your public key to your Github profile.
+
+Grab the `host_server_setup.sh` script and run it on the machine with sudo.
+
+```
+~$ wget https://raw.githubusercontent.com/mgtrrz/echome/master/host_server_setup.sh -O host_server_setup.sh
+~$ chmod +x host_server_setup.sh
+~$ ./host_server_setup.sh
+```
+
+Setup a bridge network on your ubuntu server with the name 'br0'. Example guide here:
+https://fabianlee.org/2019/04/01/kvm-creating-a-bridged-network-with-netplan-on-ubuntu-bionic/
+
+Set up two new directories for guest images and user accounts. These can be defined anywhere but must be accessible and writable to the echome user.
+Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
+
+Once complete, follow the steps below in "Running the API in debug mode."
 
 ## Components
 

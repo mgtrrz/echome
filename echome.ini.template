@@ -1,0 +1,13 @@
+[BridgeToLan]
+interfaceName=enp4s0
+bridgeName=br0
+
+; This is where your guest images are stored
+[GuestImages]
+dir=/directory/to/shared-guest-images
+
+; This is where user virtual machine directories will be created
+; If this is a new installation, this directory can be empty and must
+; be writable to the echome user.
+[UserDirectories]
+dir=/directory/to/user/directories
