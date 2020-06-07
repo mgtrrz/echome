@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 
 SECTION_NAME = "database"
-DB_CONFIG_FILE = "/opt/echome/config/database.ini"
+DB_CONFIG_FILE = "/etc/echome/database.ini"
 
 class Database:
 
