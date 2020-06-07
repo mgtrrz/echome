@@ -63,9 +63,14 @@ class User(Base):
     def password(self):
         return self.secret
 
+    # API credentials should be created off of the primary user account.
+    # The method returns an exception if the User class primary flag is false
     def create_api_auth(self):
         if not id:
             return UserNotInstantiated("Current user class is not instantiated (No user information retrieved.)")
+        
+        if self.primary == False:
+            return UserNotPrimary("Current user class is not the primary user.")
 
         secret_token = self.generate_token()
 
@@ -93,4 +98,7 @@ class User(Base):
         return bcrypt.checkpw(plaintext.encode('utf8'), self.secret.encode('utf-8'))
 
 class UserNotInstantiated(Exception):
+    pass
+
+class UserNotPrimary(Exception):
     pass
