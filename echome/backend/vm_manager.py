@@ -16,10 +16,11 @@ from .database import Database
 from .instance_definitions import Instance
 from .id_gen import IdGenerator
 from .guest_image import GuestImage, InvalidImageId
+from .config import AppConfig
 
-VM_ROOT_DIR = "/data/ssd_storage/user_instances"
-VM_GUEST_IMGS = "/data/ssd_storage/guest_images"
-XML_TEMPLATES_DIR = "/opt/echome/apps/backend/xml_templates"
+config = AppConfig()
+VM_ROOT_DIR = config.UserDirectories["dir"]
+XML_TEMPLATES_DIR = f"{config.get_app_base_dir()}/xml_templates"
 
 CLEAN_UP_ON_FAIL = True
 
@@ -578,6 +579,7 @@ class VmManager:
     # Create a path for the files to be created in
     def __generate_vm_path(self, account_id, vm_id):
         vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        logging.debug(f"Generated VM Path: {vm_path}")
         try:
             pathlib.Path(vm_path).mkdir(parents=True, exist_ok=False)
             return vm_path

@@ -18,6 +18,7 @@ class ecHomeCli:
 The most commonly used ecHome service commands are:
    vm         Interact with ecHome virtual machines.
    sshkeys    Interact with SSH keys used for virtual machines.
+   images     Interact with guest and user images for virtual machines.
 ''')
         parser.add_argument('service', help='Service to interact with')
         # parse_args defaults to [1:] for args, but you need to
@@ -247,6 +248,17 @@ class ecHomeCli_SshKeys(ecHomeParent):
             all_keys.append(k)
 
         print(tabulate(all_keys, headers))
+
+class ecHomeCli_Images(ecHomeParent):
+
+    def __init__(self):
+        self.parent_service = "images"
+        self.parent_full_name = "Images"
+
+        self.session = Session()
+        self.client = self.session.client("Images")
+
+        self.parent_service_argparse()
 
 if __name__ == "__main__":
     ecHomeCli()

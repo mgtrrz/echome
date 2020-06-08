@@ -2,6 +2,10 @@
 interfaceName=enp4s0
 bridgeName=br0
 
+; Location to the backend directory 
+[echome]
+base_dir=/opt/echome/app/backend
+
 ; This is where your guest images are stored
 [GuestImages]
 dir=/directory/to/shared-guest-images

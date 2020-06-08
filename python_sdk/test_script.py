@@ -57,16 +57,18 @@ import json
 #print(vm.status_code)
 
 
+# resp = Session().client("Images").guest().register(
+#     ImagePath="/mnt/nvme/guestimages/CentOS-7-x86_64-GenericCloud-2003.qcow2",
+#     ImageName="CentOS 7",
+#     ImageDescription="CentOS 7 Cloud image"
+# )
+# print(resp)
+
 guest_images = Session().client("Images").guest().describe_all()
 
-resp = Session().client("Images").guest().register(
-
-)
-print(resp)
-
-# print("\nGuest Images_______________________")
-# for guest_img in guest_images:
-#     print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
+print("\nGuest Images_______________________")
+for guest_img in guest_images:
+    print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
 
 
 

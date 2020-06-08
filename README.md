@@ -25,11 +25,11 @@ A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT
 * Virtualization enabled in the BIOS for your Intel/AMD CPU.
 * Enough disk space for guest images and your virtual machines
 
-In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor.
+In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor. There will likely need to be some modifications to the XML templates before they'll work with Intel processors.
 
 ## Installation
 
-The `./host_server_setup.sh` script is currently set up to run as if you'll develop on the instance meaning it'll git clone the echome repo and symlink some directories to `echome`'s user/app directory. In the future, this is subject to change but will work for now.
+The `./host_server_setup.sh` script is currently set up to run as if you'll develop on the server, meaning it'll git clone (ssh) the echome repo and symlink some directories to `echome`'s user/app directory. In the future, installation will move files into their own places but this will work for now.
 
 Setup a clean install of Ubuntu 18.04 on your server to start and generate an ssh key with `ssh-keygen` for your user (not root). Add your public key to your Github profile.
 
@@ -47,7 +47,7 @@ https://fabianlee.org/2019/04/01/kvm-creating-a-bridged-network-with-netplan-on-
 Set up two new directories for guest images and user accounts. These can be defined anywhere but must be accessible and writable to the echome user.
 Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
 
-Once complete, follow the steps below in "Running the API in debug mode."
+Once complete, follow the steps below in "Running the API in debug mode" to start the API and interact with ecHome.
 
 ### Post setup
 
@@ -56,7 +56,7 @@ Grab your cloud images and place them into your `guestimages` directory. In this
 ```
 echome:/mnt/nvme/guestimages$ wget https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
 
-# You can confirm the type of image this image is by running qemu-img
+# You can confirm the image type by running qemu-img
 
 echome:/mnt/nvme/guestimages$ qemu-img info bionic-server-cloudimg-amd64.img
 image: bionic-server-cloudimg-amd64.img
@@ -194,7 +194,7 @@ The most commonly used ecHome service commands are:
    vm         Interact with ecHome virtual machines.
    sshkeys    Interact with SSH keys used for virtual machines.
 
-$ python3 main.py vm describe-all
+$ echome vm describe-all
 Name                 Vm Id        Instance Size    State    IP              Image    Created
 -------------------  -----------  ---------------  -------  --------------  -------  --------------------------
 ubiquiti controller  vm-a8b30fda  standard.small   running                           None
@@ -203,7 +203,7 @@ kubernetes_master    vm-29b73556  standard.medium  running  172.16.9.20/24      
 kubernetes_worker_1  vm-2bfecdf6  standard.medium  running  172.16.9.21/24           2020-05-27 01:12:48.866471
 kubernetes_worker_2  vm-2e10d36e  standard.medium  running  172.16.9.22/24           2020-05-27 01:12:52.231098
 
-$ python3 main.py sshkeys describe test_key --format json
+$ echome sshkeys describe test_key --format json
 [
     {
         "fingerprint": "MD5:62:dd:13:e9:7f:a9:be:23:cf:df:64:ac:4b:63:77:d9",

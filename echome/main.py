@@ -6,7 +6,13 @@ from backend.vm_manager import VmManager
 from backend.ssh_keystore import EchKeystore
 from backend.instance_definitions import Instance
 from backend.guest_image import GuestImage
+from backend.config import AppConfig
 
+# config = AppConfig()
+# basedir = config.get_app_base_dir()
+# print(basedir)
+
+# print(config.echome["base_dir"])
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -26,27 +32,27 @@ vmHost = VmManager()
 # instanceType = Instance("standard", "small")
 
 # Example ssh key definition
-key_meta = EchKeystore().get_key(user, "echome")
+#key_meta = EchKeystore().get_key(user, "echome")
 
-cloudinit_params = {
-    "cloudinit_key_name": key_meta[0]["key_name"],
-    "cloudinit_public_key": key_meta[0]["public_key"],
-    "network_type": "BridgeToLan", # local, private, public?
-    "private_ip": "172.16.9.13/24",
-    "gateway_ip": "172.16.9.1",
-    "vm_id": "vmkdmkd"
-}
-server_params = {
-    "image_id": "gmi-fc1c9a62",
-    #"vmi": "vmi-293de.qcow2",
-    "disk_size": "10G",
-}
-tags = {
-    "Name": "examplename",
-    "org": "Testorg",
-    "env": "sandbox",
-    "type": "Random type, maybe kubernetes?"
-}
+# cloudinit_params = {
+#     "cloudinit_key_name": key_meta[0]["key_name"],
+#     "cloudinit_public_key": key_meta[0]["public_key"],
+#     "network_type": "BridgeToLan", # local, private, public?
+#     "private_ip": "172.16.9.13/24",
+#     "gateway_ip": "172.16.9.1",
+#     "vm_id": "vmkdmkd"
+# }
+# server_params = {
+#     "image_id": "gmi-fc1c9a62",
+#     #"vmi": "vmi-293de.qcow2",
+#     "disk_size": "10G",
+# }
+# tags = {
+#     "Name": "examplename",
+#     "org": "Testorg",
+#     "env": "sandbox",
+#     "type": "Random type, maybe kubernetes?"
+# }
 #print(cloudinit_params)
 
 #instance_data = vmHost.createInstance(user, instanceType, cloudinit_params, server_params, tags)
