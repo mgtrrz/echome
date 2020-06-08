@@ -150,6 +150,29 @@ def api_user_image_all():
     vmi = UserImage()
     return jsonify(vmi.getAllImages())
 
+@app.route('/v1/vm/images/guest/register', methods=['POST'])
+def api_guest_image_register():
+    gmi = GuestImage()
+
+    if not "ImagePath" in request.args:
+        return {"error": "ImagePath must be provided when registering a guest image."}, 400
+    
+    if not "ImageName" in request.args:
+        return {"error": "ImageName must be provided when registering a guest image."}, 400 
+    
+    if not "ImageDescription" in request.args:
+        return {"error": "ImageDescription must be provided when registering a guest image."}, 400 
+
+    try: 
+        img_id = gmi.registerImage(request.args["ImagePath"], request.args["ImageName"], request.args["ImageDescription"])
+    except InvalidImagePath:
+        return {"error": "ImagePath: Provided path is not valid or file does not exist."}, 400
+    except InvalidImageAlreadyExists:
+        return {"error": "ImagePath: Image with this file path already exists."}, 400
+
+    new_img = {"guest_image_id": img_id}
+    return jsonify(new_img)
+
 ####################
 # Namespace: vm 
 # Component: ssh_key
