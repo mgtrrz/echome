@@ -140,6 +140,12 @@ class Images (base_resource):
             r = requests.get(f"{self.base_url}/all")
             self.status_code = r.status_code
             return r.json()
+
+        def register(self, **kwargs):
+            r = requests.post(f"{self.base_url}/register", params=kwargs)
+            self.status_code = r.status_code
+            return r.json()
+
     
     class __user (base_resource):
         namespace = "vm/images/user"

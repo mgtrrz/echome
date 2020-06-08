@@ -7,15 +7,15 @@ import json
 
 #session = echome.Session()
 
-vm_client = Session().client("Vm")
+# vm_client = Session().client("Vm")
 
 
-vms = vm_client.describe_all()
-#vm_client.terminate("vm-52c904f0")
-print("VMs__________________________________")
-for vm in vms:
-    name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
-    print(f"{vm['instance_id']}\t{name}")
+# vms = vm_client.describe_all()
+# #vm_client.terminate("vm-52c904f0")
+# print("VMs__________________________________")
+# for vm in vms:
+#     name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
+#     print(f"{vm['instance_id']}\t{name}")
 
 
 #thing = vm.describe_all()
@@ -58,15 +58,23 @@ for vm in vms:
 
 
 guest_images = Session().client("Images").guest().describe_all()
-print("\nGuest Images_______________________")
-for guest_img in guest_images:
-    print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
+
+resp = Session().client("Images").guest().register(
+
+)
+print(resp)
+
+# print("\nGuest Images_______________________")
+# for guest_img in guest_images:
+#     print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
 
 
-ssh_keys = Session().client("SshKey").describe_all()
-print("\nSSH Keys___________________________")
-for sshkey in ssh_keys:
-    print(f"{sshkey['key_id']}\t{sshkey['key_name']}\t{sshkey['fingerprint']}")
+
+
+# ssh_keys = Session().client("SshKey").describe_all()
+# print("\nSSH Keys___________________________")
+# for sshkey in ssh_keys:
+#     print(f"{sshkey['key_id']}\t{sshkey['key_name']}\t{sshkey['fingerprint']}")
 
 
 # # SshKeys
