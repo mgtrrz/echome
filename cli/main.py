@@ -3,6 +3,7 @@ import argparse
 import logging
 import json
 from functools import reduce
+import operator
 from tabulate import tabulate
 sys.path.insert(0, '../python_sdk/')
 from echome import Session
@@ -73,6 +74,40 @@ class ecHomeParent:
                 methods.append(method.replace("_", "-"))
 
         return methods
+    
+    @staticmethod
+    # Traverse a dictionary to get a nested value from a list 
+    def get_from_dict(dict, mapList):
+        return reduce(operator.getitem, mapList, dict)
+
+    # Generic function for printing a Tabulate table. Classes that inherit from this base class
+    # should set __init__ variables: self.table_headers, self.data_columns with information for 
+    # that resource. But they can be overwritten by setting parameters.
+    # Nested dictionary items should be a list, e.g. '[dict_key1, ["dict_key2", "nested_key1"], dict_key3]'
+    def print_table(self, objlist, header="", data_columns=""):
+        if not header:
+            header=self.table_headers
+        
+        if not data_columns:
+            data_columns=self.data_columns
+        
+        all_rows = []
+        for row in objlist:
+            formatted_row = []
+
+            for col in data_columns:
+                if isinstance(col, list):
+                    res = self.get_from_dict(row, col)
+                    print(res)
+                    print(type(res))
+                else:
+                    res = row[col]
+                formatted_row.append(res)
+
+            all_rows.append(formatted_row)
+
+        print(tabulate(all_rows, header))
+
 
 
 class ecHomeCli_Vm(ecHomeParent):
@@ -93,7 +128,7 @@ class ecHomeCli_Vm(ecHomeParent):
 
         if args.format == "table":
             vms = self.client.describe_all()
-            self.__print_table(vms)
+            self.print_table(vms)
         elif args.format == "json":
             print(json.dumps(self.client.describe_all(), indent=4))
 
@@ -106,7 +141,7 @@ class ecHomeCli_Vm(ecHomeParent):
 
         if args.format == "table":
             vm = self.client.describe(args.vm_id)
-            self.__print_table(vm)
+            self.print_table(vm)
         elif args.format == "json":
             print(json.dumps(self.client.describe(args.vm_id), indent=4))
 
@@ -149,7 +184,7 @@ class ecHomeCli_Vm(ecHomeParent):
 
         print(self.client.terminate(args.vm_id))
 
-    def __print_table(self, vm_list):
+    def print_table(self, vm_list):
         headers = ["Name", "Vm Id", "Instance Size", "State", "IP", "Image", "Created"]
         all_vms = []
         for vm in vm_list:
@@ -177,6 +212,9 @@ class ecHomeCli_SshKeys(ecHomeParent):
         self.parent_service = "sshkeys"
         self.parent_full_name = "SSH Keys"
 
+        self.table_headers = ["Name", "Key Id", "Fingerprint"]
+        self.data_columns = ["key_name", "key_id", "fingerprint"]
+
         self.session = Session()
         self.client = self.session.client("SshKey")
 
@@ -189,7 +227,7 @@ class ecHomeCli_SshKeys(ecHomeParent):
         
         if args.format == "table":
             keys = self.client.describe_all()
-            self.__print_table(keys)
+            self.print_table(keys)
         elif args.format == "json":
             print(json.dumps(self.client.describe_all(), indent=4))
     
@@ -201,7 +239,7 @@ class ecHomeCli_SshKeys(ecHomeParent):
         
         if args.format == "table":
             key = self.client.describe(args.key_name)
-            self.__print_table(key)
+            self.print_table(key)
         elif args.format == "json":
             print(json.dumps(self.client.describe(args.key_name), indent=4))
     
@@ -242,14 +280,6 @@ class ecHomeCli_SshKeys(ecHomeParent):
 
         print(json.dumps(self.client.delete(args.key_name), indent=4))
     
-    def __print_table(self, list):
-        headers = ["Name", "Key Id", "Fingerprint"]
-        all_keys = []
-        for key in list:
-            k = [key["key_name"], key["key_id"], key["fingerprint"]]
-            all_keys.append(k)
-
-        print(tabulate(all_keys, headers))
 
 class ecHomeCli_Images(ecHomeParent):
 
@@ -258,6 +288,7 @@ class ecHomeCli_Images(ecHomeParent):
         self.parent_full_name = "Images"
 
         self.table_headers = ["Name", "Image Id", "Format", "Description"]
+        self.data_columns=["name", "guest_image_id", ["guest_image_metadata", "format"], "description"]
 
         self.session = Session()
         self.client = self.session.client("Images")
@@ -297,7 +328,7 @@ class ecHomeCli_Images(ecHomeParent):
             image = self.client.guest().describe(args.image_id)
 
             if args.format == "table":
-                self.__print_table(image)
+                self.print_table(image)
             elif args.format == "json":
                 print(json.dumps(image, indent=4))
 
@@ -318,7 +349,7 @@ class ecHomeCli_Images(ecHomeParent):
             images = self.client.guest().describe_all()
 
             if args.format == "table":
-                self.__print_table(images, data_columns=["name", "guest_image_id", ["guest_image_metadata", "format"], "description"])
+                self.print_table(images)
             elif args.format == "json":
                 print(json.dumps(images, indent=4))
 
@@ -327,35 +358,7 @@ class ecHomeCli_Images(ecHomeParent):
         else:
             logging.error("Unsupported Image type")
             exit(1)
-    
-    def __print_table(self, list, header="", data_columns=""):
-        if not header:
-            header=self.table_headers
-        
-        all_rows = []
-        for row in list:
-            formatted_row = []
-            for col in data_columns:
-                if type(col) is list:
-                    print(f"processing {col}")
-                    res = reduce(lambda d, key: d.get(key) if d else "", col, row)
-                else:
-                    res = row[col]
 
-                print(res)
-                all_rows.append(res)
-            # for col in data_columns:
-            #     print(f"processing {col}")
-            #     formatted_row.append(row[col])
-                
-                # if len(col) > 1:
-                #     formatted_row.append(row[col])
-                # else:
-                #     formatted_row.append(row[col])
-            #formatted_row = [row["name"], row["guest_image_id"], row["guest_image_metadata"]["format"], row["description"]]
-            #all_rows.append(formatted_row)
-
-        print(tabulate(all_rows, header))
 
 
 
