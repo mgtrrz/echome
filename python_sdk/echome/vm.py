@@ -137,7 +137,12 @@ class Images (base_resource):
         namespace = "vm/images/guest"
 
         def describe_all(self):
-            r = requests.get(f"{self.base_url}/all")
+            r = requests.get(f"{self.base_url}/describe-all")
+            self.status_code = r.status_code
+            return r.json()
+
+        def describe(self, id):
+            r = requests.get(f"{self.base_url}/describe/{id}")
             self.status_code = r.status_code
             return r.json()
 

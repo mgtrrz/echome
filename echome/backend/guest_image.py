@@ -46,7 +46,10 @@ class GuestImage:
                 image_meta = {}
                 i = 0
                 for column in columns:
-                    image_meta[column.name] = str(row[i])
+                    if column.name == "created":
+                        image_meta[column.name] = str(row[i])
+                    else:
+                        image_meta[column.name] = row[i]
                     i += 1
                 images.append(image_meta)
 
@@ -84,6 +87,7 @@ class GuestImage:
 
 
         results = self.db.connection.execute(select_stmt).fetchall()
+        images = []
         if results:
             image_meta = {}
             i = 0
@@ -93,10 +97,12 @@ class GuestImage:
                 else:
                     image_meta[column.name] = str(results[0][i])
                 i += 1
-            return image_meta
+            images.append(image_meta)
         else:
             logging.error(f"Image with that ID does not exist: {img_id}")
             raise InvalidImageId(f"Image with that ID does not exist: {img_id}")
+        
+        return images
 
 
     def registerImage(self, img_path, img_name, img_description, img_metadata={}, host="localhost"):

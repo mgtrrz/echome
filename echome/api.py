@@ -7,7 +7,7 @@ from flask import request, jsonify, url_for
 from backend.vm_manager import VmManager
 from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
-from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser
+from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -140,15 +140,20 @@ def api_vm_modification(vm_id=None):
 # Component: images
 # vm/images
 
-@app.route('/v1/vm/images/guest/all', methods=['GET'])
+@app.route('/v1/vm/images/guest/describe-all', methods=['GET'])
 def api_guest_image_all():
     gmi = GuestImage()
     return jsonify(gmi.getAllImages())
 
-@app.route('/v1/vm/images/user/all', methods=['GET'])
-def api_user_image_all():
-    vmi = UserImage()
-    return jsonify(vmi.getAllImages())
+@app.route('/v1/vm/images/guest/describe/<img_id>', methods=['GET'])
+def api_guest_image_describe(img_id=None):
+    if not img_id:
+        return {"error": "Image Id must be provided."}, 400
+    gmi = GuestImage()
+    try: 
+        return jsonify(gmi.getImageMeta(img_id))
+    except InvalidImageId as e:
+        return {"error": "Image Id does not exist."}, 404
 
 @app.route('/v1/vm/images/guest/register', methods=['POST'])
 def api_guest_image_register():
@@ -172,6 +177,11 @@ def api_guest_image_register():
 
     new_img = {"guest_image_id": img_id}
     return jsonify(new_img)
+
+@app.route('/v1/vm/images/user/describe-all', methods=['GET'])
+def api_user_image_all():
+    vmi = UserImage()
+    return jsonify(vmi.getAllImages())
 
 ####################
 # Namespace: vm 

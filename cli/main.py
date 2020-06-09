@@ -2,6 +2,7 @@ import sys
 import argparse
 import logging
 import json
+from functools import reduce
 from tabulate import tabulate
 sys.path.insert(0, '../python_sdk/')
 from echome import Session
@@ -36,6 +37,9 @@ The most commonly used ecHome service commands are:
 
     def sshkeys(self):
         ecHomeCli_SshKeys()
+    
+    def images(self):
+        ecHomeCli_Images()
 
 class ecHomeParent:
 
@@ -45,9 +49,7 @@ class ecHomeParent:
 
         parser = argparse.ArgumentParser(description=f"Interact with the {self.parent_full_name} service", prog=f"{APP_NAME} {self.parent_service}")
 
-        callable_methods = self.get_list_of_methods()
-
-        parser.add_argument('subcommand', help=f"Subcommand for the {self.parent_service} service.", choices=callable_methods)
+        parser.add_argument('subcommand', help=f"Subcommand for the {self.parent_service} service.", choices=self.get_list_of_methods())
         args = parser.parse_args(sys.argv[2:3])
         subcommand = str(args.subcommand).replace("-", "_")
         if not hasattr(self, subcommand):
@@ -255,10 +257,107 @@ class ecHomeCli_Images(ecHomeParent):
         self.parent_service = "images"
         self.parent_full_name = "Images"
 
+        self.table_headers = ["Name", "Image Id", "Format", "Description"]
+
         self.session = Session()
         self.client = self.session.client("Images")
 
         self.parent_service_argparse()
+
+    def register(self):
+        parser = argparse.ArgumentParser(description='Register an image', prog=f"{APP_NAME} {self.parent_service} register")
+        parser.add_argument('--type',  help='Type of image to register', choices=["guest", "user"], required=True)
+        parser.add_argument('--image-path',  help='Path to the new image. This image must exist on the new server and exist in the configured guest images directory.', metavar="</path/to/image>", dest="ImagePath", required=True)
+        parser.add_argument('--image-name',  help='Name of the new image', metavar="<image-name>", required=True)
+        parser.add_argument('--image-description',  help='Description of the new image', metavar="<image-desc>", required=True)
+        args = parser.parse_args(sys.argv[3:])
+
+        if args.type == "guest":
+            resp = self.client.guest().register(
+                ImagePath=args.ImagePath,
+                ImageName=args.ImageName,
+                ImageDescription=args.ImageDescription
+            )
+            print(json.dumps(resp))
+        elif args.type == "user":
+            print("got type user")
+        else:
+            logging.error("Unsupported Image type")
+            exit(1)
+    
+    def describe(self):
+        parser = argparse.ArgumentParser(description='Describe an image', prog=f"{APP_NAME} {self.parent_service} describe")
+        parser.add_argument('image_id',  help='Image Id', metavar="<image-id>")
+        parser.add_argument('--type',  help='Type of image to register', choices=["guest", "user"], required=True)
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
+        args = parser.parse_args(sys.argv[3:])
+
+        if args.type == "guest":
+
+            image = self.client.guest().describe(args.image_id)
+
+            if args.format == "table":
+                self.__print_table(image)
+            elif args.format == "json":
+                print(json.dumps(image, indent=4))
+
+        elif args.type == "user":
+            print("got type user")
+        else:
+            logging.error("Unsupported Image type")
+            exit(1)
+    
+    def describe_all(self):
+        parser = argparse.ArgumentParser(description='Describe all images', prog=f"{APP_NAME} {self.parent_service} describe-all")
+        parser.add_argument('--type',  help='Type of image to register', choices=["guest", "user"], required=True)
+        parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
+        args = parser.parse_args(sys.argv[3:])
+
+        if args.type == "guest":
+
+            images = self.client.guest().describe_all()
+
+            if args.format == "table":
+                self.__print_table(images, data_columns=["name", "guest_image_id", ["guest_image_metadata", "format"], "description"])
+            elif args.format == "json":
+                print(json.dumps(images, indent=4))
+
+        elif args.type == "user":
+            print("got type user")
+        else:
+            logging.error("Unsupported Image type")
+            exit(1)
+    
+    def __print_table(self, list, header="", data_columns=""):
+        if not header:
+            header=self.table_headers
+        
+        all_rows = []
+        for row in list:
+            formatted_row = []
+            for col in data_columns:
+                if type(col) is list:
+                    print(f"processing {col}")
+                    res = reduce(lambda d, key: d.get(key) if d else "", col, row)
+                else:
+                    res = row[col]
+
+                print(res)
+                all_rows.append(res)
+            # for col in data_columns:
+            #     print(f"processing {col}")
+            #     formatted_row.append(row[col])
+                
+                # if len(col) > 1:
+                #     formatted_row.append(row[col])
+                # else:
+                #     formatted_row.append(row[col])
+            #formatted_row = [row["name"], row["guest_image_id"], row["guest_image_metadata"]["format"], row["description"]]
+            #all_rows.append(formatted_row)
+
+        print(tabulate(all_rows, header))
+
+
 
 if __name__ == "__main__":
     ecHomeCli()
