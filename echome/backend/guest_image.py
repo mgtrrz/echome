@@ -7,17 +7,9 @@ from sqlalchemy import select, and_
 from .id_gen import IdGenerator
 from .database import Database
 
-class GuestImage:
+class BaseImage:
+    imageType = None
 
-    imageType = "guest"
-
-    def __init__(self, user=None):
-        self.db = Database()
-        if self.imageType == "user":
-            if not user:
-                raise UserImageInvalidUser("User object required when calling UserImage class")
-            self.user = user
-    
     def getAllImages(self):
         columns = [
             self.db.guest_images.c.created,
@@ -124,7 +116,7 @@ class GuestImage:
 
 
         # Verify image type
-        result = self.__run_command(["qemu-img", "info", img_path, "--output", "json"])
+        result = self.run_command(["qemu-img", "info", img_path, "--output", "json"])
         obj = json.loads(result["output"])
         print(obj["format"])
 
@@ -165,7 +157,7 @@ class GuestImage:
     def __str__(self):
         return
     
-    def __run_command(self, cmd: list):
+    def run_command(self, cmd: list):
         logging.debug("Running command: ")
         logging.debug(cmd)
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
@@ -181,9 +173,22 @@ class GuestImage:
             "output": output,
         }
 
-class UserImage(GuestImage):
+class GuestImage(BaseImage):
+
+    imageType = "guest"
+
+    def __init__(self, user=None):
+        self.db = Database()
+        if self.imageType == "user":
+            if not user:
+                raise UserImageInvalidUser("User object required when calling UserImage class")
+            self.user = user
+    
+    
+
+class UserImage(BaseImage):
     imageType = "user"
-    pass
+
 
 class InvalidImageId(Exception):
     pass

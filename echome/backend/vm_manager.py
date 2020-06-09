@@ -261,26 +261,37 @@ class VmManager:
                 instances.append(instance)
         return instances
 
-    def createVirtualMachineImage(self, user, account_id, vm_id, vm_name):
-        logging.debug(f"Creating VMI from {vm_name}")
+    def createVirtualMachineImage(self, user, vm_id):
+
+        account_id = user["account_id"]
+        vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
+        vmi_id = IdGenerator.generate("vmi")
+
+        logging.debug(f"Creating VMI from {vm_id}")
         # Instance needs to be turned off to create an image
+        logging.debug(f"Stopping {vm_id}")
         self.stopInstance(vm_id)
 
-        vmi_id = IdGenerator.generate("vmi")
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
         # Create it if doesn't exist
         pathlib.Path(user_vmi_dir).mkdir(parents=True, exist_ok=True)
-
+        current_image_full_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}"
         new_image_full_path = f"{user_vmi_dir}/{vmi_id}.qcow2"
 
         try:
             logging.debug(f"Copying image: {vm_name} TO {vmi_id}")
-            shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
+            #shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
         except:
             logging.error("Encountered an error on VM copy. Cannot continue.")
             raise
         
+        output = self.__run_command(["qemu-img", "convert", "-O", "qcow2", current_image_full_path, new_image_full_path])
+        if output["return_code"] is not None:
+            # There was an issue with the resize
+            #TODO: Condition on error
+            print("Return code not None")
+
         logging.debug(f"Running Sysprep on: {new_image_full_path}")
         output = self.__run_command(["sudo", "virt-sysprep", "-a", new_image_full_path])
         if output["return_code"] is not None:
@@ -289,20 +300,15 @@ class VmManager:
             print("Return code not None")
 
         logging.debug(f"Running Sparsify on: {new_image_full_path}")
-        self.__run_command(["sudo", "virt-sparsify", "--compress", new_image_full_path])
+        self.__run_command(["sudo", "virt-sparsify", "--in-place", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
+
+
         
-        return {
-            "success": True,
-            "meta_data": {
-                "vmi_id": vmi_id,
-                "vmi_id_file_name": f"{vmi_id}.qcow2",
-            },
-            "reason": "",
-        }
+        return {"vmi_id": vmi_id}
 
     def getVmState(self, vm_id):
         domain = self.__get_virtlib_domain(vm_id)

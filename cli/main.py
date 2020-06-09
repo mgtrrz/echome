@@ -98,8 +98,6 @@ class ecHomeParent:
             for col in data_columns:
                 if isinstance(col, list):
                     res = self.get_from_dict(row, col)
-                    print(res)
-                    print(type(res))
                 else:
                     res = row[col]
                 formatted_row.append(res)
