@@ -22,6 +22,8 @@ fi
 # Script designed for:
 # Ubuntu 18.04.4 LTS
 echo ": Installing packages"
+sudo apt update && sudo apt upgrade
+
 sudo apt install -y qemu-kvm libvirt-bin libvirt-dev virtinst bridge-utils cpu-checker libguestfs-tools jq ovmf pkg-config bridge-utils cloud-image-utils
 sudo apt install -y postgresql postgresql-contrib postgresql-server-dev-10
 sudo apt install -y python3-pip virtualenv nginx
