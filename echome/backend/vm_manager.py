@@ -97,6 +97,8 @@ class VmManager:
         try:
             logging.debug(f"Using 'image_id', grabbing image metadata from {server_params['image_id']}")
             img = gmi.getImageMeta(server_params['image_id'])
+            # Reduce list
+            img = img[0]
         except InvalidImageId as e:
             logging.error(e)
             if CLEAN_UP_ON_FAIL:

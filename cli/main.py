@@ -343,16 +343,18 @@ class ecHomeCli_Images(ecHomeParent):
         args = parser.parse_args(sys.argv[3:])
 
         if args.type == "guest":
-
             images = self.client.guest().describe_all()
-
             if args.format == "table":
                 self.print_table(images)
             elif args.format == "json":
                 print(json.dumps(images, indent=4))
 
         elif args.type == "user":
-            print("got type user")
+            images = self.client.user().describe_all()
+            if args.format == "table":
+                self.print_table(images)
+            elif args.format == "json":
+                print(json.dumps(images, indent=4))
         else:
             logging.error("Unsupported Image type")
             exit(1)

@@ -10,6 +10,9 @@ from .database import Database
 class BaseImage:
     imageType = None
 
+    def __init__(self):
+        self.db = Database()
+
     def getAllImages(self):
         columns = [
             self.db.guest_images.c.created,
@@ -25,7 +28,9 @@ class BaseImage:
         ]
 
         if self.imageType == "guest":
-            select_stmt = select(columns)
+            select_stmt = select(columns).where(
+                self.db.guest_images.c.account == None
+            )
         elif self.imageType == "user":
             select_stmt = select(columns).where(
                 self.db.guest_images.c.account == self.user["account_id"]
@@ -124,9 +129,8 @@ class BaseImage:
         img_metadata["actual-size"] = obj["actual-size"]
         img_metadata["virtual-size"] = obj["virtual-size"]
 
-        id = IdGenerator.generate(type="gmi")
-
         if self.imageType == "guest":
+            id = IdGenerator.generate(type="gmi")
             stmt = self.db.guest_images.insert().values(
                 guest_image_id=id, 
                 guest_image_path=img_path,
@@ -138,6 +142,7 @@ class BaseImage:
                 tags={}
             )
         elif self.imageType == "user":
+            id = IdGenerator.generate(type="vmi")
             stmt = self.db.guest_images.insert().values(
                 account=self.user["account_id"],
                 guest_image_id=id, 
@@ -174,20 +179,15 @@ class BaseImage:
         }
 
 class GuestImage(BaseImage):
-
     imageType = "guest"
 
-    def __init__(self, user=None):
-        self.db = Database()
-        if self.imageType == "user":
-            if not user:
-                raise UserImageInvalidUser("User object required when calling UserImage class")
-            self.user = user
-    
-    
 
 class UserImage(BaseImage):
     imageType = "user"
+
+    def __init__(self, user):
+        self.db = Database()
+        self.user = user
 
 
 class InvalidImageId(Exception):

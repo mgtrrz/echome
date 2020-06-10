@@ -94,10 +94,11 @@ def api_vm_create():
         "disk_size": dsize,
     }
 
-
     try:
+        pass
         vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
-    except :
+    except Exception as e:
+        logging.debug(f"Exception hit: {e}")
         return {"error": "There was an error when creating the instance."}, 500
     
     return jsonify({"vm_id": vm_id})
@@ -180,7 +181,7 @@ def api_guest_image_register():
 
 @app.route('/v1/vm/images/user/describe-all', methods=['GET'])
 def api_user_image_all():
-    vmi = UserImage()
+    vmi = UserImage(user)
     return jsonify(vmi.getAllImages())
 
 ####################
@@ -244,5 +245,5 @@ def api_ssh_key_store():
 
     return jsonify(results)
 
-
-app.run(host="0.0.0.0")
+if __name__ == "__main__":
+    app.run(host="0.0.0.0")

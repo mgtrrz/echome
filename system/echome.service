@@ -1,0 +1,13 @@
+[Unit]
+Description=uWSGI instance to serve ecHome
+After=network.target
+
+[Service]
+User=echome
+Group=www-data
+WorkingDirectory=/opt/echome/app
+Environment="PATH=/opt/echome/app/venv/bin"
+ExecStart=/opt/echome/app/venv/bin/uwsgi --ini /etc/echome/echome_uwsgi.ini
+
+[Install]
+WantedBy=multi-user.target
