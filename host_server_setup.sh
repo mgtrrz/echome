@@ -15,7 +15,7 @@ sudo apt install -y python3-pip virtualenv nginx
 sudo useradd -m -d /opt/echome -G lxd,kvm,libvirt,sudo echome
 #sudo usermod -s /usr/sbin/nologin echome
 
-echo '# User rules for echome' | sudo tee -a /etc/sudoers.d/echome
+echo '# User rules for ecHome' | sudo tee -a /etc/sudoers.d/echome
 echo 'echome ALL=(ALL) NOPASSWD:ALL' | sudo tee -a /etc/sudoers.d/echome
 
 # Determine if host is ready for virtualization
@@ -55,6 +55,11 @@ sudo -u postgres bash -c "psql -c \"CREATE DATABASE echome;\""
 sudo -u postgres bash -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE echome to echome;\""
 
 sudo -u echome bash -c "echo \"[database]\" > /etc/echome/database.ini; echo \"db.url=postgresql://echome:${psqlpass}@localhost/echome\" >> /etc/echome/database.ini " 
+
+echo ": Creating virtualenv for ecHome."
+sudo -u echome -H bash -c "cd /opt/echome/app; virtualenv -p python3 venv;"
+echo ":    Installing requirements via pip"
+sudo -u echome -H bash -c "cd /opt/echome/app; source venv/bin/activate; pip install -r ./requirements.txt"
 
 # uwsgi and nginx configuration
 echo "Setting uwsgi and nginx"
