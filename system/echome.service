@@ -6,7 +6,7 @@ After=network.target
 User=echome
 Group=www-data
 WorkingDirectory=/opt/echome/app
-Environment="PATH=/opt/echome/app/venv/bin"
+Environment="PATH=/opt/echome/app/venv/bin:/usr/bin:/bin"
 ExecStart=/opt/echome/app/venv/bin/uwsgi --ini /etc/echome/echome_uwsgi.ini
 
 [Install]

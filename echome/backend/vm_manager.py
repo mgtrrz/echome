@@ -35,6 +35,8 @@ CLEAN_UP_ON_FAIL = True
 
 class VmManager:
 
+    last_vm_id = ""
+
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
         self.db = Database()
@@ -45,10 +47,26 @@ class VmManager:
     def closeConnection(self):
         self.currentConnection.close()
 
+    
+    def createVirtualMachine(self, user, instanceType:Instance, cloudinit_prams, server_params, tags):
+        try:
+            resp = self.createInstance(user, instanceType, cloudinit_prams, server_params, tags)
+        except Exception as e:
+            logging.error(e)
+            if CLEAN_UP_ON_FAIL:
+                logging.debug("Cleaning up..")
+                self.__delete_vm_path(user["account_id"], self.last_vm_id)
+            raise Exception(e)
+        
+        return resp
+
+
+
     def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags):
 
         logging.debug("Generating vm-id")
         vm_id = IdGenerator.generate()
+        self.last_vm_id = vm_id
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
@@ -152,7 +170,7 @@ class VmManager:
         logging.debug(standard_cloudinit_config)
 
         logging.debug(f"Resizing image size to {server_params['disk_size']}")
-        output = self.__run_command(['qemu-img', 'resize', vm_img, server_params["disk_size"]])
+        output = self.__run_command(['/usr/bin/qemu-img', 'resize', vm_img, server_params["disk_size"]])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
@@ -288,21 +306,21 @@ class VmManager:
             logging.error("Encountered an error on VM copy. Cannot continue.")
             raise
         
-        output = self.__run_command(["qemu-img", "convert", "-O", "qcow2", current_image_full_path, new_image_full_path])
+        output = self.__run_command(["/usr/bin/qemu-img", "convert", "-O", "qcow2", current_image_full_path, new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
 
         logging.debug(f"Running Sysprep on: {new_image_full_path}")
-        output = self.__run_command(["sudo", "virt-sysprep", "-a", new_image_full_path])
+        output = self.__run_command(["sudo", "/usr/bin/virt-sysprep", "-a", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
 
         logging.debug(f"Running Sparsify on: {new_image_full_path}")
-        self.__run_command(["sudo", "virt-sparsify", "--in-place", new_image_full_path])
+        self.__run_command(["sudo", "/usr/bin/virt-sparsify", "--in-place", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
@@ -597,6 +615,15 @@ class VmManager:
 
     # Delete the path for the files
     def __delete_vm_path(self, account_id, vm_id):
+        # let's not delete all of the vm's in a user's folder
+        if not vm_id:
+            logging.debug("vm_id empty when calling delete_vm_path. Exiting!")
+            return
+        
+        # If it got created in virsh but still failed, undefine it
+        if vm = self.__get_virtlib_domain(vm_id):
+            vm.undefine()
+
         path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
         logging.debug(f"Deleting VM Path: {path}")
 

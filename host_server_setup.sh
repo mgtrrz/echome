@@ -2,6 +2,23 @@
 
 echo "ecHome Host Server Setup\n\n"
 
+echo "Use 'http' or 'ssh' to git clone the echome repository?"
+echo "Defaults to 'http' on key press enter. No ssh key setup necessary."
+echo "ssh option requires creating ssh key and importing to your Github profile."
+read -p "Type: http -or- ssh [http] " -r
+echo    # (optional) move to a new line
+if [[ $REPLY =~ "http" || $REPLY == "" ]]
+then
+  git_url="https://github.com/mgtrrz/echome.git"
+    # do dangerous stuff
+elif [[ $REPLY =~ "ssh" ]]
+then
+  git_url="git@github.com:mgtrrz/echome.git"
+else
+  echo "Unrecognized option!"
+  exit 1
+fi
+
 # Script designed for:
 # Ubuntu 18.04.4 LTS
 echo ": Installing packages"
@@ -26,7 +43,7 @@ sudo virt-host-validate lxc
 echo ": Moving app files into place."
 echo "    Cloning git directory."
 cd ~
-git clone git@github.com:mgtrrz/echome.git
+git clone ${git_url}
 cd echome/
 echome_dir=$(pwd)
 
@@ -64,6 +81,7 @@ sudo -u echome -H bash -c "cd /opt/echome/app; source venv/bin/activate; pip ins
 # uwsgi and nginx configuration
 echo "Setting uwsgi and nginx"
 sudo mkdir -pv /run/echome/
+sudo chown echome. /run/echome/
 
 sudo cp "${echome_dir}/system/echome_uwsgi.ini" /etc/echome/
 sudo cp "${echome_dir}/system/echome.service" /etc/systemd/system/
@@ -78,6 +96,7 @@ sudo systemctl enable echome
 # Check for errors in nginx configuration files
 sudo nginx -t
 sudo systemctl restart nginx
+cd ~
 
 
 echo "Done! 

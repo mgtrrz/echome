@@ -36,6 +36,8 @@ Setup a clean install of Ubuntu 18.04 on your server to start and generate an ss
 Grab the `host_server_setup.sh` script and run it on the machine with sudo.
 
 ```
+~$ sudo apt update && sudo apt upgrade
+
 ~$ wget https://raw.githubusercontent.com/mgtrrz/echome/master/host_server_setup.sh -O host_server_setup.sh
 ~$ chmod +x host_server_setup.sh
 ~$ ./host_server_setup.sh

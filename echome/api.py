@@ -95,8 +95,7 @@ def api_vm_create():
     }
 
     try:
-        pass
-        vm_id = vm.createInstance(user, instanceDefinition, cloudinit_params, server_params, tags)
+        vm_id = vm.createVirtualMachine(user, instanceDefinition, cloudinit_params, server_params, tags)
     except Exception as e:
         logging.debug(f"Exception hit: {e}")
         return {"error": "There was an error when creating the instance."}, 500
