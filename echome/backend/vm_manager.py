@@ -621,7 +621,8 @@ class VmManager:
             return
         
         # If it got created in virsh but still failed, undefine it
-        if vm = self.__get_virtlib_domain(vm_id):
+        vm = self.__get_virtlib_domain(vm_id)
+        if not vm:
             vm.undefine()
 
         path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
