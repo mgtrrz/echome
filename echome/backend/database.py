@@ -2,6 +2,7 @@ import logging
 from configparser import ConfigParser
 from datetime import datetime
 import sqlalchemy as db
+from uwsgidecorators import postfork
 from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
@@ -10,6 +11,11 @@ from sqlalchemy.orm import sessionmaker
 
 SECTION_NAME = "database"
 DB_CONFIG_FILE = "/etc/echome/database.ini"
+
+@postfork
+def engine_dispose():
+    logging.debug("Class Database: ENGINE DISPOSE called!")
+    #self.engine.dispose()
 
 class Database:
 
@@ -83,6 +89,7 @@ class Database:
     )
 
     def __init__(self):
+        logging.debug("Opening Postgres Engine connection..")
         self.engine = db.engine_from_config(self.get_connection_by_config(DB_CONFIG_FILE), prefix='db.')
         self.connection = self.engine.connect()
         self.metadata.create_all(self.engine)
@@ -112,11 +119,18 @@ class Database:
     def select(self, query, data):
         result = self.connection.execute(query, data).fetchall()
         return result
+    
+    # @postfork
+    # def engine_dispose(self):
+    #     logging.debug("Class Database: ENGINE DISPOSE called!")
+    #     self.engine.dispose()
+
 
 class DbEngine:
     metadata = MetaData()
 
     def __init__(self):
+        logging.debug("Opening Postgres Engine connection..")
         self.engine = db.engine_from_config(self.get_connection_by_config(DB_CONFIG_FILE), prefix='db.')
         self.connection = self.engine.connect()
 
@@ -127,6 +141,11 @@ class DbEngine:
     
     def create_tables(self):
         self.metadata.create_all(self.engine)
+    
+    # @postfork
+    # def engine_dispose(self):
+    #     logging.debug("Class Database: ENGINE DISPOSE called!")
+    #     self.engine.dispose()
 
     def get_connection_by_config(self, config_file_path):
         #TODO: Check if config file exists

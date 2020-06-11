@@ -110,16 +110,18 @@ https://fabianlee.org/2019/04/01/kvm-creating-a-bridged-network-with-netplan-on-
 Set up two new directories for guest images and user accounts. These can be defined anywhere but must be accessible and writable to the echome user.
 Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
 
+For working in a Development environment (recommended if making changes to code):
+
 Perform the following steps to make sure the echome app works as expected:
 $ sudo su echome
 $ cd ~/app/
-$ virtualenv -p python3 venv
 $ source venv/bin/activate
 $ python api.py
- * Serving Flask app "api" (lazy loading)
+ * Serving Flask app 'api' (lazy loading)
  * Environment: production
    WARNING: This is a development server. Do not use it in a production deployment.
    Use a production WSGI server instead.
 
-If all is well, you should see Flask start in development server and start serving requests at port 5000.
+If all is well, you should see Flask start in development server and start serving requests at port 5000. The Flask development web server
+will automatically reload on file changes.
 "

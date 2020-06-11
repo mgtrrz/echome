@@ -332,27 +332,32 @@ class VmManager:
 
     def getVmState(self, vm_id):
         domain = self.__get_virtlib_domain(vm_id)
-        state_int, reason = domain.state()
+        if domain:
+            state_int, reason = domain.state()
 
-        if state_int == libvirt.VIR_DOMAIN_NOSTATE:
-            state_str = "no_state"
-        elif state_int == libvirt.VIR_DOMAIN_RUNNING:
-            state_str = "running"
-        elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
-            state_str = "blocked"
-        elif state_int == libvirt.VIR_DOMAIN_PAUSED:
-            state_str = "paused"
-        elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
-            state_str = "shutdown"
-        elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
-            state_str = "shutoff"
-        elif state_int == libvirt.VIR_DOMAIN_CRASHED:
-            state_str = "crashed"
-        elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
-            # power management (entered into s3 state)
-            state_str = "pm_suspended"
+            if state_int == libvirt.VIR_DOMAIN_NOSTATE:
+                state_str = "no_state"
+            elif state_int == libvirt.VIR_DOMAIN_RUNNING:
+                state_str = "running"
+            elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
+                state_str = "blocked"
+            elif state_int == libvirt.VIR_DOMAIN_PAUSED:
+                state_str = "paused"
+            elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
+                state_str = "shutdown"
+            elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
+                state_str = "shutoff"
+            elif state_int == libvirt.VIR_DOMAIN_CRASHED:
+                state_str = "crashed"
+            elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
+                # power management (entered into s3 state)
+                state_str = "pm_suspended"
+            else:
+                state_str = "unknown"
         else:
             state_str = "unknown"
+            state_int = 0
+            reason = "Unknown state"
 
         return state_str, state_int, str(reason)
 
@@ -429,11 +434,30 @@ class VmManager:
 
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
-            return {
-                "success": False,
-                "meta_data": {},
-                "reason": f"VM {vm_id} does not exist",
-            }
+
+            # Check to see if it's in the database
+            select_stmt = select([self.db.user_instances]).where(
+                and_(
+                    self.db.user_instances.c.account == user_obj["account_id"], 
+                    self.db.user_instances.c.instance_id == vm_id
+                )
+            )
+            rows = self.db.connection.execute(select_stmt).fetchall()
+
+            if rows:
+                del_stmt = self.db.user_instances.delete().where(self.db.user_instances.c.instance_id == vm_id)
+                self.db.connection.execute(del_stmt)
+                return {
+                    "success": True,
+                    "meta_data": {},
+                    "reason": f"Cleaned up fragmaneted VM {vm_id}.",
+                }
+            else:
+                return {
+                    "success": False,
+                    "meta_data": {},
+                    "reason": f"VM {vm_id} does not exist",
+                }
         try:
             # Stop the instance
             self.stopInstance(vm_id)
