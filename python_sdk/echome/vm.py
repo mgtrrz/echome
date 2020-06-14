@@ -12,8 +12,21 @@ class base_resource:
     def init_session(self, session, namespace=""):
         if namespace:
             self.namespace = namespace
-        self.base_url = f"{session.protocol}{session.server_url}/{session.api_version}/{self.namespace}"
+        self.base_url = f"{session.base_url}/{self.namespace}"
         self.session = session
+    
+    def build_headers(self):
+        logging.debug("Preparing Requests headers")
+        headers = {
+            'user-agent': self.session.user_agent,
+            'x-authorization-id': self.session.access_id
+        }
+
+        if self.session.token:
+            logging.debug("Authorization token is set, setting header")
+            headers['x-authorization-token'] = self.session.token
+        
+        return headers
     
     def unpack_tags(self, tags: dict):
         tag_dict = {}
@@ -29,14 +42,14 @@ class Vm (base_resource):
     namespace = "vm"
 
     def describe_all(self, json_response=True):
-        r = requests.get(f"{self.base_url}/describe/all")
+        r = requests.get(f"{self.base_url}/describe/all", headers=self.build_headers())
         self.status_code = r.status_code
         self.raw_json_response = r.json()
         return r.json()
 
     def describe(self, vm_id, json_response=True):
 
-        r = requests.get(f"{self.base_url}/describe/{vm_id}")
+        r = requests.get(f"{self.base_url}/describe/{vm_id}", headers=self.build_headers())
         self.status_code = r.status_code
         self.raw_json_response = r.json()
 
@@ -80,7 +93,7 @@ class Vm (base_resource):
         
         logging.debug(kwargs)
         logging.debug(f"Making call to URL: {self.base_url}/create")
-        r = requests.get(f"{self.base_url}/create", params=kwargs)
+        r = requests.get(f"{self.base_url}/create", headers=self.build_headers(), params=kwargs)
         self.status_code = r.status_code
         return r.json()
     
@@ -88,21 +101,21 @@ class Vm (base_resource):
         if not id:
             id = self.vm_id
         
-        r = requests.get(f"{self.base_url}/stop/{id}")
+        r = requests.get(f"{self.base_url}/stop/{id}", headers=self.build_headers())
         self.status_code = r.status_code
         return r.json()
     
     def start(self, id=""):
         if not id:
             id = self.vm_id
-        r = requests.get(f"{self.base_url}/start/{id}")
+        r = requests.get(f"{self.base_url}/start/{id}", headers=self.build_headers())
         self.status_code = r.status_code
         return r.json()
 
     def terminate(self, id=""):
         if not id:
             id = self.vm_id
-        r = requests.get(f"{self.base_url}/terminate/{id}")
+        r = requests.get(f"{self.base_url}/terminate/{id}", headers=self.build_headers())
         self.status_code = r.status_code
         return r.json()
     

@@ -218,7 +218,7 @@ class VmManager:
 
         select_stmt = select([self.db.user_instances]).where(
             and_(
-                self.db.user_instances.c.account == user_obj["account_id"], 
+                self.db.user_instances.c.account == user_obj.account, 
                 self.db.user_instances.c.instance_id == vm_id
             )
         )
@@ -259,7 +259,7 @@ class VmManager:
             self.db.user_instances.c.assoc_firewall_rules,
             self.db.user_instances.c.tags
         ]
-        select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj["account_id"])
+        select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj.account)
         rows = self.db.connection.execute(select_stmt).fetchall()
         instances = []
         if rows:
@@ -646,7 +646,7 @@ class VmManager:
         
         # If it got created in virsh but still failed, undefine it
         vm = self.__get_virtlib_domain(vm_id)
-        if not vm:
+        if vm:
             vm.undefine()
 
         path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"

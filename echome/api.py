@@ -2,12 +2,17 @@ import logging
 import flask
 import json
 import base64
+import datetime
 from markupsafe import escape
 from flask import request, jsonify, url_for
 from backend.vm_manager import VmManager
 from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
+from backend.user import User
+from backend.database import DbEngine
+from functools import wraps
+import jwt
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -28,13 +33,76 @@ def home():
 def ping():
     return {"response": "pong"}
 
+
+@app.route('/v1/auth/api/login', methods=['POST'])
+def auth_login():
+    auth = request.authorization
+
+    incorrect_cred = jsonify({'error.auth': 'Incorrect credentials'}), 401
+
+    if not auth or not auth.username or not auth.password:  
+        return incorrect_cred
+
+    db = DbEngine()
+    dbsession = db.return_session()
+    try:
+        user = dbsession.query(User).filter_by(auth_id=auth.username).first()
+    except Exception as e:
+        logging.debug(e)
+        return incorrect_cred
+    
+    if user is None:
+        logging.debug(f"User was None: auth.username: {auth.username} - auth.password: {auth.password}")
+        return incorrect_cred
+
+    if user.check_password(str(auth.password).rstrip()):
+        logging.debug("User successfully logged in.")
+        token = jwt.encode({'public_id': user.auth_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, user.server_secret)
+        return jsonify({'token' : token.decode('UTF-8')})
+
+    return incorrect_cred
+
+
+@app.route('/v1/auth/api/identity', methods=['GET'])
+def auth_identity():
+    pass
+
+def token_required(f):  
+    @wraps(f)  
+    def decorator(*args, **kwargs):
+
+        token = None 
+        db = DbEngine()
+        dbsession = db.return_session()
+
+        if 'x-authorization-token' in request.headers:  
+            token = request.headers['x-authorization-token'] 
+        
+        if 'x-authorization-id' in request.headers:  
+            auth_id = request.headers['x-authorization-id'] 
+
+        if not token or not auth_id:  
+            return jsonify({'auth.error': 'Authorization headers missing'}), 401
+
+        try:
+            # Change this, need to get the auth user before getting Db row
+            user = dbsession.query(User).filter_by(auth_id=auth_id).first()
+            logging.debug("Got user, checking token")
+            data = jwt.decode(token, user.server_secret) 
+        except:  
+            return jsonify({'auth.error': 'Token is invalid'}), 401
+
+        return f(user, *args,  **kwargs)  
+    return decorator 
+
 # curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
 # \&InstanceSize=standard.small \
 # \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
 # \&NetworkInterfaceGatewayIp=172.16.9.1 \
 # \&KeyName=echome
 @app.route('/v1/vm/create', methods=['GET'])
-def api_vm_create():
+@token_required
+def api_vm_create(user):
     if not "ImageId" in request.args:
         return {"error": "ImageId must be provided when creating a VM."}, 400
     
@@ -104,26 +172,30 @@ def api_vm_create():
 
 
 @app.route('/v1/vm/stop/<vm_id>', methods=['GET'])
-def api_vm_stop(vm_id):
+@token_required
+def api_vm_stop(user, vm_id):
     return jsonify(vm.stopInstance(vm_id))
 
 
 @app.route('/v1/vm/start/<vm_id>', methods=['GET'])
-def api_vm_start(vm_id):
+@token_required
+def api_vm_start(user, vm_id):
     return jsonify(vm.startInstance(vm_id))
 
 
 @app.route('/v1/vm/terminate/<vm_id>', methods=['GET'])
-def api_vm_terminate(vm_id):
+@token_required
+def api_vm_terminate(user, vm_id):
     return jsonify(vm.terminateInstance(user, vm_id))
 
-
 @app.route('/v1/vm/describe/all', methods=['GET'])
-def api_vm_all():
+@token_required
+def api_vm_all(user):
     return jsonify(vm.getAllInstances(user))
 
 @app.route('/v1/vm/describe/<vm_id>', methods=['GET'])
-def api_vm_meta(vm_id=None):
+@token_required
+def api_vm_meta(user, vm_id=None):
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
 

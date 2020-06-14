@@ -2,20 +2,22 @@ from echome import Session, Vm, Images, SshKey
 import logging
 import json
 
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 
-#session = echome.Session()
+#session = Session()
+#session.login()
 
-# vm_client = Session().client("Vm")
 
+session = Session()
+#session.login()
+vm_client = session.client("Vm")
 
-# vms = vm_client.describe_all()
-# #vm_client.terminate("vm-52c904f0")
-# print("VMs__________________________________")
-# for vm in vms:
-#     name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
-#     print(f"{vm['instance_id']}\t{name}")
+vms = vm_client.describe_all()
+print("VMs__________________________________")
+for vm in vms:
+    name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
+    print(f"{vm['instance_id']}\t{name}")
 
 
 #thing = vm.describe_all()

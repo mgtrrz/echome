@@ -2,7 +2,7 @@ import logging
 from configparser import ConfigParser
 from datetime import datetime
 import sqlalchemy as db
-from uwsgidecorators import postfork
+#from uwsgidecorators import postfork
 from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
@@ -12,10 +12,10 @@ from sqlalchemy.orm import sessionmaker
 SECTION_NAME = "database"
 DB_CONFIG_FILE = "/etc/echome/database.ini"
 
-@postfork
-def engine_dispose():
-    logging.debug("Class Database: ENGINE DISPOSE called!")
-    #self.engine.dispose()
+# @postfork
+# def engine_dispose():
+#     logging.debug("Class Database: ENGINE DISPOSE called!")
+#     #self.engine.dispose()
 
 class Database:
 

@@ -1,4 +1,8 @@
 import logging
+import requests
+import base64
+import platform
+import os
 from configparser import ConfigParser
 from os import getenv
 from pathlib import Path
@@ -6,6 +10,7 @@ import sys
 from .vm import Vm, Images, SshKey
 
 default_echome_dir = ".echome"
+default_echome_session_dir = ".echome/sess"
 default_config_file = "config"
 default_credential_file = "credentials"
 
@@ -20,8 +25,8 @@ api_version = "v1"
 class Session:
 
     def __init__(self):
-        home_dir = str(Path.home())
-        echome_dir = f"{home_dir}/{default_echome_dir}"
+        self.home_dir = str(Path.home())
+        echome_dir = f"{self.home_dir}/{default_echome_dir}"
 
         cred_file  = f"{echome_dir}/{default_credential_file}"
         conf_file  = f"{echome_dir}/{default_config_file}"
@@ -51,6 +56,55 @@ class Session:
 
         self.format      = getenv("ECHOME_FORMAT", config_from_file["format"] if "format" in config_from_file else default_format)
         self.api_version = api_version
+
+        self.base_url = f"{self.protocol}{self.server_url}/{self.api_version}"
+        self.user_agent = f"ecHome_sdk/0.1.0 (Python {platform.python_version()}"
+        self.token = None
+        self.__get_session()
+    
+    # Login and retrieve a token
+    def login(self):
+        r = requests.post(f"{self.base_url}/auth/api/login", auth=(self.access_id, self.secret_key), headers=self.build_headers())
+        response = r.json()
+        if r.status_code == 200 and "token" in response:
+            self.__save_session_token(response["token"])
+            return True
+        else:
+            return False
+    
+    # Save session token
+    def __save_session_token(self, session):
+        sess_dir = f"{self.home_dir}/{default_echome_session_dir}"
+
+        try:
+            if not os.path.exists(sess_dir):
+                os.makedirs(sess_dir)
+        except Exception as e:
+            print("Could not save sessions. Incorrect permissions?")
+            raise Exception(e)
+
+        token_file = f"{sess_dir}/token"
+        with open(token_file, "w") as f:
+            f.write(session)
+            self.token = session
+        
+    # Get token
+    def __get_session(self):
+        sess_dir = f"{self.home_dir}/{default_echome_session_dir}"
+
+        token_file = f"{sess_dir}/token"
+        with open(token_file, "r") as f:
+            contents = f.read()
+        
+        self.token = contents
+        return contents
+
+    
+    def build_headers(self):
+        return {
+            'user-agent': self.user_agent,
+            'x-authorization-id': self.access_id
+        }
 
     def __get_local_config(self, config_file, profile):
         if(len(config_file) > 0 and len(profile) > 0):

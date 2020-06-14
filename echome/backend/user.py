@@ -10,6 +10,7 @@ import sqlalchemy as db
 import bcrypt
 import secrets
 import string
+import jwt
 
 from .database import DbEngine
 
@@ -38,6 +39,7 @@ class User(Base):
     token_start = Column(DateTime(timezone=True))
     active_token = Column(TEXT)
     secret = Column(TEXT)
+    server_secret = Column(TEXT)
     active = Column(Boolean, default=True)
     tags = Column(JSONB)
 
@@ -62,6 +64,11 @@ class User(Base):
     
     def password(self):
         return self.secret
+    
+    # Server-side secret for JWT signing.
+    # More useful for API tokens
+    def set_server_secret(self):
+        self.server_secret = self.generate_token(length=60)
 
     # API credentials should be created off of the primary user account.
     # The method returns an exception if the User class primary flag is false
@@ -80,7 +87,8 @@ class User(Base):
             primary=False,
             account=self.account,
             username=self.username,
-            secret=self.set_password(secret_token, return_hash_secret=True)
+            secret=self.set_password(secret_token, return_hash_secret=True),
+            server_secret=self.generate_token(length=60)
         ), secret_token
     
     def generate_token(self, length=40):
