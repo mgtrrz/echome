@@ -5,12 +5,14 @@ import json
 logging.basicConfig(level=logging.DEBUG)
 
 
-#session = Session()
-#session.login()
-
-
 session = Session()
 #session.login()
+
+print("Getting tokens in current state")
+print(session.refresh)
+print(session.token)
+
+
 vm_client = session.client("Vm")
 
 vms = vm_client.describe_all()
@@ -66,11 +68,11 @@ for vm in vms:
 # )
 # print(resp)
 
-guest_images = Session().client("Images").guest().describe_all()
+# guest_images = Session().client("Images").guest().describe_all()
 
-print("\nGuest Images_______________________")
-for guest_img in guest_images:
-    print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
+# print("\nGuest Images_______________________")
+# for guest_img in guest_images:
+#     print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
 
 
 

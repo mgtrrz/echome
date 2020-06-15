@@ -15,18 +15,44 @@ class base_resource:
         self.base_url = f"{session.base_url}/{self.namespace}"
         self.session = session
     
-    def build_headers(self):
-        logging.debug("Preparing Requests headers")
+    def build_headers(self, type="access"):
+
+        logging.debug("Preparing Requests headers for normal access request")
         headers = {
             'user-agent': self.session.user_agent,
-            'x-authorization-id': self.session.access_id
+            'Authorization': f"Bearer {self.session.token}"
         }
-
-        if self.session.token:
-            logging.debug("Authorization token is set, setting header")
-            headers['x-authorization-token'] = self.session.token
         
         return headers
+    
+    def request_url(self, url_namespace, method="get", **kwargs):
+        # method here defines the request type to make. 'get' == requests.get, 'post', requests.post, etc.
+        try_refresh = False
+        try_login = False
+        while True:
+            logging.debug(f"Calling: {self.base_url}{url_namespace}")
+            response = getattr(requests, method)(f"{self.base_url}{url_namespace}", headers=self.build_headers(), params=kwargs)
+            print(response)
+            print(response.status_code)
+            print(response.json())
+            if response.status_code == 401 and try_refresh == True and try_login == True:
+                logging.debug("Unable to login, give up at this point.")
+                raise Exception("Unable to successfully authorize with ecHome server.")
+                
+            if response.status_code == 401 and try_refresh == True and try_login == False:
+                logging.debug("Refresh token no longer valid, attempting to login")
+                self.session.login()
+                try_login = True
+
+            if response.status_code == 401 and try_refresh == False and try_login == False:
+                # Try refreshing the token
+                logging.debug("Access token has expired, attempting refresh")
+                self.session.refresh_token()
+                try_refresh = True
+
+            if response.status_code != 401 :
+                return response
+
     
     def unpack_tags(self, tags: dict):
         tag_dict = {}
@@ -42,14 +68,16 @@ class Vm (base_resource):
     namespace = "vm"
 
     def describe_all(self, json_response=True):
-        r = requests.get(f"{self.base_url}/describe/all", headers=self.build_headers())
+        r = self.request_url("/describe/all")
+        # r = requests.get(f"{self.base_url}/describe/all", headers=self.build_headers())
         self.status_code = r.status_code
         self.raw_json_response = r.json()
         return r.json()
 
     def describe(self, vm_id, json_response=True):
 
-        r = requests.get(f"{self.base_url}/describe/{vm_id}", headers=self.build_headers())
+        #r = requests.get(f"{self.base_url}/describe/{vm_id}", headers=self.build_headers())
+        r = self.request_url(f"/describe/{vm_id}")
         self.status_code = r.status_code
         self.raw_json_response = r.json()
 
@@ -93,7 +121,8 @@ class Vm (base_resource):
         
         logging.debug(kwargs)
         logging.debug(f"Making call to URL: {self.base_url}/create")
-        r = requests.get(f"{self.base_url}/create", headers=self.build_headers(), params=kwargs)
+        #r = requests.get(f"{self.base_url}/create", headers=self.build_headers(), params=kwargs)
+        r = self.request_url("/create", "post")
         self.status_code = r.status_code
         return r.json()
     
@@ -101,21 +130,24 @@ class Vm (base_resource):
         if not id:
             id = self.vm_id
         
-        r = requests.get(f"{self.base_url}/stop/{id}", headers=self.build_headers())
+        #r = requests.get(f"{self.base_url}/stop/{id}", headers=self.build_headers())
+        r = self.request_url(f"/stop/{id}", "post")
         self.status_code = r.status_code
         return r.json()
     
     def start(self, id=""):
         if not id:
             id = self.vm_id
-        r = requests.get(f"{self.base_url}/start/{id}", headers=self.build_headers())
+        #r = requests.get(f"{self.base_url}/start/{id}", headers=self.build_headers())
+        r = self.request_url(f"/start/{id}", "post")
         self.status_code = r.status_code
         return r.json()
 
     def terminate(self, id=""):
         if not id:
             id = self.vm_id
-        r = requests.get(f"{self.base_url}/terminate/{id}", headers=self.build_headers())
+        #r = requests.get(f"{self.base_url}/terminate/{id}", headers=self.build_headers())
+        r = self.request_url(f"/terminate/{id}", "post")
         self.status_code = r.status_code
         return r.json()
     

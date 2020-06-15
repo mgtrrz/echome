@@ -5,17 +5,26 @@ import base64
 import datetime
 from markupsafe import escape
 from flask import request, jsonify, url_for
+from flask_jwt_extended import (
+    JWTManager, jwt_required, create_access_token,
+    jwt_refresh_token_required, create_refresh_token,
+    get_jwt_identity, fresh_jwt_required
+)
 from backend.vm_manager import VmManager
 from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
 from backend.database import DbEngine
+from backend.config import AppConfig
 from functools import wraps
-import jwt
+
+echomeConfig = AppConfig()
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+app.secret_key = echomeConfig.echome["api_secret"]
+jwt = JWTManager(app)
 logging.basicConfig(level=logging.DEBUG)
 
 user = {
@@ -35,7 +44,7 @@ def ping():
 
 
 @app.route('/v1/auth/api/login', methods=['POST'])
-def auth_login():
+def auth_api_login():
     auth = request.authorization
 
     incorrect_cred = jsonify({'error.auth': 'Incorrect credentials'}), 401
@@ -57,52 +66,62 @@ def auth_login():
 
     if user.check_password(str(auth.password).rstrip()):
         logging.debug("User successfully logged in.")
-        token = jwt.encode({'public_id': user.auth_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, user.server_secret)
-        return jsonify({'token' : token.decode('UTF-8')})
+        ret = {
+            'access_token': create_access_token(identity=auth.username, fresh=True, expires_delta=datetime.timedelta(minutes=10)),
+            'refresh_token': create_refresh_token(identity=auth.username)
+        }
+        return jsonify(ret), 200
 
     return incorrect_cred
+
+
+# The jwt_refresh_token_required decorator insures a valid refresh
+# token is present in the request before calling this endpoint. We
+# can use the get_jwt_identity() function to get the identity of
+# the refresh token, and use the create_access_token() function again
+# to make a new access token for this identity.
+@app.route('/v1/auth/api/refresh', methods=['POST'])
+@jwt_refresh_token_required
+def auth_api_refresh():
+    auth = request.authorization
+
+    current_user = get_jwt_identity()
+    print(current_user)
+    ret = {
+        'access_token': create_access_token(identity=current_user)
+    }
+    return jsonify(ret), 200
+
 
 
 @app.route('/v1/auth/api/identity', methods=['GET'])
 def auth_identity():
     pass
 
-def token_required(f):  
-    @wraps(f)  
-    def decorator(*args, **kwargs):
+def return_calling_user():
+    print("Grabbing returning user")
+    db = DbEngine()
+    dbsession = db.return_session()
+    current_user = get_jwt_identity()
+    try:
+        user = dbsession.query(User).filter_by(auth_id=current_user).first()
+    except:  
+        return jsonify({'auth.error': 'Token is invalid'}), 401
+    
+    if user is None:
+        return jsonify({'auth.error': 'Invalid user'}), 401
 
-        token = None 
-        db = DbEngine()
-        dbsession = db.return_session()
-
-        if 'x-authorization-token' in request.headers:  
-            token = request.headers['x-authorization-token'] 
-        
-        if 'x-authorization-id' in request.headers:  
-            auth_id = request.headers['x-authorization-id'] 
-
-        if not token or not auth_id:  
-            return jsonify({'auth.error': 'Authorization headers missing'}), 401
-
-        try:
-            # Change this, need to get the auth user before getting Db row
-            user = dbsession.query(User).filter_by(auth_id=auth_id).first()
-            logging.debug("Got user, checking token")
-            data = jwt.decode(token, user.server_secret) 
-        except:  
-            return jsonify({'auth.error': 'Token is invalid'}), 401
-
-        return f(user, *args,  **kwargs)  
-    return decorator 
+    return user
 
 # curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
 # \&InstanceSize=standard.small \
 # \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
 # \&NetworkInterfaceGatewayIp=172.16.9.1 \
 # \&KeyName=echome
-@app.route('/v1/vm/create', methods=['GET'])
-@token_required
+@app.route('/v1/vm/create', methods=['POST'])
+@jwt_required
 def api_vm_create(user):
+    user = return_calling_user()
     if not "ImageId" in request.args:
         return {"error": "ImageId must be provided when creating a VM."}, 400
     
@@ -172,30 +191,35 @@ def api_vm_create(user):
 
 
 @app.route('/v1/vm/stop/<vm_id>', methods=['GET'])
-@token_required
+@jwt_required
 def api_vm_stop(user, vm_id):
+    user = return_calling_user()
     return jsonify(vm.stopInstance(vm_id))
 
 
 @app.route('/v1/vm/start/<vm_id>', methods=['GET'])
-@token_required
+@jwt_required
 def api_vm_start(user, vm_id):
+    user = return_calling_user()
     return jsonify(vm.startInstance(vm_id))
 
 
 @app.route('/v1/vm/terminate/<vm_id>', methods=['GET'])
-@token_required
+@jwt_required
 def api_vm_terminate(user, vm_id):
+    user = return_calling_user()
     return jsonify(vm.terminateInstance(user, vm_id))
 
 @app.route('/v1/vm/describe/all', methods=['GET'])
-@token_required
-def api_vm_all(user):
+@jwt_required
+def api_vm_all():
+    user = return_calling_user()
     return jsonify(vm.getAllInstances(user))
 
 @app.route('/v1/vm/describe/<vm_id>', methods=['GET'])
-@token_required
-def api_vm_meta(user, vm_id=None):
+@jwt_required
+def api_vm_meta(vm_id=None):
+    user = return_calling_user()
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
 

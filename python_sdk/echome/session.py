@@ -59,21 +59,69 @@ class Session:
 
         self.base_url = f"{self.protocol}{self.server_url}/{self.api_version}"
         self.user_agent = f"ecHome_sdk/0.1.0 (Python {platform.python_version()}"
-        self.token = None
+        self._token = None
+        self._refresh = None
         self.__get_session()
     
     # Login and retrieve a token
     def login(self):
+        logging.debug("Logging in to ecHome server")
         r = requests.post(f"{self.base_url}/auth/api/login", auth=(self.access_id, self.secret_key), headers=self.build_headers())
         response = r.json()
-        if r.status_code == 200 and "token" in response:
-            self.__save_session_token(response["token"])
+        if r.status_code == 200 and "access_token" in response:
+            self.token = response["access_token"]
+            self.refresh = response["refresh_token"]
             return True
         else:
             return False
     
+    # refresh the token
+    def refresh_token(self):
+        r = requests.post(f"{self.base_url}/auth/api/refresh", headers=self.build_headers(self.refresh))
+        response = r.json()
+        if r.status_code == 200 and "access_token" in response:
+            self.token = response["access_token"]
+            return True
+        else:
+            return False
+    
+    @property
+    def token(self): 
+        logging.debug("token getter method called") 
+        if self._token is None:
+            logging.debug("Session _token is empty, attempting to retrieve from locally.")
+            self._token = self.__get_session()
+
+        if self._token is None:
+            logging.debug("Session _token is still empty!")
+        return self._token 
+    
+    # a setter function 
+    @token.setter 
+    def token(self, a): 
+        logging.debug("token setter method called") 
+        self._token = self.__save_session_token(a)
+    
+
+    @property
+    def refresh(self): 
+        logging.debug("refresh token getter method called") 
+        if self._refresh is None:
+            logging.debug("Refresh _token is empty, attempting to retrieve from locally.")
+            self._refresh = self.__get_session(type="refresh")
+
+        if self._refresh is None:
+            logging.debug("Refresh _token is still empty!")
+        return self._refresh 
+    
+    # a setter function 
+    @refresh.setter 
+    def refresh(self, a): 
+        logging.debug("Refresh token setter method called") 
+        self._refresh = self.__save_session_token(a, type="refresh")
+    
     # Save session token
-    def __save_session_token(self, session):
+    def __save_session_token(self, token, type="access"):
         sess_dir = f"{self.home_dir}/{default_echome_session_dir}"
 
         try:
@@ -83,28 +131,49 @@ class Session:
             print("Could not save sessions. Incorrect permissions?")
             raise Exception(e)
 
-        token_file = f"{sess_dir}/token"
+        if type == "access":
+            fname = "token"
+        elif type == "refresh":
+            fname = "refresh"
+        else:
+            raise Exception("Unknown type specified when calling save_session_token")
+
+        token_file = f"{sess_dir}/{fname}"
         with open(token_file, "w") as f:
-            f.write(session)
-            self.token = session
+            f.write(token)
+        
+        return token
         
     # Get token
-    def __get_session(self):
+    def __get_session(self, type="access"):
         sess_dir = f"{self.home_dir}/{default_echome_session_dir}"
 
-        token_file = f"{sess_dir}/token"
-        with open(token_file, "r") as f:
-            contents = f.read()
+        if type == "access":
+            fname = "token"
+        elif type == "refresh":
+            fname = "refresh"
+        else:
+            raise Exception("Unknown type specified when calling get_session_token")
+
+        token_file = f"{sess_dir}/{fname}"
+        try:
+            with open(token_file, "r") as f:
+                contents = f.read()
+        except:
+            return ""
         
-        self.token = contents
         return contents
 
     
-    def build_headers(self):
-        return {
-            'user-agent': self.user_agent,
-            'x-authorization-id': self.access_id
+    def build_headers(self, token=None):
+        header = {
+            'user-agent': self.user_agent
         }
+
+        if token:
+            header["Authorization"] = f"Bearer {token}"
+        
+        return header
 
     def __get_local_config(self, config_file, profile):
         if(len(config_file) > 0 and len(profile) > 0):

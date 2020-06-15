@@ -25,6 +25,7 @@ Thumbs.db
 # Python #
 ##########
 venv/
+vscodeenv/
 
 
 # Byte-compiled / optimized / DLL files

@@ -2,16 +2,18 @@
 interfaceName=enp4s0
 bridgeName=br0
 
-; Location to the backend directory 
 [echome]
+; Location to the backend directory 
 base_dir=/opt/echome/app/backend
+; Create a long, random, secure secret for use for API tokens and web sessions
+api_secret=
 
-; This is where your guest images are stored
 [GuestImages]
+; This is where your guest images are stored
 dir=/directory/to/shared-guest-images
 
+[UserDirectories]
 ; This is where user virtual machine directories will be created
 ; If this is a new installation, this directory can be empty and must
 ; be writable to the echome user.
-[UserDirectories]
 dir=/directory/to/user/directories
