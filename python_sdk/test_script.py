@@ -6,13 +6,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 session = Session()
-#session.login()
-
-print("Getting tokens in current state")
-print(session.refresh)
-print(session.token)
-
-
 vm_client = session.client("Vm")
 
 vms = vm_client.describe_all()
