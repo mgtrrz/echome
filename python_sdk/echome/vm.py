@@ -29,29 +29,36 @@ class base_resource:
         # method here defines the request type to make. 'get' == requests.get, 'post', requests.post, etc.
         try_refresh = False
         try_login = False
+        x = 0
         while True:
             logging.debug(f"Calling: {self.base_url}{url_namespace}")
             response = getattr(requests, method)(f"{self.base_url}{url_namespace}", headers=self.build_headers(), params=kwargs)
-            print(response)
-            print(response.status_code)
-            print(response.json())
-            if response.status_code == 401 and try_refresh == True and try_login == True:
-                logging.debug("Unable to login, give up at this point.")
-                raise Exception("Unable to successfully authorize with ecHome server.")
-                
-            if response.status_code == 401 and try_refresh == True and try_login == False:
-                logging.debug("Refresh token no longer valid, attempting to login")
-                self.session.login()
-                try_login = True
+            logging.debug(f"Got response code: {response.status_code}")
 
-            if response.status_code == 401 and try_refresh == False and try_login == False:
+            if response.status_code == 401:
                 # Try refreshing the token
                 logging.debug("Access token has expired, attempting refresh")
-                self.session.refresh_token()
-                try_refresh = True
+                if self.session.refresh_token() and try_refresh is False:
+                    # The method returned True, it should be good to retry.
+                    try_refresh = True
+                    pass
+                else:
+                    # If we can't refresh, the refresh token is expired, try logging in to get new token/refresh.
+                    if self.session.login() and try_login is False:
+                        # try the original call again
+                        try_login = True
+                        pass
+                    else:
+                        logging.debug("Unable to login, giving up at this point.")
+                        raise Exception("Unable to successfully authorize with ecHome server.")
 
             if response.status_code != 401 :
                 return response
+            if x > 5:
+                logging.warn("While True loop for making a request exceeded 5 loops. This should not have happened.")
+                raise Exception("Reached an infinite loop state while making a request that should not have happened. Exiting for safety.")
+            x += 1
+
 
     
     def unpack_tags(self, tags: dict):
