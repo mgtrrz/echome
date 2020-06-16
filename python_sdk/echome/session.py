@@ -24,6 +24,9 @@ api_version = "v1"
 # and establishes a connection with the server and authorization
 class Session:
 
+    _token = None
+    _refresh = None
+
     def __init__(self):
         self.home_dir = str(Path.home())
         echome_dir = f"{self.home_dir}/{default_echome_dir}"
@@ -59,9 +62,13 @@ class Session:
 
         self.base_url = f"{self.protocol}{self.server_url}/{self.api_version}"
         self.user_agent = f"ecHome_sdk/0.1.0 (Python {platform.python_version()}"
-        self._token = None
-        self._refresh = None
-        self.__get_session()
+
+        # try retrieving session tokens we already have by reading the files and setting the variables
+        self.load_local_tokens()
+        # If the token variable is still enpty, log in to set them.
+        if self._token is None:
+            self.login()
+
     
     # Login and retrieve a token
     def login(self):
@@ -85,11 +92,15 @@ class Session:
         else:
             return False
     
+    def load_local_tokens(self):
+        self.token
+        self.refresh
+    
     @property
     def token(self): 
-        logging.debug("token getter method called") 
+        logging.debug("Getting Token") 
         if self._token is None:
-            logging.debug("Session _token is empty, attempting to retrieve from locally.")
+            logging.debug("Session _token is empty, attempting to retrieve from local file.")
             self._token = self.__get_session()
 
         if self._token is None:
@@ -99,15 +110,15 @@ class Session:
     # a setter function 
     @token.setter 
     def token(self, a): 
-        logging.debug("token setter method called") 
+        logging.debug("Setting Token") 
         self._token = self.__save_session_token(a)
     
 
     @property
     def refresh(self): 
-        logging.debug("refresh token getter method called") 
+        logging.debug("Getting Refresh Token") 
         if self._refresh is None:
-            logging.debug("Refresh _token is empty, attempting to retrieve from locally.")
+            logging.debug("Refresh _token is empty, attempting to retrieve from local file.")
             self._refresh = self.__get_session(type="refresh")
 
         if self._refresh is None:
@@ -117,7 +128,7 @@ class Session:
     # a setter function 
     @refresh.setter 
     def refresh(self, a): 
-        logging.debug("Refresh token setter method called") 
+        logging.debug("Setting Refresh Token") 
         self._refresh = self.__save_session_token(a, type="refresh")
     
     # Save session token
@@ -160,7 +171,7 @@ class Session:
             with open(token_file, "r") as f:
                 contents = f.read()
         except:
-            return ""
+            return None
         
         return contents
 

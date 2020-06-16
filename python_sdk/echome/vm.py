@@ -2,6 +2,7 @@ import requests
 import logging
 import base64
 import json
+from .response import Response
 
 class base_resource:
     namespace = ""
@@ -50,14 +51,21 @@ class base_resource:
                         pass
                     else:
                         logging.debug("Unable to login, giving up at this point.")
-                        raise Exception("Unable to successfully authorize with ecHome server.")
+                        Response.unauthorized_response("Unable to successfully authorize with ecHome server.", exit=True)
 
-            if response.status_code != 401 :
-                return response
+            if response.status_code != 401:
+                break
+
             if x > 5:
                 logging.warn("While True loop for making a request exceeded 5 loops. This should not have happened.")
                 raise Exception("Reached an infinite loop state while making a request that should not have happened. Exiting for safety.")
             x += 1
+        
+        if response.status_code == 200 or response.status_code == 404:
+            return response
+        else:
+            logging.debug(f"Unexpected response from the server: {response.status_code}")
+            Response.unexpected_response(f"Unexpected response from the server: {response.json()}", exit=True)
 
 
     
@@ -218,9 +226,15 @@ class Images (base_resource):
     def user(self):
         return self.__user(self.session)
 
+
 class InvalidImageType(Exception):
     pass
 
+class UnauthorizedResponse(Exception):
+    pass
+
+class UnexpectedResponse(Exception):
+    pass
 
 class SshKey (base_resource):
     namespace = "vm/ssh_key"

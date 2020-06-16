@@ -124,11 +124,13 @@ class ecHomeCli_Vm(ecHomeParent):
         parser.add_argument('--format', '-f', help='Output format as JSON or Table', choices=["table", "json"], default=self.session.format)
         args = parser.parse_args(sys.argv[3:])
 
+        items = self.client.describe_all()
+        print(items)
+
         if args.format == "table":
-            vms = self.client.describe_all()
-            self.print_table(vms)
+            self.print_table(items)
         elif args.format == "json":
-            print(json.dumps(self.client.describe_all(), indent=4))
+            print(json.dumps(items, indent=4))
 
     
     def describe(self):

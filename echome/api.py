@@ -27,10 +27,6 @@ app.secret_key = echomeConfig.echome["api_secret"]
 jwt = JWTManager(app)
 logging.basicConfig(level=logging.DEBUG)
 
-user = {
-    "account_id": "12345",
-    "account_user_id": "11119",
-}
 
 vm = VmManager()
 
@@ -96,6 +92,8 @@ def auth_api_refresh():
 
 @app.route('/v1/auth/api/identity', methods=['GET'])
 def auth_identity():
+    current_user = get_jwt_identity()
+    print(current_user)
     pass
 
 def return_calling_user():
@@ -226,7 +224,9 @@ def api_vm_meta(vm_id=None):
     return jsonify(vm.getInstanceMetaData(user, vm_id))
 
 @app.route('/v1/vm/modify/<vm_id>', methods=['POST'])
+@jwt_required
 def api_vm_modification(vm_id=None):
+    user = return_calling_user()
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
     return jsonify(vm.getInstanceMetaData(user, vm_id))
@@ -252,7 +252,9 @@ def api_guest_image_describe(img_id=None):
         return {"error": "Image Id does not exist."}, 404
 
 @app.route('/v1/vm/images/guest/register', methods=['POST'])
+@jwt_required
 def api_guest_image_register():
+    user = return_calling_user()
     gmi = GuestImage()
 
     if not "ImagePath" in request.args:
@@ -275,7 +277,9 @@ def api_guest_image_register():
     return jsonify(new_img)
 
 @app.route('/v1/vm/images/user/describe-all', methods=['GET'])
+@jwt_required
 def api_user_image_all():
+    user = return_calling_user()
     vmi = UserImage(user)
     return jsonify(vmi.getAllImages())
 
@@ -285,15 +289,22 @@ def api_user_image_all():
 # vm/ssh_key
 
 @app.route('/v1/vm/ssh_key/describe/all', methods=['GET'])
+@jwt_required
 def api_ssh_keys_all():
+    user = return_calling_user()
     return jsonify(EchKeystore.get_all_keys(user))
 
 @app.route('/v1/vm/ssh_key/describe/<ssh_key_name>', methods=['GET'])
+@jwt_required
 def api_ssh_key(ssh_key_name=None):
+    user = return_calling_user()
     return jsonify(EchKeystore.get_key(user, ssh_key_name, get_public_key=False))
 
 @app.route('/v1/vm/ssh_key/create', methods=['GET'])
+@jwt_required
 def api_ssh_key_create():
+    user = return_calling_user()
+
     if not "KeyName" in request.args:
         return {"error": "KeyName must be provided when creating an ssh key."}, 400
 
@@ -305,7 +316,10 @@ def api_ssh_key_create():
     return jsonify(result)
 
 @app.route('/v1/vm/ssh_key/delete/<ssh_key_name>', methods=['GET'])
+@jwt_required
 def api_ssh_key_delete(ssh_key_name=None):
+    user = return_calling_user()
+
     if not ssh_key_name:
         return {"error": "KeyName must be provided when deleting an ssh key."}, 400
 
@@ -317,7 +331,10 @@ def api_ssh_key_delete(ssh_key_name=None):
     return jsonify(result)
 
 @app.route('/v1/vm/ssh_key/import', methods=['GET'])
+@jwt_required
 def api_ssh_key_store():
+    user = return_calling_user()
+
     if not "KeyName" in request.args:
         return {"error": "KeyName must be provided when importing an ssh key."}, 400
 
