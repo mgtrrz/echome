@@ -31,6 +31,42 @@ class Instance:
         }
     }
 
+    instance_configs = {
+        "type": "standard",
+        "sizes": [
+            {
+                "name": "nano",
+                "cpu": 0.5,
+                "memory_megabytes": 512,
+            },
+            {
+                "name": "micro",
+                "cpu": 1,
+                "memory_megabytes": 1024,
+            },
+            {
+                "name": "small",
+                "cpu": 2,
+                "memory_megabytes": 2048,
+            },
+            {
+                "name": "medium",
+                "cpu": 2,
+                "memory_megabytes": 4096,
+            },
+            {
+                "name": "large",
+                "cpu": 4,
+                "memory_megabytes": 4096,
+            },
+            {
+                "name": "xlarge",
+                "cpu": 8,
+                "memory_megabytes": 8192,
+            },
+        ]
+    }
+
     def __init__(self, instance_type="", instance_size=""):
         if not instance_type in self.instanceSizes:
             logging.error(f"Provided instance type is not a valid option: {instance_type}")
@@ -45,6 +81,11 @@ class Instance:
 
     def __str__(self):
         return f"{self.itype}.{self.isize}"
+
+    def get_all_instance_configurations(self):
+        for key in self.instanceSizes:
+            print(key)
+
 
     def get_cpu(self):
         return self.instanceSizes[self.itype][self.isize]["cpu"]

@@ -231,6 +231,12 @@ def api_vm_modification(vm_id=None):
         return {"error": "VM ID must be provided."}, 400
     return jsonify(vm.getInstanceMetaData(user, vm_id))
 
+
+@app.route('/v1/vm/instance_types/describe-all', methods=['POST'])
+def api_instance_types_describe_all():
+    
+    return jsonify(vm.getInstanceMetaData(user, vm_id))
+
 ####################
 # Namespace: vm 
 # Component: images
