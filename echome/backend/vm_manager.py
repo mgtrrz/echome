@@ -430,7 +430,7 @@ class VmManager:
     # Terminate the instance 
     def terminateInstance(self, user_obj, vm_id):
         logging.debug(f"Terminating vm: {vm_id}")
-        account_id = user_obj["account_id"]
+        account_id = user_obj.account
 
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
@@ -438,7 +438,7 @@ class VmManager:
             # Check to see if it's in the database
             select_stmt = select([self.db.user_instances]).where(
                 and_(
-                    self.db.user_instances.c.account == user_obj["account_id"], 
+                    self.db.user_instances.c.account == user_obj.account, 
                     self.db.user_instances.c.instance_id == vm_id
                 )
             )
