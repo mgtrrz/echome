@@ -188,23 +188,23 @@ def api_vm_create():
     return jsonify({"vm_id": vm_id})
 
 
-@app.route('/v1/vm/stop/<vm_id>', methods=['GET'])
+@app.route('/v1/vm/stop/<vm_id>', methods=['POST'])
 @jwt_required
-def api_vm_stop(user, vm_id):
+def api_vm_stop(vm_id):
     user = return_calling_user()
     return jsonify(vm.stopInstance(vm_id))
 
 
-@app.route('/v1/vm/start/<vm_id>', methods=['GET'])
+@app.route('/v1/vm/start/<vm_id>', methods=['POST'])
 @jwt_required
-def api_vm_start(user, vm_id):
+def api_vm_start(vm_id):
     user = return_calling_user()
     return jsonify(vm.startInstance(vm_id))
 
 
-@app.route('/v1/vm/terminate/<vm_id>', methods=['GET'])
+@app.route('/v1/vm/terminate/<vm_id>', methods=['POST'])
 @jwt_required
-def api_vm_terminate(user, vm_id):
+def api_vm_terminate(vm_id):
     user = return_calling_user()
     return jsonify(vm.terminateInstance(user, vm_id))
 
