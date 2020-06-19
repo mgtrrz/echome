@@ -8,12 +8,12 @@ from backend.database import DbEngine
 
 # Initializing a SQLAlchemy session
 
-db = DbEngine()
-dbsession = db.return_session()
-print(dbsession)
+# db = DbEngine()
+# dbsession = db.return_session()
+# print(dbsession)
 
-user = dbsession.query(User).filter_by(auth_id="auth-d4193167").first()
-print(user)
+# user = dbsession.query(User).filter_by(auth_id="auth-d4193167").first()
+# print(user)
 
 # user.set_server_secret()
 # dbsession.add(user)
@@ -29,10 +29,10 @@ print(user)
 # dbsession = db.return_session()
 # db.create_tables()
 
-# user = User()
-# session = user.init_session()
+user = User()
+session = user.init_session()
 
-# user = session.query(User).filter_by(user_id="user-04c6d686").first()
+user = session.query(User).filter_by(user_id="user-d4193166").first()
 # print(user)
 
 #################
@@ -47,18 +47,18 @@ print(user)
 
 
 # # Creating the table (and returning a session)
-# session = user.init_session()
+session = user.init_session()
 
 # # Setting a password
 # user.set_password("MyPassword")
 # session.add(user)
 # session.commit()
 
-# # Create API client and secret for this user
-# user_api_obj, secret_token = user.create_api_auth()
-# session.add(user_api_obj)
-# session.commit()
-# print(secret_token)
+# Create API client and secret for this user
+user_api_obj, secret_token = user.create_api_auth()
+session.add(user_api_obj)
+session.commit()
+print(secret_token)
 
 # Checking to see if the password or secret match
 #print(user.check_password("MyPassword"))

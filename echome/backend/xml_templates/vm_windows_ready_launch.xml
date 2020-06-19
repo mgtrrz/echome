@@ -1,6 +1,6 @@
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
-  <name>windowsfromxml</name>
-  <memory unit='MB'>4096</memory>
+  <name>Windows</name>
+  <memory unit='MB'>8192</memory>
   <os>
     <type arch="x86_64" machine='q35'>hvm</type>
     <loader readonly='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE.fd</loader>
@@ -19,10 +19,10 @@
     </kvm>
     <ioapic driver='kvm'/>
   </features>
-  <vcpu placement='static'>4</vcpu>
+  <vcpu placement='static'>8</vcpu>
   <cpu mode="custom" match="exact">
     <model>EPYC</model>
-    <topology sockets='1' cores='4' threads='1'/>
+    <topology sockets='1' cores='8' threads='1'/>
   </cpu>
   <clock offset="utc">
     <timer name="rtc" tickpolicy="catchup"/>
@@ -37,18 +37,19 @@
     <emulator>/usr/bin/kvm</emulator>
     <hostdev mode='subsystem' type='pci' managed='yes'>
       <driver name='vfio'/>
+      <rom bar='on' file='/usr/share/vgabios/GP104-1070-bios-dump-original.rom'/>
       <source>
-        <address domain='0x0000' bus='0x25' slot='0x00' function='0x0'/>
+        <address domain='0x0000' bus='0x07' slot='0x00' function='0x0'/>
       </source>
     </hostdev>
     <hostdev mode='subsystem' type='pci' managed='yes'>
       <source>
-        <address domain='0x0000' bus='0x25' slot='0x00' function='0x1'/>
+        <address domain='0x0000' bus='0x07' slot='0x00' function='0x1'/>
       </source>
     </hostdev>
     <disk type='file' device='disk'> 
       <driver name='qemu' type='raw'/>
-      <source file='/data/ssd_storage/user_instances/12345/TEST-WINDOWS/windows-test-vm-disk1-50G.raw'/>
+      <source file='/mnt/nvme/userimages/12345/tes/windows-test-vm-disk1-50G'/>
       <backingStore/>
       <target dev='vda' bus='virtio'/>
       <alias name='virtio-disk0'/>
@@ -56,7 +57,7 @@
     </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
-      <source file='/home/mark/Win10_2004_English_x64.iso'/>
+      <source file='/mnt/nvme/guestimages/Win10_2004_English_x64.iso'/>
       <backingStore/>
       <target dev='sda' bus='sata'/>
       <readonly/>
@@ -64,7 +65,7 @@
     </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
-      <source file='/home/mark/virtio-win-0.1.171.iso'/>
+      <source file='/mnt/nvme/supplementary/virtio-win-0.1.171.iso'/>
       <backingStore/>
       <target dev='sdb' bus='sata'/>
       <readonly/>

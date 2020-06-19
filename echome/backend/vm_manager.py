@@ -55,7 +55,7 @@ class VmManager:
             logging.error(e)
             if CLEAN_UP_ON_FAIL:
                 logging.debug("Cleaning up..")
-                self.__delete_vm_path(user["account_id"], self.last_vm_id)
+                self.__delete_vm_path(user.account, self.last_vm_id)
             raise Exception(e)
         
         return resp
@@ -70,7 +70,7 @@ class VmManager:
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Generating the tmp path for creating/copying/validating files
-        vmdir = self.__generate_vm_path(user["account_id"], vm_id)
+        vmdir = self.__generate_vm_path(user.account, vm_id)
         logging.debug(f"Creating VM directory: {vmdir}")
 
 
@@ -109,7 +109,7 @@ class VmManager:
             msg = f"Image Id was not found in launch configuration. Cannot continue!"
             logging.error(msg)
             if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user["account_id"], vm_id)
+                self.__delete_vm_path(user.account, vm_id)
             raise InvalidLaunchConfiguration(msg)
 
         try:
@@ -120,7 +120,7 @@ class VmManager:
         except InvalidImageId as e:
             logging.error(e)
             if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user["account_id"], vm_id)
+                self.__delete_vm_path(user.account, vm_id)
             raise InvalidImageId(e)
             
         logging.debug(json.dumps(img, indent=4))
@@ -143,7 +143,7 @@ class VmManager:
         except:
             logging.error("Encountered an error on VM copy. Cannot continue.")
             if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user["account_id"], vm_id)
+                self.__delete_vm_path(user.account, vm_id)
             raise
 
         logging.debug(f"Final image: {vm_img}")
@@ -194,12 +194,12 @@ class VmManager:
 
         # Add the information for this VM in the db
         stmt = self.db.user_instances.insert().values(
-            account = user["account_id"],
+            account = user.account,
             instance_id = vm_id,
             host = "localhost",
             instance_type = instanceType.itype,
             instance_size = instanceType.isize,
-            account_user = user["account_user_id"],
+            account_user = user.user_id,
             attached_interfaces = interfaces,
             attached_storage = {},
             key_name = cloudinit_params["cloudinit_key_name"],
@@ -283,7 +283,7 @@ class VmManager:
 
     def createVirtualMachineImage(self, user, vm_id):
 
-        account_id = user["account_id"]
+        account_id = user.account
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
         vmi_id = IdGenerator.generate("vmi")
 

@@ -45,7 +45,7 @@ class EchKeystore:
             [db.user_keys.c.key_name]
         ).where(
             and_(
-                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.account == user_obj.account, 
                 db.user_keys.c.key_name == key_name
             )
         )
@@ -62,7 +62,7 @@ class EchKeystore:
             [db.user_keys.c.fingerprint]
         ).where(
             and_(
-                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.account == user_obj.account, 
                 db.user_keys.c.fingerprint == new_md5
             )
         )
@@ -76,8 +76,8 @@ class EchKeystore:
         logging.debug(f"Generating new key id: {new_id}")
 
         stmt = db.user_keys.insert().values(
-            account=user_obj["account_id"], 
-            account_user=user_obj["account_user_id"], 
+            account=user_obj.account, 
+            account_user=user_obj.user_id, 
             key_id=new_id,
             key_name=key_name, 
             fingerprint=new_md5, 
@@ -111,7 +111,7 @@ class EchKeystore:
 
         select_stmt = select(columns).where(
             and_(
-                db.user_keys.c.account == user_obj["account_id"], 
+                db.user_keys.c.account == user_obj.account, 
                 db.user_keys.c.key_name == key_name
             )
         )
@@ -141,7 +141,7 @@ class EchKeystore:
         ]
 
         select_stmt = select(columns).where(
-            db.user_keys.c.account == user_obj["account_id"]
+            db.user_keys.c.account == user_obj.account
         )
         results = db.connection.execute(select_stmt).fetchall()
         if results:

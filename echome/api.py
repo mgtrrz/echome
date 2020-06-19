@@ -118,7 +118,7 @@ def return_calling_user():
 # \&KeyName=echome
 @app.route('/v1/vm/create', methods=['POST'])
 @jwt_required
-def api_vm_create(user):
+def api_vm_create():
     user = return_calling_user()
     if not "ImageId" in request.args:
         return {"error": "ImageId must be provided when creating a VM."}, 400
@@ -306,7 +306,7 @@ def api_ssh_key(ssh_key_name=None):
     user = return_calling_user()
     return jsonify(EchKeystore.get_key(user, ssh_key_name, get_public_key=False))
 
-@app.route('/v1/vm/ssh_key/create', methods=['GET'])
+@app.route('/v1/vm/ssh_key/create', methods=['POST'])
 @jwt_required
 def api_ssh_key_create():
     user = return_calling_user()
@@ -321,7 +321,7 @@ def api_ssh_key_create():
 
     return jsonify(result)
 
-@app.route('/v1/vm/ssh_key/delete/<ssh_key_name>', methods=['GET'])
+@app.route('/v1/vm/ssh_key/delete/<ssh_key_name>', methods=['POST'])
 @jwt_required
 def api_ssh_key_delete(ssh_key_name=None):
     user = return_calling_user()
@@ -336,7 +336,7 @@ def api_ssh_key_delete(ssh_key_name=None):
 
     return jsonify(result)
 
-@app.route('/v1/vm/ssh_key/import', methods=['GET'])
+@app.route('/v1/vm/ssh_key/import', methods=['POST'])
 @jwt_required
 def api_ssh_key_store():
     user = return_calling_user()

@@ -84,14 +84,11 @@ class Vm (base_resource):
 
     def describe_all(self, json_response=True):
         r = self.request_url("/describe/all")
-        # r = requests.get(f"{self.base_url}/describe/all", headers=self.build_headers())
         self.status_code = r.status_code
         self.raw_json_response = r.json()
         return r.json()
 
     def describe(self, vm_id, json_response=True):
-
-        #r = requests.get(f"{self.base_url}/describe/{vm_id}", headers=self.build_headers())
         r = self.request_url(f"/describe/{vm_id}")
         self.status_code = r.status_code
         self.raw_json_response = r.json()
@@ -130,14 +127,11 @@ class Vm (base_resource):
         self.tags = kwargs.get("tags", {})
         
     def create(self, **kwargs):
-
         if "Tags" in kwargs:
             kwargs.update(self.unpack_tags(kwargs["Tags"]))
         
-        logging.debug(kwargs)
-        logging.debug(f"Making call to URL: {self.base_url}/create")
         #r = requests.get(f"{self.base_url}/create", headers=self.build_headers(), params=kwargs)
-        r = self.request_url("/create", "post")
+        r = self.request_url("/create", "post", **kwargs)
         self.status_code = r.status_code
         return r.json()
     
@@ -197,17 +191,20 @@ class Images (base_resource):
         namespace = "vm/images/guest"
 
         def describe_all(self):
-            r = requests.get(f"{self.base_url}/describe-all")
+            #r = requests.get(f"{self.base_url}/describe-all")
+            r = self.request_url(f"/describe-all")
             self.status_code = r.status_code
             return r.json()
 
         def describe(self, id):
-            r = requests.get(f"{self.base_url}/describe/{id}")
+            #r = requests.get(f"{self.base_url}/describe/{id}")
+            r = self.request_url(f"/describe/{id}")
             self.status_code = r.status_code
             return r.json()
 
         def register(self, **kwargs):
-            r = requests.post(f"{self.base_url}/register", params=kwargs)
+            #r = requests.post(f"{self.base_url}/register", params=kwargs)
+            r = self.request_url(f"/register", method="post", **kwargs)
             self.status_code = r.status_code
             return r.json()
 
@@ -216,7 +213,8 @@ class Images (base_resource):
         namespace = "vm/images/user"
 
         def describe_all(self):
-            r = requests.get(f"{self.base_url}/describe-all")
+            #r = requests.get(f"{self.base_url}/describe-all")
+            r = self.request_url(f"/describe-all")
             self.status_code = r.status_code
             return r.json()
     
@@ -240,7 +238,8 @@ class SshKey (base_resource):
     namespace = "vm/ssh_key"
 
     def describe_all(self):
-        r = requests.get(f"{self.base_url}/describe/all")
+        #r = requests.get(f"{self.base_url}/describe/all")
+        r = self.request_url(f"/describe/all")
         self.status_code = r.status_code
         return r.json()
 
@@ -259,7 +258,8 @@ class SshKey (base_resource):
         # return keys
     
     def describe(self, KeyName):
-        r = requests.get(f"{self.base_url}/describe/{KeyName}")
+        #r = requests.get(f"{self.base_url}/describe/{KeyName}")
+        r = self.request_url(f"/describe/{KeyName}")
 
         self.status_code = r.status_code
         return r.json()
@@ -277,12 +277,14 @@ class SshKey (base_resource):
         # return obj
     
     def create(self, KeyName):
-        r = requests.get(f"{self.base_url}/create", params={"KeyName": KeyName})
+        #r = requests.get(f"{self.base_url}/create", params={"KeyName": KeyName})
+        r = self.request_url(f"/create", method="post", KeyName=KeyName)
         self.status_code = r.status_code
         return r.json()
     
     def delete(self, KeyName):
-        r = requests.get(f"{self.base_url}/delete/{KeyName}")
+        #r = requests.get(f"{delf.base_url}/delete/{KeyName}")
+        r = self.request_url(f"/delete/{KeyName}", method="post")
         self.status_code = r.status_code
         return r.json()
     
@@ -292,7 +294,8 @@ class SshKey (base_resource):
             "KeyName": KeyName,
             "PublicKey": base64.urlsafe_b64encode(PublicKey)
         }
-        r = requests.get(f"{self.base_url}/import", params=args)
+        #r = requests.get(f"{self.base_url}/import", params=args)
+        r = self.request_url(f"/import", method="post", params=args)
         self.status_code = r.status_code
         return r.json()
 
