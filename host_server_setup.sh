@@ -89,7 +89,7 @@ sudo chown echome. /run/echome/
 sudo cp "${echome_dir}/system/echome_uwsgi.ini" /etc/echome/
 sudo cp "${echome_dir}/system/echome.service" /etc/systemd/system/
 
-sudo cp "${echome_dir}/system/echome.conf" /etc/nginx/sites-available/
+sudo cp "${echome_dir}/system/nginx/echome.conf" /etc/nginx/sites-available/
 sudo ln -s /etc/nginx/sites-available/echome.conf /etc/nginx/sites-enabled
 sudo unlink /etc/nginx/sites-enabled/default
 

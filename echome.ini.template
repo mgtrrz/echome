@@ -1,7 +1,3 @@
-[BridgeToLan]
-interfaceName=enp4s0
-bridgeName=br0
-
 [echome]
 ; Location to the backend directory 
 base_dir=/opt/echome/app/backend
@@ -17,3 +13,11 @@ dir=/directory/to/shared-guest-images
 ; If this is a new installation, this directory can be empty and must
 ; be writable to the echome user.
 dir=/directory/to/user/directories
+
+;;;;;;;;;;;;;;
+; Networking ;
+;;;;;;;;;;;;;;
+
+[BridgeToLan]
+interfaceName=enp4s0
+bridgeName=br0

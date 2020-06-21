@@ -48,9 +48,9 @@ class VmManager:
         self.currentConnection.close()
 
     
-    def createVirtualMachine(self, user, instanceType:Instance, cloudinit_prams, server_params, tags):
+    def createVirtualMachine(self, user, instanceType:Instance, cloudinit_prams, server_params, tags, custom_xml=None):
         try:
-            resp = self.createInstance(user, instanceType, cloudinit_prams, server_params, tags)
+            resp = self.__createInstance(user, instanceType, cloudinit_prams, server_params, tags, custom_xml)
         except Exception as e:
             logging.error(e)
             if CLEAN_UP_ON_FAIL:
@@ -62,7 +62,7 @@ class VmManager:
 
 
 
-    def createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags):
+    def __createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags, custom_xml=None):
 
         logging.debug("Generating vm-id")
         vm_id = IdGenerator.generate()
@@ -86,9 +86,9 @@ class VmManager:
         # TODO: Catch errors 
 
         # If we set a static IP for the instance, create a network config file
-        network_yaml_file_path = ""
+        network_yaml_file_path = None
         network_config_at_launch = {}
-        if "private_ip" in cloudinit_params:
+        if cloudinit_params["network_type"] == "BridgeToLan":
             network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
             network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
             network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
@@ -148,13 +148,19 @@ class VmManager:
 
         logging.debug(f"Final image: {vm_img}")
 
+        if custom_xml:
+            logging.debug(f"Using custom XML defined: {custom_xml}")
+            xml_template = custom_xml
+        else:
+            xml_template = instanceType.get_xml_template()
+
         # Generate VM
         logging.debug(f"Generating vm config")
         vm_config = {
             "vm_id": vm_id,
             "cpu": instanceType.get_cpu(),
             "memory": instanceType.get_memory(),
-            "xml_template": instanceType.get_xml_template(),
+            "xml_template": xml_template,
             "cloud_init_path": cloudinit_iso_path,
             "vm_img": vm_img
         }
@@ -582,7 +588,7 @@ class VmManager:
         return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
     
     # Generate an ISO from the cloudinit YAML files
-    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=""):
+    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None):
 
         # Validate the yaml file
         logging.debug("Validating Cloudinit config yaml.")        
