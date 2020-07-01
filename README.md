@@ -120,7 +120,7 @@ Code for this service exists in `./echome/web/`
 
 The Python SDK allows for managing aspects of ecHome by importing the library. The SDK is responsible for starting and authenticating user sessions, making the calls to the API, returning raw JSON responses, and in the future, objects based on the services.
 
-Code for this library exists in `./python_sdk/`
+Code for this library exists in the (echome-python-sdk repository)[https://github.com/mgtrrz/echome-python-sdk]. Install the library with `pip install echome-sdk`.
 
 #### Example code
 
@@ -184,7 +184,7 @@ server=localhost:5000
 format=table
 ```
 
-Code for the script exists in `./cli/`
+Code for the CLI exists in the (echome-cli repository)[https://github.com/mgtrrz/echome-cli]. Install it with `pip install echome-cli` and run it with `echome`.
 
 #### Example commands
 
