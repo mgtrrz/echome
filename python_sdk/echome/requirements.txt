@@ -1,2 +1,0 @@
-#TODO: Format as proper requirements.txt file
-requests
