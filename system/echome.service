@@ -7,7 +7,7 @@ User=echome
 Group=www-data
 WorkingDirectory=/opt/echome/app
 Environment="PATH=/opt/echome/app/venv/bin:/usr/bin:/bin"
-ExecStart=/opt/echome/app/venv/bin/uwsgi --ini /etc/echome/echome_uwsgi.ini
+ExecStart=/opt/echome/app/venv/bin/uwsgi --ini /etc/echome/emperor.ini
 
 [Install]
 WantedBy=multi-user.target

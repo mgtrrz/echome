@@ -33,7 +33,7 @@ class BaseImage:
             )
         elif self.imageType == "user":
             select_stmt = select(columns).where(
-                self.db.guest_images.c.account == self.user["account_id"]
+                self.db.guest_images.c.account == self.user.account
             )
         
         results = self.db.connection.execute(select_stmt).fetchall()
@@ -77,7 +77,7 @@ class BaseImage:
         elif self.imageType == "user":
             select_stmt = select(columns).where(
                 and_(
-                    self.db.guest_images.c.account == self.user["account_id"],
+                    self.db.guest_images.c.account == self.user.account_id,
                     self.db.guest_images.c.guest_image_id == img_id
                 )
             )
@@ -144,7 +144,7 @@ class BaseImage:
         elif self.imageType == "user":
             id = IdGenerator.generate(type="vmi")
             stmt = self.db.guest_images.insert().values(
-                account=self.user["account_id"],
+                account=self.user.account,
                 guest_image_id=id, 
                 guest_image_path=img_path,
                 name=img_name, 

@@ -160,21 +160,23 @@ class MetadataHandler(object):
         user_data = template(USERDATA_TEMPLATE, **config)
         return self.make_content(user_data)
 
-    def gen_hostname_old(self):
-        client_host = bottle.request.get('REMOTE_ADDR')
-        prefix = bottle.request.app.config['mdserver.hostname-prefix']
-        res = "%s-%s" % (prefix, client_host.split('.')[-1])
+    def gen_hostname_from_ip(self):
+        #client_host = request.remote_addr
+        prefix = "ip"
+        ip_str = "-".join(request.remote_addr.split('.'))
+        res = f"{prefix}-{ip_str}"
         return self.make_content(res)
 
     def gen_hostname(self):
-        try:
-            hostname = self._get_hostname_from_libvirt_domain()
-        except Exception as e:
-            logging.error("Exception %s" % e)
-            return self.gen_hostname_old()
+        # try:
+        #     hostname = self._get_hostname_from_libvirt_domain()
+        # except Exception as e:
+        #     logging.error("Exception %s" % e)
+        #     return self.gen_hostname_old()
 
-        if not hostname:
-            return self.gen_hostname_old()
+        # if not hostname:
+        #     return self.gen_hostname_old()
+        hostname = self.gen_hostname_from_ip()
         return hostname
 
     def gen_public_keys(self):
@@ -204,15 +206,30 @@ class MetadataHandler(object):
     def make_content(self, res):
         if isinstance(res, list):
             return "\n".join(res)
-        elif isinstance(res, basestring):
-            return "%s\n" % res
+        elif isinstance(res, str):
+            return f"{res}\n"
 
 
 
 
 @metadata_app.route('/meta-data/', methods=['GET'])
-def meta_data():
-    return {"response": "meta-data"}
+def metadata():
+    md_handler = MetadataHandler()
+    return md_handler.gen_metadata()
+
+@metadata_app.route('/meta-data/<key>/', methods=['GET'])
+def metadata_info(key=None):
+    md_handler = MetadataHandler()
+
+    if key == "hostname":
+        return md_handler.gen_hostname()
+    elif key == "instance-id":
+        return "test"
+    elif key == "public-keys":
+        return "keys"
+    else:
+        return "Unknown type requested", 404
+
 
 @metadata_app.route('/user-data/', methods=['GET'])
 def user_data():

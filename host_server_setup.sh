@@ -61,10 +61,14 @@ sudo chgrp -R Developers ${echome_dir}/echome
 
 # Database/config files for echome
 echo ": Moving database configuration files into place."
-sudo mkdir -pv /etc/echome/
+sudo mkdir -pv /etc/echome/services/
 sudo cp ${echome_dir}/database.ini.template /etc/echome/database.ini
 sudo cp ${echome_dir}/echome.ini.template /etc/echome/echome.ini
 sudo chown -R echome. /etc/echome
+
+# Logging in /var/log
+sudo mkdir -pv /var/log/echome/
+sudo chown echome. /var/log/echome/
 
 # Create PSQL user for echome
 psqlpass=$(openssl rand -base64 20)
@@ -82,15 +86,22 @@ echo ":    Installing requirements via pip"
 sudo -u echome -H bash -c "cd /opt/echome/app; source venv/bin/activate; pip install -r ./requirements.txt"
 
 # uwsgi and nginx configuration
-echo "Setting uwsgi and nginx"
+echo
+echo ": Setting uwsgi and nginx"
 sudo mkdir -pv /run/echome/
 sudo chown echome. /run/echome/
 
-sudo cp "${echome_dir}/system/echome_uwsgi.ini" /etc/echome/
+echo ":   Copying services uwsgi files.."
+sudo cp "${echome_dir}/system/etc/emperor.ini" /etc/echome/
+sudo cp "${echome_dir}/system/etc/services/*" /etc/echome/services/
+
 sudo cp "${echome_dir}/system/echome.service" /etc/systemd/system/
 
+echo ":   Copying nginx files.."
 sudo cp "${echome_dir}/system/nginx/echome.conf" /etc/nginx/sites-available/
+sudo cp "${echome_dir}/system/nginx/echome_metadata.conf" /etc/nginx/sites-available/
 sudo ln -s /etc/nginx/sites-available/echome.conf /etc/nginx/sites-enabled
+sudo ln -s /etc/nginx/sites-available/echome_metadata.conf /etc/nginx/sites-enabled
 sudo unlink /etc/nginx/sites-enabled/default
 
 sudo systemctl start echome
