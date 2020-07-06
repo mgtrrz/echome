@@ -38,95 +38,6 @@ def home():
 def ping():
     return {"response": "pong"}
 
-
-@metadata_app.route('/v1/auth/api/login', methods=['POST'])
-def auth_api_login():
-    auth = request.authorization
-
-    incorrect_cred = jsonify({'error.auth': 'Incorrect credentials'}), 401
-
-    if not auth or not auth.username or not auth.password:  
-        return incorrect_cred
-
-    db = DbEngine()
-    dbsession = db.return_session()
-    try:
-        user = dbsession.query(User).filter_by(auth_id=auth.username).first()
-    except Exception as e:
-        logging.debug(e)
-        return incorrect_cred
-    
-    if user is None:
-        logging.debug(f"User was None: auth.username: {auth.username} - auth.password: {auth.password}")
-        return incorrect_cred
-
-    if user.check_password(str(auth.password).rstrip()):
-        logging.debug("User successfully logged in.")
-        ret = {
-            'access_token': create_access_token(identity=auth.username, fresh=True, expires_delta=datetime.timedelta(minutes=10)),
-            'refresh_token': create_refresh_token(identity=auth.username)
-        }
-        return jsonify(ret), 200
-
-    return incorrect_cred
-
-
-# The jwt_refresh_token_required decorator insures a valid refresh
-# token is present in the request before calling this endpoint. We
-# can use the get_jwt_identity() function to get the identity of
-# the refresh token, and use the create_access_token() function again
-# to make a new access token for this identity.
-@metadata_app.route('/v1/auth/api/refresh', methods=['POST'])
-@jwt_refresh_token_required
-def auth_api_refresh():
-    auth = request.authorization
-
-    current_user = get_jwt_identity()
-    print(current_user)
-    ret = {
-        'access_token': create_access_token(identity=current_user)
-    }
-    return jsonify(ret), 200
-
-
-
-@metadata_app.route('/v1/auth/api/identity', methods=['GET'])
-def auth_identity():
-    current_user = get_jwt_identity()
-    print(current_user)
-    pass
-
-def return_calling_user():
-    print("Grabbing returning user")
-    db = DbEngine()
-    dbsession = db.return_session()
-    current_user = get_jwt_identity()
-    try:
-        user = dbsession.query(User).filter_by(auth_id=current_user).first()
-    except:  
-        return jsonify({'auth.error': 'Token is invalid'}), 401
-    
-    if user is None:
-        return jsonify({'auth.error': 'Invalid user'}), 401
-
-    return user
-
-# def get_instance_metadata_by_ip(ip):
-#     session = DbEngine().return_session()
-
-#     user_instances = Database().user_instances
-
-#     ip = f"{ip}/24"
-
-#     records = session.query().filter(
-#         user_instances.attached_interfaces["config_at_launch"]["private_ip"].astext == ip
-#     ).all()
-
-#     select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj.account)
-#     rows = self.db.connection.execute(select_stmt).fetchall()
-#     print(records)
-
-
 USERDATA_TEMPLATE = """\
 #cloud-config
 hostname: {{hostname}}
@@ -139,7 +50,6 @@ ssh_pwauth: True
 ssh_authorized_keys:
     - {{public_key_default}}
 """
-
 
 class MetadataHandler(object):
     instance_id = None
