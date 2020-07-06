@@ -15,7 +15,7 @@ from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExi
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
-from backend.database import DbEngine
+from backend.database import Database, DbEngine
 from backend.config import AppConfig
 from functools import wraps
 
@@ -111,6 +111,20 @@ def return_calling_user():
 
     return user
 
+# def get_instance_metadata_by_ip(ip):
+#     session = DbEngine().return_session()
+
+#     user_instances = Database().user_instances
+
+#     ip = f"{ip}/24"
+
+#     records = session.query().filter(
+#         user_instances.attached_interfaces["config_at_launch"]["private_ip"].astext == ip
+#     ).all()
+
+#     select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj.account)
+#     rows = self.db.connection.execute(select_stmt).fetchall()
+#     print(records)
 
 
 USERDATA_TEMPLATE = """\
@@ -128,6 +142,20 @@ ssh_authorized_keys:
 
 
 class MetadataHandler(object):
+    instance_id = None
+    vm_metadata = None
+
+    # Get VM metadata from remote_addr
+    def __init__(self):
+        vm = VmManager()
+
+        logging.debug(f"Searching for {request.remote_addr}/24")
+        self.vm_metadata = vm.get_instance_metadata_by_ip(f"{request.remote_addr}/24")
+        if self.vm_metadata:
+            self.instance_id = self.vm_metadata["instance_id"]
+        else:
+            logging.error(f"Could not find VM metadata for calling IP: {request.remote_addr}")
+            raise
 
     def _get_mgmt_mac(self):
         lease_file = '/var/lib/libvirt/dnsmasq/default.leases'
@@ -150,7 +178,7 @@ class MetadataHandler(object):
                "hostname",
                "public-keys",
                ""]
-        return self.make_content(res)
+        return self.format_response(res)
 
     def gen_userdata(self):
         config = bottle.request.app.config
@@ -158,16 +186,16 @@ class MetadataHandler(object):
         config['mdserver_password'] = config['mdserver.password']
         config['hostname'] = self.gen_hostname().strip('\n')
         user_data = template(USERDATA_TEMPLATE, **config)
-        return self.make_content(user_data)
+        return self.format_response(user_data)
 
-    def gen_hostname_from_ip(self):
+    def generate_hostname_from_ip(self):
         #client_host = request.remote_addr
         prefix = "ip"
         ip_str = "-".join(request.remote_addr.split('.'))
         res = f"{prefix}-{ip_str}"
-        return self.make_content(res)
+        return self.format_response(res)
 
-    def gen_hostname(self):
+    def get_hostname(self):
         # try:
         #     hostname = self._get_hostname_from_libvirt_domain()
         # except Exception as e:
@@ -176,34 +204,35 @@ class MetadataHandler(object):
 
         # if not hostname:
         #     return self.gen_hostname_old()
-        hostname = self.gen_hostname_from_ip()
+        hostname = self.generate_hostname_from_ip()
         return hostname
 
-    def gen_public_keys(self):
-        res = bottle.request.app.config.keys()
-        _keys = filter(lambda x: x.startswith('public-keys'), res)
-        keys = map(lambda x: x.split('.')[1], _keys)
-        keys.append("")
-        return self.make_content(keys)
+    def get_vm_id(self):
+        return self.format_response(self.instance_id)
 
-    def gen_public_key_dir(self, key):
-        res = ""
-        if key in self.gen_public_keys():
-            res = "openssh-key"
-        return self.make_content(res)
+    # Get the authorized ssh keys for this instance
+    # root directory for /meta-data/public-keys/
+    def get_public_key_names(self):
+        pubkeys = self._public_key_list()
+        i = 0
+        keys = []
+        for pubkey in pubkeys:
+            keys.append(f"{i}={pubkey}")
 
-    def gen_public_key_file(self, key='default'):
-        if key not in self.gen_public_keys():
-            key = 'default'
-        res = bottle.request.app.config['public-keys.%s' % key]
-        return self.make_content(res)
+        return self.format_response(keys)
+    
+    def get_public_key(self, index: int):
+        pubkeys = self._public_key_list()
+        if index > len(pubkeys):
+            return None
 
-    def gen_instance_id(self):
-        client_host = request.remote_addr
-        iid = "i-%s" % client_host
-        return self.make_content(iid)
+        pubkey = EchKeystore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata)
+        return self.format_response(EchKeystore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata))
 
-    def make_content(self, res):
+    def _public_key_list(self):
+        return self.vm_metadata["key_name"].split(",")
+
+    def format_response(self, res):
         if isinstance(res, list):
             return "\n".join(res)
         elif isinstance(res, str):
@@ -212,27 +241,60 @@ class MetadataHandler(object):
 
 
 
-@metadata_app.route('/meta-data/', methods=['GET'])
+@metadata_app.route('/meta-data/')
 def metadata():
     md_handler = MetadataHandler()
     return md_handler.gen_metadata()
 
-@metadata_app.route('/meta-data/<key>/', methods=['GET'])
+@metadata_app.route('/meta-data/<key>/')
 def metadata_info(key=None):
-    md_handler = MetadataHandler()
+    try:
+        md_handler = MetadataHandler()
+    except:
+        return "Unable to retrieve VM metadata from request IP.", 400
 
     if key == "hostname":
-        return md_handler.gen_hostname()
+        return md_handler.get_hostname()
     elif key == "instance-id":
-        return "test"
+        return md_handler.get_vm_id()
     elif key == "public-keys":
-        return "keys"
+        return md_handler.get_public_key_names()
     else:
         return "Unknown type requested", 404
 
+@metadata_app.route('/meta-data/public-keys/<index>/')
+def metadata_public_key_type(index):
+    try:
+        md_handler = MetadataHandler()
+    except:
+        return "Unable to retrieve VM metadata from request IP.", 400
 
-@metadata_app.route('/user-data/', methods=['GET'])
+    key = md_handler.get_public_key(int(index))
+    if key is None:
+        return "Not found", 404
+
+    return "openssh-key\n"
+
+@metadata_app.route('/meta-data/public-keys/<index>/openssh-key/')
+def metadata_public_keys(index):
+    try:
+        md_handler = MetadataHandler()
+    except:
+        return "Unable to retrieve VM metadata from request IP.", 400
+
+    return md_handler.get_public_key(int(index))
+
+
+@metadata_app.route('/user-data/')
 def user_data():
+    return {"response": "user-data"}
+
+@metadata_app.route('/testing/')
+def testing():
+    vm = VmManager()
+    ip = f"{request.remote_addr}/24"
+    logging.debug(f"Searching for {ip}")
+    vm.get_instance_metadata_by_ip(f"{request.remote_addr}/24")
     return {"response": "user-data"}
 
 

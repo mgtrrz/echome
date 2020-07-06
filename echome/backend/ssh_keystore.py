@@ -172,6 +172,23 @@ class EchKeystore:
         del_stmt = db.user_keys.delete().where(db.user_keys.c.key_id == result[0]["key_id"])
         db.connection.execute(del_stmt)
         return {"success": True}
+    
+    @staticmethod
+    def get_public_key_vm_metadata(key_name, vm_metadata):
+        db = Database()
+
+        select_stmt = select([db.user_keys.c.public_key]).where(
+            and_(
+                db.user_keys.c.account == vm_metadata["account"],
+                db.user_keys.c.key_name == key_name
+            )
+        )
+        results = db.connection.execute(select_stmt).fetchall()
+
+        if results:
+            return results[0][0]
+        else:
+            raise KeyDoesNotExist("Specified key name does not exist.")
 
 
 

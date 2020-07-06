@@ -60,8 +60,6 @@ class VmManager:
         
         return resp
 
-
-
     def __createInstance(self, user, instanceType:Instance, cloudinit_params, server_params, tags, custom_xml=None):
 
         logging.debug("Generating vm-id")
@@ -72,7 +70,6 @@ class VmManager:
         # Generating the tmp path for creating/copying/validating files
         vmdir = self.__generate_vm_path(user.account, vm_id)
         logging.debug(f"Creating VM directory: {vmdir}")
-
 
         # Generate cloudinit config
         cloudinit_params["vm_id"] = vm_id
@@ -89,6 +86,8 @@ class VmManager:
         network_yaml_file_path = None
         network_config_at_launch = {}
         if cloudinit_params["network_type"] == "BridgeToLan":
+            network_config_at_launch["network_type"] = cloudinit_params["network_type"]
+            network_config_at_launch["subnet_mask"] = "24" # /24 , hardcoded for now. Ideally should retrieve from a network profile
             network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
             network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
             network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
@@ -432,6 +431,14 @@ class VmManager:
             "meta_data": {},
             "reason": "",
         }
+
+    def get_instance_metadata_by_ip(self, ip):
+        select_stmt = select(self.db.user_instances.c).where(
+            self.db.user_instances.c.attached_interfaces["config_at_launch", "private_ip"].astext == ip
+        )
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        return rows[0]
+
 
     # Terminate the instance 
     def terminateInstance(self, user_obj, vm_id):
