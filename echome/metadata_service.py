@@ -226,7 +226,6 @@ class MetadataHandler(object):
         if index > len(pubkeys):
             return None
 
-        pubkey = EchKeystore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata)
         return self.format_response(EchKeystore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata))
 
     def _public_key_list(self):
@@ -288,15 +287,6 @@ def metadata_public_keys(index):
 @metadata_app.route('/user-data/')
 def user_data():
     return {"response": "user-data"}
-
-@metadata_app.route('/testing/')
-def testing():
-    vm = VmManager()
-    ip = f"{request.remote_addr}/24"
-    logging.debug(f"Searching for {ip}")
-    vm.get_instance_metadata_by_ip(f"{request.remote_addr}/24")
-    return {"response": "user-data"}
-
 
 
 if __name__ == "__main__":
