@@ -221,7 +221,7 @@ def api_vm_meta(vm_id=None):
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
 
-    return jsonify(vm.getInstanceMetaData(user, vm_id))
+    return jsonify(vm.getInstanceMetadata(user, vm_id))
 
 @app.route('/v1/vm/modify/<vm_id>', methods=['POST'])
 @jwt_required
@@ -229,13 +229,13 @@ def api_vm_modification(vm_id=None):
     user = return_calling_user()
     if not vm_id:
         return {"error": "VM ID must be provided."}, 400
-    return jsonify(vm.getInstanceMetaData(user, vm_id))
+    return jsonify(vm.getInstanceMetadata(user, vm_id))
 
 
 @app.route('/v1/vm/instance_types/describe-all', methods=['POST'])
 def api_instance_types_describe_all():
     
-    return jsonify(vm.getInstanceMetaData(user, vm_id))
+    return jsonify(vm.getInstanceMetadata(user, vm_id))
 
 ####################
 # Namespace: vm 

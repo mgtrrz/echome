@@ -11,6 +11,7 @@ import time
 import json
 import datetime
 import yaml
+import xmltodict
 from sqlalchemy import select, and_
 from .database import Database
 from .instance_definitions import Instance
@@ -22,6 +23,10 @@ config = AppConfig()
 VM_ROOT_DIR = config.UserDirectories["dir"]
 XML_TEMPLATES_DIR = f"{config.get_app_base_dir()}/xml_templates"
 
+# if at any point during the VM Creation process fails,
+# clean up after itself. Useful to disable for debugging,
+# But keep this to True to avoid having a lot of directories
+# and files wasting space for non-functioning VMs
 CLEAN_UP_ON_FAIL = True
 
 # Flow for VM Creation
@@ -161,7 +166,8 @@ class VmManager:
             "memory": instanceType.get_memory(),
             "xml_template": xml_template,
             "cloud_init_path": cloudinit_iso_path,
-            "vm_img": vm_img
+            "vm_img": vm_img,
+            "network_type": cloudinit_params["network_type"]
         }
         logging.debug(vm_config)
         xmldoc = self.__generate_new_vm_template(vm_config)
@@ -192,7 +198,9 @@ class VmManager:
         logging.info("Starting VM..")
         self.startInstance(vm_id)
 
-
+        # Get the interface mac address from the VM that was started.
+        # domain.interfaceAddresses()
+        # domain.XMLDesc()
         interfaces = {
             "config_at_launch": network_config_at_launch
         }
@@ -219,7 +227,7 @@ class VmManager:
         return vm_id
     
     # Get information about a instance/VM
-    def getInstanceMetaData(self, user_obj, vm_id):
+    def getInstanceMetadata(self, user_obj, vm_id):
 
         select_stmt = select([self.db.user_instances]).where(
             and_(
@@ -248,6 +256,13 @@ class VmManager:
             instances.append(data)
 
         return instances
+    
+    # Returns an object with the configuration details of a defined VM. (dump xml)
+    # Can optionally return the raw XML string
+    def getInstanceConfiguration(self, vm_id):
+        domain = self.__get_virtlib_domain(vm_id)
+        xmldoc = domain.XMLDesc()
+        xmltodict.parse(xmldoc)
     
     # Returns all instances belonging to the account/user
     def getAllInstances(self, user_obj):
@@ -366,8 +381,7 @@ class VmManager:
 
         return state_str, state_int, str(reason)
 
-            
-
+        
     def startInstance(self, vm_id):
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
@@ -527,8 +541,21 @@ class VmManager:
                 'VM_CPU_COUNT': config["cpu"], 
                 'VM_MEMORY': config["memory"],
                 'CLOUDINIT_DISK': cloudinit_xml,
-                'VM_USER_IMG_PATH': config["vm_img"]
+                'VM_USER_IMG_PATH': config["vm_img"],
+                'SMBIOS_MODE': '',
+                'SMBIOS_BODY': '',
             }
+
+            # If the new VM is not using the BridgeToLan network type, add smbios
+            # information for it to use the metadata service.
+            if config['network_type'] != "BridgeToLan":
+                with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
+                    replace['SMBIOS_MODE'] = "<smbios mode='sysinfo'/>"
+                    replace['SMBIOS_BODY'] = filehandle.read()
+        
+        logging.debug("Replace variables in XML..")
+        logging.debug(replace)
+        print(src.substitute(replace))
         
         return src.substitute(replace)
     
@@ -682,6 +709,12 @@ class VmManager:
             "return_code": return_code,
             "output": output,
         }
+
+class InstanceConfiguration():
+
+    def __init__(self, vm_id, **kwargs):
+        self.id = vm_id
+
 
 class InvalidLaunchConfiguration(Exception):
     pass
