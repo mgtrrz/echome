@@ -92,7 +92,8 @@ class VmManager:
         network_config_at_launch = {}
         if cloudinit_params["network_type"] == "BridgeToLan":
             network_config_at_launch["network_type"] = cloudinit_params["network_type"]
-            network_config_at_launch["subnet_mask"] = "24" # /24 , hardcoded for now. Ideally should retrieve from a network profile
+            cloudinit_params["subnet_mask"] = "24" # /24 , hardcoded for now. Ideally should retrieve from a network profile
+            network_config_at_launch["subnet_mask"] = cloudinit_params["subnet_mask"]
             network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
             network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
             network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
@@ -592,11 +593,12 @@ class VmManager:
     def __generate_network_cloudinit_config(self, config):
         if config["network_type"] == "BridgeToLan":
             if config["private_ip"]:
+                private_ip = f"{config['private_ip']}/{config['subnet_mask']}"
                 interface = {
                     "dhcp4": False,
                     "dhcp6": False,
                     "addresses": [
-                        config['private_ip']
+                        private_ip
                     ],
                     "gateway4": config['gateway_ip'],
                     "nameservers": {
