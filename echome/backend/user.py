@@ -14,7 +14,6 @@ import jwt
 
 from .database import DbEngine
 
-
 Base = declarative_base()
 
 class User(Base):

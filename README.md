@@ -27,6 +27,8 @@ A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT
 
 In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor. There will likely need to be some modifications to the XML templates before they'll work with Intel processors.
 
+If you're using secondary drives, mount your storage before installation and ensure that they're setup to mount automatically on boot.
+
 ## Installation
 
 The `./host_server_setup.sh` script is currently set up to run as if you'll develop on the server, meaning it'll git clone (ssh) the echome repo and symlink some directories to `echome`'s user/app directory. In the future, installation will move files into their own places but this will work for now.
@@ -47,9 +49,8 @@ Setup a bridge network on your ubuntu server with the name 'br0'. Example guide 
 https://fabianlee.org/2019/04/01/kvm-creating-a-bridged-network-with-netplan-on-ubuntu-bionic/
 
 Set up two new directories for guest images and user accounts. These can be defined anywhere but must be accessible and writable to the echome user.
-Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
 
-Once complete, follow the steps below in "Running the API in debug mode" to start the API and interact with ecHome.
+Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
 
 ### Post setup
 
