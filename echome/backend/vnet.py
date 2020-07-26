@@ -1,24 +1,24 @@
 import time
 import logging
+import ipaddress
+import string
 from backend.id_gen import IdGenerator
 from backend.user import User
+from backend.database import dbengine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
 from sqlalchemy.ext.hybrid import hybrid_property
 import sqlalchemy as db
-import string
 
-from .database import DbEngine
+from sqlalchemy import inspect
 
 Base = declarative_base()
 
 class VirtualNetworkObject(Base):
     __tablename__ = "virtual_networks"
     metadata = MetaData()
-
-    session = None
 
     id = Column(Integer, primary_key=True)
     vnet_id = Column(String(25), unique=True)
@@ -30,18 +30,45 @@ class VirtualNetworkObject(Base):
     active = Column(Boolean, default=True)
     tags = Column(JSONB)
 
-    def init_session(self):
-        dbengine = DbEngine()
-        self.session = dbengine.return_session()
+    def init_table(self):
         self.metadata.create_all(dbengine.engine)
-        return self.session
     
+    # Save changes made to this object
     def commit(self):
-        if not self.session:
-            self.init_session()
+        dbengine.session.add(self)
+        dbengine.session.commit()
+    
+    # Delete this object from the database
+    def delete(self):
+        dbengine.session.delete(self)
+        dbengine.session.commit()
+    
+    # Checks to see if the IP provided for a VM is valid for this network
+    def validate_ip(self, ip: string):
+        network_addr = f'{self.config["network"]}/{self.config["prefix"]}'
+        logging.debug(f"Checking network address: {network_addr} for network {self.profile_name}")
+        network = ipaddress.ip_network(f'{self.config["network"]}/{self.config["prefix"]}')
+        hosts = network.hosts()
+
+        ip_obj = self.valid_ip_format(ip)
+        if ip_obj is False:
+            raise ValueError("Provided Ip address is not valid.")
+
+        if ip_obj not in hosts:
+            logging.debug(f"{ip} is not a valid address for network {network_addr}")
+            return False
+
+        logging.debug(f"{ip} valid for network {network_addr}")
+        return True
+
+    # Checks to see if this is a valid IP address 
+    def valid_ip_format(self, ip: string):
+        try:
+            ip_object = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
         
-        self.session.add(self)
-        self.session.commit()
+        return ip_object
 
     def __str__(self):
         return self.vnet_id
@@ -54,11 +81,11 @@ class VirtualNetwork():
     ]
     
     # Network: "192.168.15.0"
-    # Netmask: "24"
+    # Prefix: "24"
     # Gateway: "192.168.15.1"
     # DnsServers: ["1.1.1.1", "1.0.0.1"]
     # Tags: {"Environment": "Home"}
-    create_options = ("Network", "Netmask", "Gateway", "DnsServers", "Tags")
+    create_options = ("Network", "Prefix", "Gateway", "DnsServers", "Tags")
     def create(self, Name: string, User: User, Type: string, **kwargs):
         if Type not in self._valid_network_types:
             raise InvalidNetworkType("Specified type is not a valid network type.")
@@ -69,7 +96,7 @@ class VirtualNetwork():
         
         config = {
             "network": kwargs["Network"],
-            "netmask": kwargs["Netmask"],
+            "prefix": kwargs["Prefix"],
             "gateway": kwargs["Gateway"],
             "dns_servers": kwargs["DnsServers"]
         }
@@ -86,9 +113,21 @@ class VirtualNetwork():
         return network
 
     def get_network(self, vnet_id: string):
-        network = VirtualNetworkObject()
-        session = network.init_session()
-        return session.query(VirtualNetworkObject).filter_by(vnet_id=vnet_id).first()
+        return dbengine.session.query(VirtualNetworkObject).filter_by(vnet_id=vnet_id).first()
+
+    # can delete by either vnet_id or VirtualNetworkObject
+    def delete_network(self, vnet_id: string = None, vnet: VirtualNetworkObject = None):
+        vnet_obj = None
+        if vnet_id:
+            vnet_obj = self.get_network(vnet_id)
+        
+        if vnet:
+            vnet_obj = vnet
+        
+        if vnet_obj is None:
+            logging.debug(f"No network to delete, vnet_obj is None")
+        
+        vnet_obj.delete()
 
 class InvalidNetworkType(Exception):
     pass

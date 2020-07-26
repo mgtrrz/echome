@@ -1,5 +1,5 @@
 import logging
-from configparser import ConfigParser
+from backend.config import AppConfig
 from datetime import datetime
 import sqlalchemy as db
 #from uwsgidecorators import postfork
@@ -8,14 +8,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
 from sqlalchemy.orm import sessionmaker
 
-
 SECTION_NAME = "database"
 DB_CONFIG_FILE = "/etc/echome/database.ini"
 
-# @postfork
-# def engine_dispose():
-#     logging.debug("Class Database: ENGINE DISPOSE called!")
-#     #self.engine.dispose()
 
 class Database:
 
@@ -30,21 +25,6 @@ class Database:
         Column("fingerprint", TEXT),
         Column("public_key", TEXT)
     )
-
-    # users = Table("users", metadata, 
-    #     Column("id", Integer, primary_key=True),
-    #     Column("user_id", String(25), unique=True, nullable=False),
-    #     Column("auth_id", String(25), unique=True, nullable=False),
-    #     Column("username", String(50), nullable=False),
-    #     Column("name", String(50), nullable=True),
-    #     Column("account", String(25)),
-    #     Column("created", DateTime(timezone=True), server_default=func.now()),
-    #     Column("token_start",  DateTime(timezone=True)),
-    #     Column("active_token", TEXT),
-    #     Column("secret", TEXT),
-    #     Column("active", Boolean),
-    #     Column("tags", JSONB),
-    # )
 
     accounts = Table("accounts", metadata, 
         Column("id", Integer, primary_key=True),
@@ -125,19 +105,24 @@ class Database:
     #     logging.debug("Class Database: ENGINE DISPOSE called!")
     #     self.engine.dispose()
 
-
 class DbEngine:
     metadata = MetaData()
 
+    session = None
+
     def __init__(self):
         logging.debug("Opening Postgres Engine connection..")
-        self.engine = db.engine_from_config(self.get_connection_by_config(DB_CONFIG_FILE), prefix='db.')
+        config = AppConfig()
+        self.engine = db.create_engine(config.database["db.url"])
         self.connection = self.engine.connect()
+        self.set_session()
 
     def return_session(self):
+        return self.session
+    
+    def set_session(self):
         maker = sessionmaker(bind=self.engine)
         self.session = maker()
-        return self.session
     
     def create_tables(self):
         self.metadata.create_all(self.engine)
@@ -147,19 +132,5 @@ class DbEngine:
     #     logging.debug("Class Database: ENGINE DISPOSE called!")
     #     self.engine.dispose()
 
-    def get_connection_by_config(self, config_file_path):
-        #TODO: Check if config file exists
-        if(len(config_file_path) > 0 and len(SECTION_NAME) > 0):
 
-            parser = ConfigParser()
-            parser.read(config_file_path)
-            if (parser.has_section(SECTION_NAME)):
-                params = parser.items(SECTION_NAME)
-                db_conn_dict = {}
-                for param in params:
-                    db_conn_dict[param[0]] = param[1]
-                
-            return db_conn_dict
-
-        else:
-            logging.error("Cannot make a database connection without config file path.")
+dbengine = DbEngine()

@@ -3,12 +3,23 @@ import os.path as path
 from configparser import ConfigParser
 
 CONFIG_FILE="/etc/echome/echome.ini"
+DB_CONFIG_FILE = "/etc/echome/database.ini"
 
 class AppConfig:
     
     def __init__(self):
         self.check_config_file(CONFIG_FILE)
+        self.check_config_file(DB_CONFIG_FILE)
+
+        # Process app config file
         self.parser = self.get_parser(CONFIG_FILE)
+
+        sections = self.parser.sections()
+        for section in sections:
+            setattr(self, section, self.parser[section])
+        
+        # Process db config file
+        self.parser = self.get_parser(DB_CONFIG_FILE)
 
         sections = self.parser.sections()
         for section in sections:

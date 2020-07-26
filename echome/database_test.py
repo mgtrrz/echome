@@ -1,17 +1,21 @@
 from backend.user import User
 from backend.id_gen import IdGenerator
-from backend.database import DbEngine
+from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
 
 # user.init_session()
 # for user in session.query(user).filter_by(username='marknine'):
 #     print(user)
 
-# Initializing a SQLAlchemy session
+####################################
+# Initializing a SQLAlchemy session (https://docs.sqlalchemy.org/en/13/orm/session_basics.html)
+# Entry-point 
+# Create one session!
 
-# db = DbEngine()
-# dbsession = db.return_session()
-# print(dbsession)
+# from backend.database import dbengine
+# dbengine.session!
+
+
 
 # user = dbsession.query(User).filter_by(auth_id="auth-d4193167").first()
 # print(user)
@@ -26,14 +30,7 @@ from backend.vnet import VirtualNetwork, InvalidNetworkType
 def check_existing_user():
     #################
     # Working with an existing user
-    db = DbEngine()
-    dbsession = db.return_session()
-    db.create_tables()
-
-    user = User()
-    session = user.init_session()
-
-    user = session.query(User).filter_by(user_id="user-d4193166").first()
+    user = dbengine.session.query(User).filter_by(user_id="user-d4193166").first()
     print(user)
     return user
 
@@ -48,18 +45,15 @@ def create_user():
         name="Marcus Gutierrez"
     )
 
-    # # Creating the table (and returning a session)
-    session = user.init_session()
-
     # # Setting a password
     user.set_password("MyPassword")
-    session.add(user)
-    session.commit()
+    dbengine.session.add(user)
+    dbengine.session.commit()
 
     # Create API client and secret for this user
     user_api_obj, secret_token = user.create_api_auth()
-    session.add(user_api_obj)
-    session.commit()
+    dbengine.session.add(user_api_obj)
+    dbengine.session.commit()
     print(secret_token)
 
     # Checking to see if the password or secret match
@@ -77,7 +71,7 @@ def create_new_network():
         User=user, 
         Type="BridgeToLan", 
         Network="172.16.9.0", 
-        Netmask="24", 
+        Prefix="24", 
         Gateway="172.16.9.1", 
         DnsServers=["1.1.1.1", "1.0.0.1"]
     )
@@ -93,5 +87,11 @@ def use_existing_network():
     print(vnet)
     print(vnet.config)
 
+def delete_network():
 
-use_existing_network()
+    network = VirtualNetwork()
+    vnet = network.get_network("vnet-8719c034")
+    vnet.delete()
+
+
+create_new_network()
