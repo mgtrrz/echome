@@ -17,6 +17,7 @@ from .database import Database
 from .instance_definitions import Instance
 from .id_gen import IdGenerator
 from .guest_image import GuestImage, InvalidImageId
+from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import AppConfig
 
 config = AppConfig()
@@ -90,20 +91,31 @@ class VmManager:
         # If we set a static IP for the instance, create a network config file
         network_yaml_file_path = None
         network_config_at_launch = {}
-        if cloudinit_params["network_type"] == "BridgeToLan":
-            network_config_at_launch["network_type"] = cloudinit_params["network_type"]
-            cloudinit_params["subnet_mask"] = "24" # /24 , hardcoded for now. Ideally should retrieve from a network profile
-            network_config_at_launch["subnet_mask"] = cloudinit_params["subnet_mask"]
+        
+        # Grab the virtual network profile
+        vn = VirtualNetwork()
+        vnet = vn.get_network_by_profile_name(cloudinit_params["network_profile"], user)
+        if not vnet:
+            raise Exception("Provided Network profile does not exist.")
+            
+        # Check that the IP they want to create the VM in is valid for this network
+        if not vnet.validate_ip(cloudinit_params["private_ip"]):
+            raise Exception("Provided Private IP address is not valid for the specified network profile.")
+
+        if vnet.type == "BridgeToLan":
+            network_config_at_launch["network_profile"] = cloudinit_params["network_profile"]
+            network_config_at_launch["vnet_id"] = vnet.vnet_id
+            network_config_at_launch["type"] = vnet.type
             network_config_at_launch["private_ip"] = cloudinit_params["private_ip"]
-            network_config_at_launch["gateway"] = cloudinit_params["gateway_ip"]
-            network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params)
+
+            network_cloudinit_config = self.__generate_network_cloudinit_config(cloudinit_params, vnet)
             network_yaml_file_path = f"{vmdir}/network.yaml"
 
             with open(network_yaml_file_path, "w") as filehandle:
                 logging.debug("Writing cloudinit yaml: network.yaml")
                 filehandle.write(network_cloudinit_config)
             # TODO: Catch errors 
-
+        
         # Validate and create the cloudinit iso
         cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
 
@@ -113,8 +125,6 @@ class VmManager:
         if "image_id" not in server_params:
             msg = f"Image Id was not found in launch configuration. Cannot continue!"
             logging.error(msg)
-            if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user.account, vm_id)
             raise InvalidLaunchConfiguration(msg)
 
         try:
@@ -124,8 +134,6 @@ class VmManager:
             img = img[0]
         except InvalidImageId as e:
             logging.error(e)
-            if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user.account, vm_id)
             raise InvalidImageId(e)
             
         logging.debug(json.dumps(img, indent=4))
@@ -147,8 +155,6 @@ class VmManager:
             shutil.copy2(img_path, vm_img)
         except:
             logging.error("Encountered an error on VM copy. Cannot continue.")
-            if CLEAN_UP_ON_FAIL:
-                self.__delete_vm_path(user.account, vm_id)
             raise
 
         logging.debug(f"Final image: {vm_img}")
@@ -168,10 +174,9 @@ class VmManager:
             "xml_template": xml_template,
             "cloud_init_path": cloudinit_iso_path,
             "vm_img": vm_img,
-            "network_type": cloudinit_params["network_type"]
         }
         logging.debug(vm_config)
-        xmldoc = self.__generate_new_vm_template(vm_config)
+        xmldoc = self.__generate_new_vm_template(vm_config, vnet)
 
         # Create the actual files in the tmp dir
         with open(f"{vmdir}/vm.xml", 'w') as filehandle:
@@ -522,7 +527,7 @@ class VmManager:
                 return False
 
     # Generate XML template for virt to create the image with
-    def __generate_new_vm_template(self, config):
+    def __generate_new_vm_template(self, config, vnet: VirtualNetworkObject = None):
         cloudinit_xml = ""
         
         # Generate disk XML
@@ -545,14 +550,24 @@ class VmManager:
                 'VM_USER_IMG_PATH': config["vm_img"],
                 'SMBIOS_MODE': '',
                 'SMBIOS_BODY': '',
+                'BRIDGE_INTERFACE': '',
             }
 
             # If the new VM is not using the BridgeToLan network type, add smbios
             # information for it to use the metadata service.
-            if config['network_type'] != "BridgeToLan":
+            if vnet and vnet.type != "BridgeToLan":
                 with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
                     replace['SMBIOS_MODE'] = "<smbios mode='sysinfo'/>"
                     replace['SMBIOS_BODY'] = filehandle.read()
+            
+            # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
+            # template
+            if vnet and vnet.type == "BridgeToLan":
+                replace['BRIDGE_INTERFACE'] = f"""
+  <interface type="bridge">
+    <source bridge="{vnet.config['bridge_interface']}"/>
+  </interface>
+                """
         
         logging.debug("Replace variables in XML..")
         logging.debug(replace)
@@ -590,22 +605,19 @@ class VmManager:
 
 
     # Generate network config for cloudinit yaml string
-    def __generate_network_cloudinit_config(self, config):
-        if config["network_type"] == "BridgeToLan":
+    def __generate_network_cloudinit_config(self, config, vnet: VirtualNetworkObject=None):
+        if vnet and vnet.type == "BridgeToLan":
             if config["private_ip"]:
-                private_ip = f"{config['private_ip']}/{config['subnet_mask']}"
+                private_ip = f"{config['private_ip']}/{vnet.config['prefix']}"
                 interface = {
                     "dhcp4": False,
                     "dhcp6": False,
                     "addresses": [
                         private_ip
                     ],
-                    "gateway4": config['gateway_ip'],
+                    "gateway4": vnet.config['gateway'],
                     "nameservers": {
-                        "addresses": [
-                            "1.1.1.1",
-                            "1.0.0.1",
-                        ]
+                        "addresses": vnet.config['dns_servers']
                     }
                 }
             else:
@@ -621,7 +633,9 @@ class VmManager:
                 }
             }
 
-        return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
+            return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
+        
+        return ""
     
     # Generate an ISO from the cloudinit YAML files
     def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None):

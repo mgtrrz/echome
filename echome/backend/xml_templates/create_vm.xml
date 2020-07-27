@@ -41,9 +41,7 @@ $CLOUDINIT_DISK
     <controller type="usb" index="0" model="ich9-uhci3">
       <master startport="4"/>
     </controller>
-    <interface type="bridge">
-      <source bridge="br0"/>
-    </interface>
+$BRIDGE_INTERFACE
     <console type="pty"/>
   </devices>
 $SMBIOS_BODY

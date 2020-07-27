@@ -145,6 +145,12 @@ class VirtualNetwork():
             account=user.account
         ).first()
     
+    def get_network_by_profile_name(self, profile_name: string, user: User):
+        return dbengine.session.query(VirtualNetworkObject).filter_by(
+            profile_name=profile_name,
+            account=user.account
+        ).first()
+    
     def get_all_networks(self, user: User):
         return dbengine.session.query(VirtualNetworkObject).filter_by(
             account=user.account
