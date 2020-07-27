@@ -75,22 +75,48 @@ class VirtualNetworkObject(Base):
 
 class VirtualNetwork():
 
-    _valid_network_types = [
+    valid_network_types = (
         "BridgeToLan",
         "NAT"
-    ]
+    )
     
     # Network: "192.168.15.0"
     # Prefix: "24"
     # Gateway: "192.168.15.1"
     # DnsServers: ["1.1.1.1", "1.0.0.1"]
+    # Bridge: "br0"
     # Tags: {"Environment": "Home"}
-    create_options = ("Network", "Prefix", "Gateway", "DnsServers", "Tags")
+    create_required_options = ("Network", "Prefix", "Gateway", "DnsServers", "Bridge")
+    create_optionals = ("Tags")
     def create(self, Name: string, User: User, Type: string, **kwargs):
-        if Type not in self._valid_network_types:
+        logging.debug("Creating new network")
+        if Type not in self.valid_network_types:
             raise InvalidNetworkType("Specified type is not a valid network type.")
 
-        network = VirtualNetwork()
+        # Check to see if a network with that name does not already exist
+        logging.debug("Checking if network with the name already exists..")
+        vnet = dbengine.session.query(VirtualNetworkObject).filter_by(
+            account=User.account,
+            profile_name=Name
+        ).first()
+        if vnet:
+            raise InvalidNetworkName("Network configuration with that name already exists.")
+
+        # Validate the information provided is correct (Actual IP addresses)
+        logging.debug("Validating provided network information..")
+        try:
+            network_cidr = f'{kwargs["Network"]}/{kwargs["Prefix"]}'
+            logging.debug(f"Created network cidr with provided information {network_cidr}")
+
+            if ipaddress.ip_address(kwargs["Gateway"]) not in ipaddress.ip_network(network_cidr).hosts():
+                raise InvalidNetworkConfiguration("Cannot verify network configuration with provided information")
+            
+            for dns_server in kwargs["DnsServers"]:
+                ipaddress.ip_address(dns_server)
+
+        except ValueError as e:
+            raise InvalidNetworkConfiguration("Cannot verify network configuration with provided information. Is the IP address space correct?")
+
         vnet_id = IdGenerator.generate("vnet")
         logging.debug(f"Creating new virtual network with Id: {vnet_id}")
         
@@ -98,7 +124,8 @@ class VirtualNetwork():
             "network": kwargs["Network"],
             "prefix": kwargs["Prefix"],
             "gateway": kwargs["Gateway"],
-            "dns_servers": kwargs["DnsServers"]
+            "dns_servers": kwargs["DnsServers"],
+            "bridge_interface": kwargs["Bridge"],
         }
 
         network = VirtualNetworkObject(
@@ -112,8 +139,16 @@ class VirtualNetwork():
         network.commit()
         return network
 
-    def get_network(self, vnet_id: string):
-        return dbengine.session.query(VirtualNetworkObject).filter_by(vnet_id=vnet_id).first()
+    def get_network(self, vnet_id: string, user: User):
+        return dbengine.session.query(VirtualNetworkObject).filter_by(
+            vnet_id=vnet_id,
+            account=user.account
+        ).first()
+    
+    def get_all_networks(self, user: User):
+        return dbengine.session.query(VirtualNetworkObject).filter_by(
+            account=user.account
+        ).all()
 
     # can delete by either vnet_id or VirtualNetworkObject
     def delete_network(self, vnet_id: string = None, vnet: VirtualNetworkObject = None):
@@ -129,5 +164,11 @@ class VirtualNetwork():
         
         vnet_obj.delete()
 
+class InvalidNetworkName(Exception):
+    pass
+
 class InvalidNetworkType(Exception):
+    pass
+
+class InvalidNetworkConfiguration(Exception):
     pass

@@ -2,6 +2,7 @@ from backend.user import User
 from backend.id_gen import IdGenerator
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
+import json
 
 # user.init_session()
 # for user in session.query(user).filter_by(username='marknine'):
@@ -67,13 +68,14 @@ def create_new_network():
 
     network = VirtualNetwork()
     vnet = network.create(
-        Name="test-network", 
+        Name="home-network", 
         User=user, 
         Type="BridgeToLan", 
         Network="172.16.9.0", 
         Prefix="24", 
         Gateway="172.16.9.1", 
-        DnsServers=["1.1.1.1", "1.0.0.1"]
+        DnsServers=["1.1.1.1", "1.0.0.1"],
+        Bridge="br0"
     )
 
     print(vnet)
@@ -82,16 +84,38 @@ def use_existing_network():
 
     user = check_existing_user()
     network = VirtualNetwork()
-    vnet = network.get_network("vnet-8719c034")
+    vnet = network.get_network("vnet-517d0ed2", user)
 
     print(vnet)
     print(vnet.config)
 
 def delete_network():
-
+    user = check_existing_user()
     network = VirtualNetwork()
-    vnet = network.get_network("vnet-8719c034")
+    vnet = network.get_network("vnet-517d0ed2", user)
     vnet.delete()
+
+def check_networking():
+    # See if we can create an IP in this network space
+    user = check_existing_user()
+    network = VirtualNetwork()
+    
+    vnets = network.get_all_networks(user)
+    response = []
+    for vnet in vnets:
+        response.append({
+            "network_id": vnet.vnet_id,
+            "name": vnet.profile_name,
+            "type": vnet.type,
+            "created": str(vnet.created),
+            "config": vnet.config,
+            "tags": vnet.tags,
+        })
+    
+    print(json.dumps(response, indent=4))
+
+    
 
 
 create_new_network()
+check_networking()

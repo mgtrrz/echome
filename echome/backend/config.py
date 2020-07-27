@@ -31,7 +31,7 @@ class AppConfig:
         return parser
     
     def get_app_base_dir(self):
-        return self.parser["echome"]["base_dir"]
+        return self.echome["base_dir"]
 
     def check_config_file(self, file):
         if not path.exists(file):

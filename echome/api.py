@@ -15,8 +15,9 @@ from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExi
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
-from backend.database import DbEngine
+from backend.database import dbengine
 from backend.config import AppConfig
+from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
 from functools import wraps
 
 echomeConfig = AppConfig()
@@ -27,6 +28,27 @@ app.secret_key = echomeConfig.echome["api_secret"]
 jwt = JWTManager(app)
 logging.basicConfig(level=logging.DEBUG)
 
+# Convert parameter tags (e.g. Tag.1.Key=Name, Tag.1.Value=MyVm, Tag.2.Key=Env, etc.)
+# to a dictionary e.g. {"Name": "MyVm", "Env": "stage"}
+def unpack_tags(request_args=None):
+    dict_tags = {}    
+    there_are_tags = True
+    x = 1
+    while there_are_tags:
+        if f"Tag.{x}.Key" in request_args:
+            keyname = request_args[f"Tag.{x}.Key"]
+            if f"Tag.{x}.Value" in request_args:
+                value = request_args[f"Tag.{x}.Value"]
+            else:
+                value = ""
+
+            dict_tags[keyname] = value
+        else:
+            there_are_tags = False
+            continue
+        x = x + 1
+    
+    return dict_tags
 
 vm = VmManager()
 
@@ -48,10 +70,8 @@ def auth_api_login():
     if not auth or not auth.username or not auth.password:  
         return incorrect_cred
 
-    db = DbEngine()
-    dbsession = db.return_session()
     try:
-        user = dbsession.query(User).filter_by(auth_id=auth.username).first()
+        user = dbengine.session.query(User).filter_by(auth_id=auth.username).first()
     except Exception as e:
         logging.debug(e)
         return incorrect_cred
@@ -98,11 +118,10 @@ def auth_identity():
 
 def return_calling_user():
     print("Grabbing returning user")
-    db = DbEngine()
-    dbsession = db.return_session()
+
     current_user = get_jwt_identity()
     try:
-        user = dbsession.query(User).filter_by(auth_id=current_user).first()
+        user = dbengine.session.query(User).filter_by(auth_id=current_user).first()
     except:  
         return jsonify({'auth.error': 'Token is invalid'}), 401
     
@@ -110,6 +129,10 @@ def return_calling_user():
         return jsonify({'auth.error': 'Invalid user'}), 401
 
     return user
+
+####################
+# Namespace: vm 
+# vm/
 
 # curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
 # \&InstanceSize=standard.small \
@@ -132,24 +155,7 @@ def api_vm_create():
     except InvalidInstanceType:
         return {"error": "Provided InstanceSize is not a valid type or size."}, 400
 
-    tags = {}
-    if "Tags" in request.args:
-        there_are_tags = True
-        x = 1
-        while there_are_tags:
-            if f"Tag.{x}.Key" in request.args:
-
-                keyname = request.args[f"Tag.{x}.Key"]
-                if f"Tag.{x}.Value" in request.args:
-                    value = request.args[f"Tag.{x}.Value"]
-                else:
-                    value = ""
-
-                tags[keyname] = value
-            else:
-                there_are_tags = False
-                continue
-            x = x + 1
+    tags = unpack_tags(request.args)
 
     dsize = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
     
@@ -362,6 +368,91 @@ def api_ssh_key_store():
         return {"error": "Public Key (PublicKey) with that fingerprint already exists."}, 400
 
     return jsonify(results)
+
+####################
+# Namespace: access 
+# access/
+@app.route('/v1/access/describe', methods=['GET'])
+@jwt_required
+def api_access_describe():
+    user = return_calling_user()
+
+
+####################
+# Namespace: network 
+# network/
+@app.route('/v1/network/describe/all', methods=['GET'])
+@jwt_required
+def api_network_describe_all():
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+    vnets = network.get_all_networks(user)
+    response = []
+    for vnet in vnets:
+        response.append({
+            "network_id": vnet.vnet_id,
+            "name": vnet.profile_name,
+            "type": vnet.type,
+            "created": str(vnet.created),
+            "config": vnet.config,
+            "tags": vnet.tags,
+        })
+    
+    return jsonify(response)
+
+@app.route('/v1/network/describe/<vnet_id>', methods=['GET'])
+@jwt_required
+def api_network_describe_network(vnet_id=None):
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+    vnet = network.get_network(vnet_id, user)
+    response = []
+    if vnet:
+        response.append({
+            "network_id": vnet.vnet_id,
+            "name": vnet.profile_name,
+            "type": vnet.type,
+            "created": str(vnet.created),
+            "config": vnet.config,
+            "tags": vnet.tags,
+        })
+    
+    return jsonify(response)
+
+
+@app.route('/v1/network/create', methods=['POST'])
+@jwt_required
+def api_network_create_network():
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+
+    for req_opt in network.create_required_options:
+        if not req_opt in request.args:
+            return {"error": f"{req_opt} must be provided when creating a network."}, 400
+    
+    if request.args["Type"] not in network.valid_network_types:
+        return {"error": "Type must be one of the supported types: BridgeToLan, NAT"}, 400
+    
+    if request.args["Type"] == "BridgeToLan":
+        request.args["Tags"] = unpack_tags(request.args)
+        
+        try:
+            new_network = network.create(
+                Name=request.args["Name"],
+                User=user, 
+                Type=request.args["Type"],
+                **request.args
+            )
+        except:
+            return {"error": f"Error creating network."}, 400
+    
+        return jsonify({"vnet_id": new_network})
+    else:
+        return jsonify({"error": "Other network types not currently built."})
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
