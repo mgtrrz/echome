@@ -2,7 +2,12 @@ from backend.user import User
 from backend.id_gen import IdGenerator
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
+from backend.vm_manager import VmManager
+from backend.instance_definitions import Instance
 import json
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 # user.init_session()
 # for user in session.query(user).filter_by(username='marknine'):
@@ -27,6 +32,23 @@ import json
 
 # user.init_session()
 # user.add()
+
+
+def create_vm():
+    user = check_existing_user()
+    vmanager = VmManager()
+    id = vmanager.create_vm(
+        user, 
+        Instance("standard", "micro"), 
+        NetworkProfile="home-network",
+        ImageId="gmi-07b7e1e4",
+        KeyName="echome",
+        DiskSize="10G",
+        PrivateIp="172.16.9.30",
+        Tags={"Name": "Test-deployment", "Environment": "Test"}
+    )
+    print(id)
+
 
 def check_existing_user():
     #################
@@ -117,5 +139,4 @@ def check_networking():
     
 
 
-create_new_network()
-check_networking()
+create_vm()

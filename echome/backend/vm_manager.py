@@ -20,6 +20,8 @@ from .guest_image import GuestImage, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import AppConfig
 from .commander import QemuImg
+from .ssh_keystore import EchKeystore, KeyDoesNotExist
+from .user import User
 
 config = AppConfig()
 VM_ROOT_DIR = config.UserDirectories["dir"]
@@ -85,10 +87,14 @@ class VmManager:
         :type ImageId: str
         :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
         :type DiskSize: str
-        :key PrivateIp: Private IP address to assign, defaults to None.
+        :key KeyName: Name of the SSH Keystore item to add a public ssh key to the VM. Defaults to None.
+        :type KeyName: str
+        :key PrivateIp: Private IP address to assign. Defaults to None.
         :type PrivateIp: str
         :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
         :type CustomXML: str
+        :key Tags: Dictionary of tags to apply to this instance. Defaults to None
+        :type Tags: dict
 
         :raises Exception: With the message passed from the _create_virtual_machine function.
 
@@ -124,10 +130,14 @@ class VmManager:
         :type ImageId: str
         :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
         :type DiskSize: str
-        :key PrivateIp: Private IP address to assign, defaults to None.
+        :key KeyName: Name of the SSH Keystore item to add a public ssh key to the VM. Defaults to None.
+        :type KeyName: str
+        :key PrivateIp: Private IP address to assign. Defaults to None.
         :type PrivateIp: str
         :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
         :type CustomXML: str
+        :key Tags: Dictionary of tags to apply to this instance. Defaults to None
+        :type Tags: dict
 
         :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
         :raises LaunchError: If there was an error during build of the virtual machine.
@@ -162,6 +172,7 @@ class VmManager:
         
         cloudinit_iso_path = None
         if vnet.type == "BridgeToLan":
+            logging.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
             if private_ip and not vnet.validate_ip(kwargs["PrivateIp"]):
                 raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
@@ -179,15 +190,27 @@ class VmManager:
             # Cloud-init
             # Like with Networking above, BridgeToLan uses ISOs to set cloudinit stuff.
             # Other networking types should use the metadata API.
-            if vnet.type == "BridgeToLan":
-                # Generate the cloudinit config
-                standard_cloudinit_config = self._generate_cloudinit_standard_config(cloudinit_params)
-                cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
-                logging.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
+            logging.debug("Determining if KeyName is present.")
+            pub_key = None
+            if "KeyName" in kwargs:
+                try:
+                    key_meta = EchKeystore.get_key(user, kwargs["KeyName"])
+                    pub_key = key_meta[0]["public_key"]
+                    logging.debug("Got public key from KeyName")
+                except KeyDoesNotExist:
+                    raise ValueError("Specified SSH Key Name does not exist.")
+            
+            # Generate the cloudinit config
+            standard_cloudinit_config = self._generate_cloudinit_standard_config(
+                VmId=vm_id,
+                PublicKey=pub_key
+            )
+            cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
+            logging.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
 
-                with open(cloudinit_yaml_file_path, "w") as filehandle:
-                    logging.debug("Writing cloudinit yaml: cloudinit.yaml")
-                    filehandle.write(standard_cloudinit_config)
+            with open(cloudinit_yaml_file_path, "w") as filehandle:
+                logging.debug("Writing cloudinit yaml: cloudinit.yaml")
+                filehandle.write(standard_cloudinit_config)
         
             # Validate and create the cloudinit iso
             cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
@@ -262,7 +285,7 @@ class VmManager:
         qimg = QemuImg()
         logging.debug(f"Resizing image size to {kwargs['DiskSize']}")
         try:
-            qimg.resize(vm_img, kwargs["DiskSize"])
+            qimg.resize(destination_vm_img, kwargs["DiskSize"])
         except Exception as e:
             logging.error(f"Encountered error when running qemu resize. {e}")
             raise LaunchError("Encountered error when running qemu resize.")
@@ -278,8 +301,6 @@ class VmManager:
         logging.info("Starting VM..")
         self.startInstance(vm_id)
 
-
-
         # Add the information for this VM in the db
         stmt = self.db.user_instances.insert().values(
             account = user.account,
@@ -290,19 +311,19 @@ class VmManager:
             account_user = user.user_id,
             attached_interfaces = {
                 "config_at_launch": {
-                    "vnet_id" = vnet.vnet_id
-                    "type" = vnet.type
-                    "private_ip" = cloudinit_params["private_ip"]
+                    "vnet_id": vnet.vnet_id,
+                    "type": vnet.type,
+                    "private_ip": kwargs["PrivateIp"] if "PrivateIp" in kwargs else "",
                 }
             },
             attached_storage = {},
-            key_name = cloudinit_params["cloudinit_key_name"],
+            key_name = kwargs["KeyName"] if "KeyName" in kwargs else "",
             assoc_firewall_rules = {},
             vm_image_metadata = {
                 "image_id": kwargs["ImageId"],
                 "image_name": img["name"],
             },
-            tags = tags,
+            tags = kwargs["Tags"] if "Tags" in kwargs else {},
         )
         print(stmt)
         result = self.db.connection.execute(stmt)
@@ -347,7 +368,7 @@ class VmManager:
     # Optional: Hostname, PublicKey
     def _generate_cloudinit_standard_config(self, VmId, **kwargs):
         # If hostname is not supplied, use the vm ID
-        if "Hostname" not in kwargs or kwargs["Hostname"] == "":
+        if "Hostname" not in kwargs or kwargs["Hostname"] == None:
             hostname = VmId
         else:
             hostname = kwargs["Hostname"]
@@ -1088,3 +1109,4 @@ class InvalidLaunchConfiguration(Exception):
     pass
 
 class LaunchError(Exception):
+    pass

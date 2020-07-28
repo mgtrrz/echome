@@ -6,12 +6,11 @@ class Commander():
     base_command = None
 
     def command(self, cmd: list):
+        if self.base_command:
+            cmd = [self.base_command] + cmd
+        
         logging.debug("Running command: ")
         logging.debug(cmd)
-
-        if self.base_command:
-            cmd = list.insert(0, self.base_command)
-
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
         output = process.stdout.readline()
         logging.debug(output.strip())
