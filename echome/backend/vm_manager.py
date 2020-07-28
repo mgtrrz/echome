@@ -19,6 +19,7 @@ from .id_gen import IdGenerator
 from .guest_image import GuestImage, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import AppConfig
+from .commander import QemuImg
 
 config = AppConfig()
 VM_ROOT_DIR = config.UserDirectories["dir"]
@@ -183,22 +184,21 @@ class VmManager:
             )
         except Exception as e:
             logging.error(f"Error when creating XML template. {e}")
-            raise Exception(e)
+            raise LaunchError("Error when creating XML template.")
 
         # Create the actual XML template in the vm directory
         with open(f"{vmdir}/vm.xml", 'w') as filehandle:
             logging.debug("Writing virtual machine XML document: vm.xml")
             filehandle.write(xmldoc)
 
-
-        ##### TODO TOMORROW:
-        
-        logging.debug(f"Resizing image size to {server_params['disk_size']}")
-        output = self.__run_command(['/usr/bin/qemu-img', 'resize', vm_img, server_params["disk_size"]])
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
+        # Disk resize
+        qimg = QemuImg()
+        logging.debug(f"Resizing image size to {kwargs['DiskSize']}")
+        try:
+            qimg.resize(vm_img, kwargs["DiskSize"])
+        except Exception as e:
+            logging.error(f"Encountered error when running qemu resize. {e}")
+            raise LaunchError("Encountered error when running qemu resize.")
 
         
         logging.debug("Attempting to define XML with virsh..")
