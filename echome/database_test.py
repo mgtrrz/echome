@@ -8,6 +8,8 @@ import json
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger()
+logger.setLevel(level=logging.DEBUG)
 
 # user.init_session()
 # for user in session.query(user).filter_by(username='marknine'):

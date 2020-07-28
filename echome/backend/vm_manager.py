@@ -380,7 +380,7 @@ class VmManager:
         }
 
         ssh_keys_json = {
-            "ssh_authorized_keys": kwargs["PublicKey"] if "PubicKey" in kwargs else []
+            "ssh_authorized_keys": kwargs["PublicKey"] if "PublicKey" in kwargs else []
         }
 
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
