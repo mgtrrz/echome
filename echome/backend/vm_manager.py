@@ -42,7 +42,8 @@ CLEAN_UP_ON_FAIL = True
 
 class VmManager:
 
-    last_vm_id = ""
+    last_vm_id = None
+    vm_id_in_process = None
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
@@ -66,11 +67,77 @@ class VmManager:
             raise Exception(e)
         
         return resp
+    
+    def create_vm(self, user: User, instanceType:Instance, **kwargs):
+        """Create a virtual machine.
+
+        If this process fails, the function will clean up after itself. Set CLEAN_UP_ON_FAIL
+        to False to alter this behavior to keep files for debugging purposes.
+
+        :param user: User object for identifying which account the VM is created for.
+        :type user: User
+        :param instanceType: Instance type for the virtual machine to use.
+        :type instanceType: Instance
+
+        :key NetworkProfile: Network profile to use for the virtual machine. Use the profile name.
+        :type NetworkProfile: str
+        :key ImageId: Guest or User image ID to spawn the virtual machine from.
+        :type ImageId: str
+        :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
+        :type DiskSize: str
+        :key PrivateIp: Private IP address to assign, defaults to None.
+        :type PrivateIp: str
+        :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
+        :type CustomXML: str
+
+        :raises Exception: With the message passed from the _create_virtual_machine function.
+
+        :return: Virtual machine ID if successful.
+        :rtype: str
+        """
+        try:
+            result = self._create_virtual_machine(user, instanceType, **kwargs)
+        except Exception as e:
+            logging.error(e)
+            if CLEAN_UP_ON_FAIL:
+                logging.debug("CLEAN_UP_ON_FAIL set to true. Cleaning up..")
+                self.__delete_vm_path(user.account, self.vm_id_in_process)
+            raise Exception(e)
+        
+        return result
 
     # Set to replace __createInstance
     def _create_virtual_machine(self, user: User, instanceType:Instance, **kwargs):
+        """Create a virtual machine.
+
+        This function is not meant to be called directly. Use create_vm instead as it will
+        handle failures and clean up after itself.
+
+        :param user: User object for identifying which account the VM is created for.
+        :type user: User
+        :param instanceType: Instance type for the virtual machine to use.
+        :type instanceType: Instance
+
+        :key NetworkProfile: Network profile to use for the virtual machine. Use the profile name.
+        :type NetworkProfile: str
+        :key ImageId: Guest or User image ID to spawn the virtual machine from.
+        :type ImageId: str
+        :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
+        :type DiskSize: str
+        :key PrivateIp: Private IP address to assign, defaults to None.
+        :type PrivateIp: str
+        :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
+        :type CustomXML: str
+
+        :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
+        :raises LaunchError: If there was an error during build of the virtual machine.
+
+        :return: Virtual machine ID if successful.
+        :rtype: str
+        """        
         logging.debug("Generating vm-id")
         vm_id = IdGenerator.generate()
+        self.vm_id_in_process = vm_id
         logging.debug(f"Generated vm-id: {vm_id}")
 
         # Creating the directory for the virtual machine
@@ -89,7 +156,7 @@ class VmManager:
         vnet = vn.get_network_by_profile_name(kwargs["NetworkProfile"], user)
 
         if not vnet:
-            raise Exception("Provided NetworkProfile does not exist.")
+            raise InvalidLaunchConfiguration("Provided NetworkProfile does not exist.")
 
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         
@@ -97,7 +164,7 @@ class VmManager:
         if vnet.type == "BridgeToLan":
             # If the IP is specified, check that the IP is valid for their network
             if private_ip and not vnet.validate_ip(kwargs["PrivateIp"]):
-                raise Exception("Provided Private IP address is not valid for the specified network profile.")
+                raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
             
             # Generate the network cloudinit config
             network_cloudinit_config = self._generate_cloudinit_network_config(vnet, private_ip)
@@ -143,7 +210,7 @@ class VmManager:
             img = img[0]
         except InvalidImageId as e:
             logging.error(e)
-            raise InvalidImageId(e)
+            raise InvalidLaunchConfiguration(e)
         
 
         logging.debug(json.dumps(img, indent=4))
@@ -211,12 +278,7 @@ class VmManager:
         logging.info("Starting VM..")
         self.startInstance(vm_id)
 
-        # Get the interface mac address from the VM that was started.
-        # domain.interfaceAddresses()
-        # domain.XMLDesc()
-        interfaces = {
-            "config_at_launch": network_config_at_launch
-        }
+
 
         # Add the information for this VM in the db
         stmt = self.db.user_instances.insert().values(
@@ -226,7 +288,13 @@ class VmManager:
             instance_type = instanceType.itype,
             instance_size = instanceType.isize,
             account_user = user.user_id,
-            attached_interfaces = interfaces,
+            attached_interfaces = {
+                "config_at_launch": {
+                    "vnet_id" = vnet.vnet_id
+                    "type" = vnet.type
+                    "private_ip" = cloudinit_params["private_ip"]
+                }
+            },
             attached_storage = {},
             key_name = cloudinit_params["cloudinit_key_name"],
             assoc_firewall_rules = {},
@@ -418,7 +486,7 @@ class VmManager:
             img = img[0]
         except InvalidImageId as e:
             logging.error(e)
-            raise InvalidImageId(e)
+            raise InvalidLaunchConfiguration(e)
             
         logging.debug(json.dumps(img, indent=4))
         img_type = "base guest image"

@@ -5,7 +5,7 @@ class Commander():
 
     base_command = None
 
-    def command(cmd: list):
+    def command(self, cmd: list):
         logging.debug("Running command: ")
         logging.debug(cmd)
 
