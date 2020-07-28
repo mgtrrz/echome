@@ -160,33 +160,16 @@ def api_vm_create():
 
     tags = unpack_tags(request.args)
 
-    dsize = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
+    request.args["DiskSize"] = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
     
-    priv_ip = request.args["PrivateIp"] if "PrivateIp" in request.args else ""
-    
-    keyname = ""
-    pub_key = ""
     if "KeyName" in request.args:
         try:
-            keyname = request.args["KeyName"]
-            key_meta = EchKeystore.get_key(user, keyname)
-            pub_key = key_meta[0]["public_key"]
+            EchKeystore.get_key(user, request.args["KeyName"])
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
-    
-    cloudinit_params = {
-        "cloudinit_key_name": keyname,
-        "cloudinit_public_key": pub_key,
-        "network_profile": request.args["NetworkProfile"],
-        "private_ip": priv_ip,
-    }
-    server_params = {
-        "image_id": request.args["ImageId"],
-        "disk_size": dsize,
-    }
 
     try:
-        vm_id = vm.createVirtualMachine(user, instanceDefinition, cloudinit_params, server_params, tags)
+        vm_id = vm.create_vm(user, instanceDefinition, Tags=tags, **request.args)
     except Exception as e:
         logging.debug(f"Exception hit: {e}")
         return {"error": "There was an error when creating the instance."}, 500
