@@ -10,7 +10,7 @@ from flask_jwt_extended import (
     jwt_refresh_token_required, create_refresh_token,
     get_jwt_identity, fresh_jwt_required
 )
-from backend.vm_manager import VmManager
+from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
@@ -169,10 +169,21 @@ def api_vm_create():
             return {"error": "Provided KeyName does not exist."}, 400
 
     try:
-        vm_id = vm.create_vm(user, instanceDefinition, Tags=tags, **request.args)
-    except Exception as e:
-        logging.debug(f"Exception hit: {e}")
+        vm_id = vm.create_vm(
+            user=user, 
+            instanceType=instanceDefinition, 
+            Tags=tags,
+            NetworkProfile=request.args["NetworkProfile"],
+            PrivateIp=request.args["PrivateIp"],
+            ImageId=request.args["ImageId"],
+            DiskSize=request.args["DiskSize"]    
+        )
+    except InvalidLaunchConfiguration:
+        return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400
+    except LaunchError:
         return {"error": "There was an error when creating the instance."}, 500
+    except Exception:
+        return {"error": "There was an error when processing the request."}, 500
     
     return jsonify({"vm_id": vm_id})
 

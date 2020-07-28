@@ -86,7 +86,8 @@ class VmManager:
         :key Tags: Dictionary of tags to apply to this instance. Defaults to None
         :type Tags: dict
 
-        :raises Exception: With the message passed from the _create_virtual_machine function.
+        :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
+        :raises LaunchError: If there was an error during build of the virtual machine.
 
         :return: Virtual machine ID if successful.
         :rtype: str
