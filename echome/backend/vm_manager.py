@@ -331,6 +331,24 @@ class VmManager:
         return vm_id
     
     def _generate_cloudinit_network_config(self, vnet: VirtualNetworkObject, priv_ip_addr=None):
+        """Generate Cloudinit network config yaml
+
+        Generates a network cloudinit config. This is meant to be used for BridgeToLan VMs
+        where network information isn't set at VM build time but must instead be determined/
+        set during boot with a Cloudinit script. VMs that use other network types should be
+        able to set network configuration either through XML definition, virsh network
+        interfaces, or possibly set through the metadata api.
+
+        :param vnet: VirtualNetwork object where the virtual machine will be launched in. The vnet
+            object will fill in details such as the gateway and DNS servers.
+        :type vnet: VirtualNetworkObject
+        :param priv_ip_addr: Private IP address, defaults to None. If an IP address is not provided
+            dhcp4 will be set to True. The Private IP address is not tested if it's valid for this
+            network, please perform the check before calling this function.
+        :type priv_ip_addr: str, optional
+        :return: Cloudinit yaml 
+        :rtype: str
+        """        
         if vnet.type != "BridgeToLan":
             # Other network types should use the metadata API
             logging.debug("Tried to create cloudinit network config for non-BridgeToLan VM")
@@ -366,6 +384,22 @@ class VmManager:
     
     # Optional: Hostname, PublicKey
     def _generate_cloudinit_standard_config(self, VmId, **kwargs):
+        """Generate Cloudinit standard config yaml
+
+        Generates a basic cloudinit config with hostname and public key entries. The only
+        required parameter is the virtual machine Id (VmId). Hostname and PublicKey can
+        be left blank.
+
+        :param VmId: Virtual Machine Id. Used to fill the hostname if Hostname is not provided.
+        :type VmId: str
+        :key Hostname: String to use as the hostname for the virtual machine.
+        :type Hostname: str
+        :key PublicKey: Public key to attach to the virtual machine.
+        :type PublicKey: str
+        :return: YAML cloudinit config
+        :rtype: str
+        """        
+
         # If hostname is not supplied, use the vm ID
         if "Hostname" not in kwargs or kwargs["Hostname"] == None:
             hostname = VmId
@@ -395,6 +429,33 @@ class VmManager:
     # Required: VmId, XmlTemplate, vnet:VirtualNetworkObject, Cpu, Memory, VmImg
     # Optional: CloudInitIso
     def _generate_xml_template(self, VmId, XmlTemplate, vnet: VirtualNetworkObject, **kwargs):
+        """Generates the XML template for use with defining in libvirt.
+
+        This function at the moment utilizes "template" XML documents in the `xml_templates`
+        directory. Template() is then used to fill in variables in the XML documents to
+        suit the virtual machine.
+
+        In the future, we may consider using XML libraries to properly generate XML docs.
+
+        :param VmId: Virtual Machine Id
+        :type VmId: str
+        :param XmlTemplate: This is the name of the xml template to use from the `xml_templates` directory.
+        :type XmlTemplate: str
+        :param vnet: Virtual Network object for determining if a bridge interface should be used.
+        :type vnet: VirtualNetworkObject
+        :key Cpu: Number of CPUs (threads) to set for this virtual machine
+        :type Cpu: str
+        :key Memory: Memory value for the virtual machine. Values would be anything that libvirt accepts, 512M, 4G, etc.
+        :type Memory: str
+        :key VmImg: Path to the root virtual disk for the virtual machine.
+        :type VmImg: str
+        :key CloudInitIso: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
+            If attached, the XML document will add a virtual disk with a mount to the cloudinit iso. 
+        :type CloudInitIso: str
+
+        :return: XML document as a string
+        :rtype: str
+        """        
         cloudinit_xml = ""
         
         # Generate Cloudinit disk device IF CloudInit is used.
