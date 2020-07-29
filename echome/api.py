@@ -10,23 +10,27 @@ from flask_jwt_extended import (
     jwt_refresh_token_required, create_refresh_token,
     get_jwt_identity, fresh_jwt_required
 )
+from backend.config import AppConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
 from backend.database import dbengine
-from backend.config import AppConfig
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
 from functools import wraps
 
-echomeConfig = AppConfig()
+config = AppConfig()
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
-app.secret_key = echomeConfig.echome["api_secret"]
+app.secret_key = config.echome["api_secret"]
+
 jwt = JWTManager(app)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(filename=config.echome["api_server_log"], level=logging.DEBUG)
+
+logger = logging.getLogger()
+logger.setLevel(level=logging.DEBUG)
 
 # Convert parameter tags (e.g. Tag.1.Key=Name, Tag.1.Value=MyVm, Tag.2.Key=Env, etc.)
 # to a dictionary e.g. {"Name": "MyVm", "Env": "stage"}
@@ -160,11 +164,13 @@ def api_vm_create():
 
     tags = unpack_tags(request.args)
 
-    request.args["DiskSize"] = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
+    disk_size = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
     
+    key_name = None
     if "KeyName" in request.args:
         try:
             EchKeystore.get_key(user, request.args["KeyName"])
+            key_name = request.args["KeyName"]
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
 
@@ -173,10 +179,11 @@ def api_vm_create():
             user=user, 
             instanceType=instanceDefinition, 
             Tags=tags,
+            KeyName=key_name,
             NetworkProfile=request.args["NetworkProfile"],
             PrivateIp=request.args["PrivateIp"],
             ImageId=request.args["ImageId"],
-            DiskSize=request.args["DiskSize"]    
+            DiskSize=disk_size    
         )
     except InvalidLaunchConfiguration:
         return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400

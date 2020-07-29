@@ -3,6 +3,8 @@
 base_dir=/opt/echome/app/backend
 ; Create a long, random, secure secret for use for API tokens and web sessions
 api_secret=
+; Log Location
+api_server_log=/var/log/echome/api_server.log
 
 [GuestImages]
 ; This is where your guest images are stored

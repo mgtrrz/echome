@@ -99,7 +99,7 @@ class VmManager:
         logging.info(f"Generated vm-id: {vm_id}")
 
         try:
-            result = self._create_virtual_machine(user, instanceType, **kwargs)
+            result = self._create_virtual_machine(user, vm_id, instanceType, **kwargs)
         except InvalidLaunchConfiguration as e:
             logging.error(f"Launch Configuration error: {e}")
             self._clean_up(user, vm_id)
@@ -108,6 +108,9 @@ class VmManager:
             logging.error(f"Launch error: {e}")
             self._clean_up(user, vm_id)
             raise LaunchError(e)
+        except Exception as e:
+            logging.error(f"Encountered other error: {e}")
+            raise Exception(e)
         
         return result
 
@@ -376,7 +379,7 @@ class VmManager:
         }
 
         ssh_keys_json = {
-            "ssh_authorized_keys": kwargs["PublicKey"] if "PublicKey" in kwargs else []
+            "ssh_authorized_keys": [kwargs["PublicKey"]] if "PublicKey" in kwargs else []
         }
 
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
