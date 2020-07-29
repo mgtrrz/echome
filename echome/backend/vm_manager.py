@@ -20,7 +20,7 @@ from .guest_image import GuestImage, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import AppConfig
 from .commander import QemuImg
-from .ssh_keystore import EchKeystore, KeyDoesNotExist
+from .ssh_keystore import KeyStore, KeyDoesNotExist
 from .user import User
 
 config = AppConfig()
@@ -193,7 +193,7 @@ class VmManager:
             pub_key = None
             if "KeyName" in kwargs:
                 try:
-                    key_meta = EchKeystore.get_key(user, kwargs["KeyName"])
+                    key_meta = KeyStore.get_key(user, kwargs["KeyName"])
                     pub_key = key_meta[0]["public_key"]
                     logging.debug("Got public key from KeyName")
                 except KeyDoesNotExist:

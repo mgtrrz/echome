@@ -7,7 +7,7 @@ from cryptography.hazmat.backends import default_backend as crypto_default_backe
 from .database import Database
 from .id_gen import IdGenerator
 
-class EchKeystore:
+class KeyStore:
 
     @staticmethod
     def create_key(user_obj, key_name):
@@ -27,7 +27,7 @@ class EchKeystore:
         ).decode("utf-8")
 
         try:
-            result = EchKeystore.store_key(user_obj, key_name, public_key)
+            result = KeyStore.store_key(user_obj, key_name, public_key)
             result["PrivateKey"] = private_key
         except KeyNameAlreadyExists as e:
             raise KeyNameAlreadyExists(e)
@@ -160,7 +160,7 @@ class EchKeystore:
     @staticmethod
     def delete_key(user_obj, key_name):
         try:
-            result = EchKeystore.get_key(user_obj, key_name, get_public_key=False)
+            result = KeyStore.get_key(user_obj, key_name, get_public_key=False)
         except KeyDoesNotExist as e:
             raise KeyDoesNotExist(e)
 

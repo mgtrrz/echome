@@ -3,7 +3,7 @@ import sys
 import json
 import logging
 from backend.vm_manager import VmManager
-from backend.ssh_keystore import EchKeystore
+from backend.ssh_keystore import KeyStore
 from backend.instance_definitions import Instance
 from backend.guest_image import GuestImage, UserImage
 from backend.config import AppConfig
@@ -32,7 +32,7 @@ print(user)
 
 def create_vm():
     vmHost = VmManager()
-    key_meta = EchKeystore().get_key(user, "echome-server")
+    key_meta = KeyStore().get_key(user, "echome-server")
 
     instanceType = Instance("standard", "small")
 

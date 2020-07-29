@@ -12,7 +12,7 @@ from flask_jwt_extended import (
 )
 from backend.config import AppConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
-from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
+from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
@@ -169,7 +169,7 @@ def api_vm_create():
     key_name = None
     if "KeyName" in request.args:
         try:
-            EchKeystore.get_key(user, request.args["KeyName"])
+            KeyStore.get_key(user, request.args["KeyName"])
             key_name = request.args["KeyName"]
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
@@ -305,13 +305,13 @@ def api_user_image_all():
 @jwt_required
 def api_ssh_keys_all():
     user = return_calling_user()
-    return jsonify(EchKeystore.get_all_keys(user))
+    return jsonify(KeyStore.get_all_keys(user))
 
 @app.route('/v1/vm/ssh_key/describe/<ssh_key_name>', methods=['GET'])
 @jwt_required
 def api_ssh_key(ssh_key_name=None):
     user = return_calling_user()
-    return jsonify(EchKeystore.get_key(user, ssh_key_name, get_public_key=False))
+    return jsonify(KeyStore.get_key(user, ssh_key_name, get_public_key=False))
 
 @app.route('/v1/vm/ssh_key/create', methods=['POST'])
 @jwt_required
@@ -322,7 +322,7 @@ def api_ssh_key_create():
         return {"error": "KeyName must be provided when creating an ssh key."}, 400
 
     try:
-        result = EchKeystore.create_key(user, request.args["KeyName"])
+        result = KeyStore.create_key(user, request.args["KeyName"])
     except KeyNameAlreadyExists:
         return {"error": "Key (KeyName) with that name already exists."}, 400
 
@@ -337,7 +337,7 @@ def api_ssh_key_delete(ssh_key_name=None):
         return {"error": "KeyName must be provided when deleting an ssh key."}, 400
 
     try:
-        result = EchKeystore.delete_key(user, ssh_key_name)
+        result = KeyStore.delete_key(user, ssh_key_name)
     except KeyDoesNotExist:
         return {"error": "Key (KeyName) with that name does not exist."}, 400
 
@@ -362,7 +362,7 @@ def api_ssh_key_store():
         return {"error": "Could not decode PublicKey string. Retry with a base64 encoded PublicKey string or verify string is properly base64 encoded."}, 400
 
     try:
-        results = EchKeystore.store_key(user, request.args["KeyName"], pub_key)
+        results = KeyStore.store_key(user, request.args["KeyName"], pub_key)
     except KeyNameAlreadyExists:
         return {"error": "Key (KeyName) with that name already exists."}, 400
     except PublicKeyAlreadyExists:

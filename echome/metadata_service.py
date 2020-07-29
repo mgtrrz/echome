@@ -11,7 +11,7 @@ from flask_jwt_extended import (
     get_jwt_identity, fresh_jwt_required
 )
 from backend.vm_manager import VmManager
-from backend.ssh_keystore import EchKeystore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
+from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
@@ -136,7 +136,7 @@ class MetadataHandler(object):
         if index > len(pubkeys):
             return None
 
-        return self.format_response(EchKeystore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata))
+        return self.format_response(KeyStore.get_public_key_vm_metadata(pubkeys[index], self.vm_metadata))
 
     def _public_key_list(self):
         return self.vm_metadata["key_name"].split(",")
