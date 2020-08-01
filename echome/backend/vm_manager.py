@@ -457,10 +457,7 @@ class VmManager:
             "local-hostname": VmId,
             "cloud-name": "ecHome",
             "availability-zone": "Home",
-            "region": "us-central-tx",
-            "public_ssh_keys": [
-                "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDG9R3g+BoKtP/5RvyRXRdyXOq0iT9tQ7pcLB55i187xAMnu7mtsMReKva9Q5o+/l7v/4WCxfarueC6TLFtjCfU79uzCqP0ijCFsF/VEEol1Lb0T0wu18t3Nw84Ea4Nr+BfDRhWcGnQ6z7LS+i45RBLm1wTEgaAXFbXR9A+cUxNHYAVrOCtb06eGO3YlI/hI+KtAYIpWHWtM507f5xT+b+MOQShZZ2cgg5tX8Qpy0yujYiAHQO1wes63caYBjRQSSafN9Qg7B2qt69Ic/W6QZT4rL1ROWIeeuFUIOkixIj/3lPsEMrbEBg7Xuht4Z2FR/dqchWTxHqXDrVwDPmhASN06L04+F/Qt3O0QW/Qr3FLPjyK1gKS4oLcdcCiVz/AW9Q2jX3rwcXjZfbx/KgWQkUJEfx/Ajk9rmNUSOQzuudzECBDTL4b6cmIRJL2Jc7n6ahEwcDKRJTkmdQrutonrCjoUoYzaHoLBPumTdHzJDl6MWhS41mrDnl60XCYlWJo7QM= mark@Marcuss-MacBook-Pro.local"
-            ]
+            "region": "us-central-tx"
         }
 
         return json.dumps(md, indent=4)
