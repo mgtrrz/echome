@@ -15,15 +15,27 @@ metadata_api_url=http://<IP-ADDRESS>
 metadata_api_port=8080
 
 
-[GuestImages]
-; This is where your guest images are stored
-dir=/directory/to/shared-guest-images
+[database]
+db.url=postgresql://<USER>:<PASSWORD>@<HOST>/<DATABASE_NAME>
 
-[UserDirectories]
+
+[Metadata]
+; Metadata about your ecHome instance passed to virtual machines
+; You can have fun with these as these do not serve any other
+; purpose other than to provide information about your homelab
+
+;region=us-central-tx
+;availability_zone=home
+
+
+[VirtualMachines]
+; This is where your guest images are stored
+guest_images_dir=/directory/to/shared-guest-images
+
 ; This is where user virtual machine directories will be created
 ; If this is a new installation, this directory can be empty and must
 ; be writable to the echome user.
-dir=/directory/to/user/directories
+user_dir=/directory/to/user/directories
 
 ;;;;;;;;;;;;;;
 ; Networking ;

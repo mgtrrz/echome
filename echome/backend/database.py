@@ -1,5 +1,5 @@
 import logging
-from backend.config import AppConfig
+from backend.config import ecHomeConfig
 from datetime import datetime
 import sqlalchemy as db
 #from uwsgidecorators import postfork
@@ -70,8 +70,7 @@ class Database:
 
     def __init__(self):
         logging.debug("Opening Postgres Engine connection..")
-        config = AppConfig()
-        self.engine = db.create_engine(config.database["db.url"])
+        self.engine = db.create_engine(ecHomeConfig.Database().url)
         self.connection = self.engine.connect()
         self.metadata.create_all(self.engine)
     
@@ -96,8 +95,7 @@ class DbEngine:
 
     def __init__(self):
         logging.debug("Opening Postgres Engine connection..")
-        config = AppConfig()
-        self.engine = db.create_engine(config.database["db.url"])
+        self.engine = db.create_engine(ecHomeConfig.Database().url)
         self.connection = self.engine.connect()
         self.set_session()
 

@@ -18,16 +18,13 @@ from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User
 from backend.database import Database, DbEngine
-from backend.config import AppConfig
-
-
-config = AppConfig()
+from backend.config import ecHomeConfig
 
 metadata_app = flask.Flask(__name__)
 metadata_app.config["DEBUG"] = True
-metadata_app.secret_key = config.echome["api_secret"]
+metadata_app.secret_key = ecHomeConfig.EcHome().api_secret
 jwt = JWTManager(metadata_app)
-logging.basicConfig(filename=config.echome["api_server_log"], level=logging.DEBUG)
+logging.basicConfig(filename=ecHomeConfig.EcHome().api_server_log, level=logging.DEBUG)
 
 logger = logging.getLogger()
 logger.setLevel(level=logging.DEBUG)

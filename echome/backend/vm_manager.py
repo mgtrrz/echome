@@ -18,7 +18,7 @@ from .instance_definitions import Instance
 from .id_gen import IdGenerator
 from .guest_image import GuestImage, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
-from .config import AppConfig
+from .config import ecHomeConfig
 from .commander import QemuImg
 from .ssh_keystore import KeyStore, KeyDoesNotExist
 from .user import User
@@ -37,9 +37,8 @@ KNOWN_CONTENT_TYPES = [
 ]
 
 
-config = AppConfig()
-VM_ROOT_DIR = config.UserDirectories["dir"]
-XML_TEMPLATES_DIR = f"{config.get_app_base_dir()}/xml_templates"
+VM_ROOT_DIR = ecHomeConfig.VirtualMachines().user_dir
+XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
 
 # if at any point during the VM Creation process fails,
 # clean up after itself. Useful to disable for debugging,
@@ -160,13 +159,14 @@ class VmManager:
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         
         cloudinit_iso_path = None
+        # Cloud-init
         if vnet.type == "BridgeToLan":
             logging.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
             if private_ip and not vnet.validate_ip(kwargs["PrivateIp"]):
                 raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
             
-            # Generate the network cloudinit config
+            # Generate the Cloudinit Networking config
             network_cloudinit_config = self._generate_cloudinit_network_config(vnet, private_ip)
             network_yaml_file_path = f"{vmdir}/network.yaml"
             logging.debug(f"Network cloudinit file path: {network_yaml_file_path}")
@@ -176,7 +176,6 @@ class VmManager:
                 logging.debug("Writing cloudinit yaml: network.yaml")
                 filehandle.write(network_cloudinit_config)
         
-            # Cloud-init
             # Like with Networking above, BridgeToLan uses ISOs to set cloudinit stuff.
             # Other networking types should use the metadata API.
             logging.debug("Determining if KeyName is present.")
@@ -189,8 +188,8 @@ class VmManager:
                 except KeyDoesNotExist:
                     raise ValueError("Specified SSH Key Name does not exist.")
             
-            # Generate the cloudinit config
-            standard_cloudinit_config = self._generate_cloudinit_userdata_config(
+            # Generate the cloudinit Userdata 
+            cloudinit_userdata = self._generate_cloudinit_userdata_config(
                 VmId=vm_id,
                 PublicKey=[pub_key],
                 UserDataScript=kwargs["UserDataScript"]
@@ -200,10 +199,20 @@ class VmManager:
 
             with open(cloudinit_yaml_file_path, "w") as filehandle:
                 logging.debug("Writing cloudinit userdata file: user-data")
-                filehandle.write(standard_cloudinit_config)
+                filehandle.write(cloudinit_userdata)
+            
+            # Finally, the meta-data file
+            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id)
+            cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
+            logging.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
+
+            with open(cloudinit_metadata_yaml_file_path, "w") as filehandle:
+                logging.debug("Writing cloudinit metadata file: meta-data")
+                filehandle.write(cloudinit_metadata)
+
         
             # Validate and create the cloudinit iso
-            cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path)
+            cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path, cloudinit_metadata_yaml_file_path)
 
         
         # Machine Image
@@ -373,7 +382,6 @@ class VmManager:
 
         return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
     
-    # Optional: Hostname, PublicKey
     def _generate_cloudinit_userdata_config(self, VmId, Hostname=None, PublicKey:list=None, UserDataScript=None):
         """Generate Cloudinit Userdata config yaml
 
@@ -443,6 +451,20 @@ class VmManager:
 
         return yaml_config
     
+    def _generate_cloudinit_metadata(self, VmId, Hostname=None, PublicKey:list=None):
+        md = {
+            "instance-id": VmId,
+            "local-hostname": VmId,
+            "cloud-name": "ecHome",
+            "availability-zone": "Home",
+            "region": "us-central-tx",
+            "public_ssh_keys": [
+                "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDG9R3g+BoKtP/5RvyRXRdyXOq0iT9tQ7pcLB55i187xAMnu7mtsMReKva9Q5o+/l7v/4WCxfarueC6TLFtjCfU79uzCqP0ijCFsF/VEEol1Lb0T0wu18t3Nw84Ea4Nr+BfDRhWcGnQ6z7LS+i45RBLm1wTEgaAXFbXR9A+cUxNHYAVrOCtb06eGO3YlI/hI+KtAYIpWHWtM507f5xT+b+MOQShZZ2cgg5tX8Qpy0yujYiAHQO1wes63caYBjRQSSafN9Qg7B2qt69Ic/W6QZT4rL1ROWIeeuFUIOkixIj/3lPsEMrbEBg7Xuht4Z2FR/dqchWTxHqXDrVwDPmhASN06L04+F/Qt3O0QW/Qr3FLPjyK1gKS4oLcdcCiVz/AW9Q2jX3rwcXjZfbx/KgWQkUJEfx/Ajk9rmNUSOQzuudzECBDTL4b6cmIRJL2Jc7n6ahEwcDKRJTkmdQrutonrCjoUoYzaHoLBPumTdHzJDl6MWhS41mrDnl60XCYlWJo7QM= mark@Marcuss-MacBook-Pro.local"
+            ]
+        }
+
+        return json.dumps(md, indent=4)
+    
     # Required: VmId, XmlTemplate, vnet:VirtualNetworkObject, Cpu, Memory, VmImg
     # Optional: CloudInitIso
     def _generate_xml_template(self, VmId, XmlTemplate, vnet: VirtualNetworkObject, **kwargs):
@@ -509,8 +531,8 @@ class VmManager:
         else:
             # If the new VM is not using the BridgeToLan network type, add smbios
             # information for it to use the metadata service.
-            config = AppConfig()
-            metadata_api_url = f"{config.echome['metadata_api_url']}:{config.echome['metadata_api_port']}/{VmId}/"
+            ech = ecHomeConfig.EcHome()
+            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{VmId}/"
             logging.debug(f"Generated Metadata API url: {metadata_api_url}")
             with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
                 smbios_body_src = Template(filehandle.read())
@@ -838,7 +860,7 @@ class VmManager:
                 return False
 
     # Generate an ISO from the cloudinit YAML files
-    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None):
+    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None, cloudinit_metadata_file_path=None):
 
         # Validate the yaml file
         logging.debug("Validating Cloudinit config yaml.")        
@@ -861,6 +883,9 @@ class VmManager:
         cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
 
         args = ['cloud-localds', '-v', cloudinit_iso_path, cloudinit_yaml_file_path]
+
+        if cloudinit_metadata_file_path:
+            args.append(cloudinit_metadata_file_path)
 
         if cloudinit_network_yaml_file_path:
             args.append(f"--network-config={cloudinit_network_yaml_file_path}")

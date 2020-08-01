@@ -10,7 +10,7 @@ from flask_jwt_extended import (
     jwt_refresh_token_required, create_refresh_token,
     get_jwt_identity, fresh_jwt_required
 )
-from backend.config import AppConfig
+from backend.config import ecHomeConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
@@ -20,14 +20,13 @@ from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
 from functools import wraps
 
-config = AppConfig()
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
-app.secret_key = config.echome["api_secret"]
+app.secret_key = ecHomeConfig.EcHome().api_secret
 
 jwt = JWTManager(app)
-logging.basicConfig(filename=config.echome["api_server_log"], level=logging.DEBUG)
+logging.basicConfig(filename=ecHomeConfig.EcHome().api_server_log, level=logging.DEBUG)
 
 logger = logging.getLogger()
 logger.setLevel(level=logging.DEBUG)
@@ -87,7 +86,11 @@ def auth_api_login():
     if user.check_password(str(auth.password).rstrip()):
         logging.debug("User successfully logged in.")
         ret = {
-            'access_token': create_access_token(identity=auth.username, fresh=True, expires_delta=datetime.timedelta(minutes=10)),
+            'access_token': create_access_token(
+                identity=auth.username, 
+                fresh=True, 
+                expires_delta=datetime.timedelta(minutes=10)
+            ),
             'refresh_token': create_refresh_token(identity=auth.username)
         }
         return jsonify(ret), 200
@@ -125,7 +128,9 @@ def return_calling_user():
 
     current_user = get_jwt_identity()
     try:
-        user = dbengine.session.query(User).filter_by(auth_id=current_user).first()
+        user = dbengine.session.query(User).filter_by(
+            auth_id=current_user
+        ).first()
     except:  
         return jsonify({'auth.error': 'Token is invalid'}), 401
     
@@ -282,7 +287,11 @@ def api_guest_image_register():
         return {"error": "ImageDescription must be provided when registering a guest image."}, 400 
 
     try: 
-        img_id = gmi.registerImage(request.args["ImagePath"], request.args["ImageName"], request.args["ImageDescription"])
+        img_id = gmi.registerImage(
+            request.args["ImagePath"], 
+            request.args["ImageName"], 
+            request.args["ImageDescription"]
+        )
     except InvalidImagePath:
         return {"error": "ImagePath: Provided path is not valid or file does not exist."}, 400
     except InvalidImageAlreadyExists:
