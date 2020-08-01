@@ -202,7 +202,7 @@ class VmManager:
                 filehandle.write(cloudinit_userdata)
             
             # Finally, the meta-data file
-            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id)
+            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id, IpAddr=private_ip)
             cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
             logging.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
 
@@ -382,7 +382,7 @@ class VmManager:
 
         return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
     
-    def _generate_cloudinit_userdata_config(self, VmId, Hostname=None, PublicKey:list=None, UserDataScript=None):
+    def _generate_cloudinit_userdata_config(self, VmId, PublicKey:list=None, UserDataScript=None):
         """Generate Cloudinit Userdata config yaml
 
         Generates a basic cloudinit config with hostname and public key entries. The only
@@ -391,9 +391,6 @@ class VmManager:
 
         :param VmId: Virtual Machine Id. Used to fill the hostname if Hostname is not provided.
         :type VmId: str
-        :param Hostname: String to use as the hostname for the virtual machine. If not provided, the virtual
-            machine Id will be used instead
-        :type Hostname: str
         :param PublicKey: Public key to attach to the virtual machine. If not used, no SSH key will
             be provided.
         :type PublicKey: str
@@ -407,7 +404,6 @@ class VmManager:
         config_json = {
             "chpasswd": { "expire": False },
             "ssh_pwauth": False,
-            "hostname": Hostname if Hostname is not None else VmId,
         }
 
         ssh_keys_json = {
@@ -451,16 +447,26 @@ class VmManager:
 
         return yaml_config
     
-    def _generate_cloudinit_metadata(self, VmId, Hostname=None, PublicKey:list=None):
+    def _generate_cloudinit_metadata(self, VmId, IpAddr=None, Hostname=None, PublicKey:list=None):
+        echmd = ecHomeConfig.EcHomeMetadata()
         md = {
             "instance-id": VmId,
-            "local-hostname": VmId,
+            "local-hostname": Hostname if Hostname is not None else self._gen_hostname(VmId, IpAddr),
             "cloud-name": "ecHome",
-            "availability-zone": "Home",
-            "region": "us-central-tx"
+            "availability-zone": echmd.availability_zone,
+            "region": echmd.region
         }
 
         return json.dumps(md, indent=4)
+    
+    def _gen_hostname(self, VmId, IpAddr=None):
+        if IpAddr:
+            prefix = "ip"
+            ip_str = "-".join(IpAddr.split('.'))
+            res = f"{prefix}-{ip_str}"
+            return res
+        
+        return VmId
     
     # Required: VmId, XmlTemplate, vnet:VirtualNetworkObject, Cpu, Memory, VmImg
     # Optional: CloudInitIso
