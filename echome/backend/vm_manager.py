@@ -180,10 +180,12 @@ class VmManager:
             # Other networking types should use the metadata API.
             logging.debug("Determining if KeyName is present.")
             pub_key = None
+            key_dict = None
             if "KeyName" in kwargs:
                 try:
                     key_meta = KeyStore.get_key(user, kwargs["KeyName"])
                     pub_key = key_meta[0]["public_key"]
+                    key_dict = {kwargs["KeyName"]: [pub_key]}
                     logging.debug("Got public key from KeyName")
                 except KeyDoesNotExist:
                     raise ValueError("Specified SSH Key Name does not exist.")
@@ -202,7 +204,7 @@ class VmManager:
                 filehandle.write(cloudinit_userdata)
             
             # Finally, the meta-data file
-            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id, IpAddr=private_ip)
+            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id, IpAddr=private_ip, PublicKey=key_dict)
             cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
             logging.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
 
@@ -447,14 +449,15 @@ class VmManager:
 
         return yaml_config
     
-    def _generate_cloudinit_metadata(self, VmId, IpAddr=None, Hostname=None, PublicKey:list=None):
+    def _generate_cloudinit_metadata(self, VmId, IpAddr=None, Hostname=None, PublicKey:dict=None):
         echmd = ecHomeConfig.EcHomeMetadata()
         md = {
             "instance-id": VmId,
-            "local-hostname": Hostname if Hostname is not None else self._gen_hostname(VmId, IpAddr),
+            "local-hostname": Hostname if Hostname else self._gen_hostname(VmId, IpAddr),
             "cloud-name": "ecHome",
             "availability-zone": echmd.availability_zone,
-            "region": echmd.region
+            "region": echmd.region,
+            "public-keys": PublicKey if PublicKey else {}
         }
 
         return json.dumps(md, indent=4)
