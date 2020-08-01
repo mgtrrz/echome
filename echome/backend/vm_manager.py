@@ -22,6 +22,20 @@ from .config import AppConfig
 from .commander import QemuImg
 from .ssh_keystore import KeyStore, KeyDoesNotExist
 from .user import User
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+KNOWN_CONTENT_TYPES = [
+    'text/x-include-once-url',
+    'text/x-include-url',
+    'text/cloud-config-archive',
+    'text/upstart-job',
+    'text/cloud-config',
+    'text/part-handler',
+    'text/x-shellscript',
+    'text/cloud-boothook',
+]
+
 
 config = AppConfig()
 VM_ROOT_DIR = config.UserDirectories["dir"]
@@ -61,9 +75,11 @@ class VmManager:
             self.__delete_vm_path(user.account, vm_id)
     
     def create_vm(self, user: User, instanceType:Instance, **kwargs):
-        """Create a virtual machine.
+        """Create a virtual machine
 
-        If this process fails, the function will clean up after itself. Set CLEAN_UP_ON_FAIL
+        This function does not create the VM but instead passes all of the
+        arguments to the internal function _create_virtual_machine(). If this 
+        process fails, the function will clean up after itself. Set CLEAN_UP_ON_FAIL
         to False to alter this behavior to keep files for debugging purposes.
 
         :param user: User object for identifying which account the VM is created for.
@@ -83,6 +99,8 @@ class VmManager:
         :type PrivateIp: str
         :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
         :type CustomXML: str
+        :key UserDataScript: User-data shell script to boot the instance with. Defaults to none.
+        :type UserDataScript: str
         :key Tags: Dictionary of tags to apply to this instance. Defaults to None
         :type Tags: dict
 
@@ -116,38 +134,10 @@ class VmManager:
 
     # Set to replace __createInstance
     def _create_virtual_machine(self, user: User, vm_id: str, instanceType:Instance, **kwargs):
-        """Create a virtual machine.
-
-        This function is not meant to be called directly. Use create_vm instead as it will
-        handle failures and clean up after itself.
-
-        :param user: User object for identifying which account the VM is created for.
-        :type user: User
-        :param vm_id: Virtual Machine Id unique string.
-        :type vm_id: str
-        :param instanceType: Instance type for the virtual machine to use.
-        :type instanceType: Instance
-
-        :key NetworkProfile: Network profile to use for the virtual machine. Use the profile name.
-        :type NetworkProfile: str
-        :key ImageId: Guest or User image ID to spawn the virtual machine from.
-        :type ImageId: str
-        :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
-        :type DiskSize: str
-        :key KeyName: Name of the SSH Keystore item to add a public ssh key to the VM. Defaults to None.
-        :type KeyName: str
-        :key PrivateIp: Private IP address to assign. Defaults to None.
-        :type PrivateIp: str
-        :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
-        :type CustomXML: str
-        :key Tags: Dictionary of tags to apply to this instance. Defaults to None
-        :type Tags: dict
-
-        :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
-        :raises LaunchError: If there was an error during build of the virtual machine.
-
-        :return: Virtual machine ID if successful.
-        :rtype: str
+        """Actual method that creates a virtual machine.
+        
+        All of the parameters from create_vm() are passed here in addition to
+        vm_id, used to uniquely identify the new VM.
         """        
 
         # Creating the directory for the virtual machine
@@ -200,15 +190,16 @@ class VmManager:
                     raise ValueError("Specified SSH Key Name does not exist.")
             
             # Generate the cloudinit config
-            standard_cloudinit_config = self._generate_cloudinit_standard_config(
+            standard_cloudinit_config = self._generate_cloudinit_userdata_config(
                 VmId=vm_id,
-                PublicKey=pub_key
+                PublicKey=[pub_key],
+                UserDataScript=kwargs["UserDataScript"]
             )
-            cloudinit_yaml_file_path = f"{vmdir}/cloudinit.yaml"
+            cloudinit_yaml_file_path = f"{vmdir}/user-data"
             logging.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
 
             with open(cloudinit_yaml_file_path, "w") as filehandle:
-                logging.debug("Writing cloudinit yaml: cloudinit.yaml")
+                logging.debug("Writing cloudinit userdata file: user-data")
                 filehandle.write(standard_cloudinit_config)
         
             # Validate and create the cloudinit iso
@@ -324,9 +315,9 @@ class VmManager:
             },
             tags = kwargs["Tags"] if "Tags" in kwargs else {},
         )
-        print(stmt)
+        logging.debug(stmt)
         result = self.db.connection.execute(stmt)
-
+        logging.debug(result)
         print(f"Successfully created VM: {vm_id} : {vmdir}")
         return vm_id
     
@@ -383,8 +374,8 @@ class VmManager:
         return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
     
     # Optional: Hostname, PublicKey
-    def _generate_cloudinit_standard_config(self, VmId, **kwargs):
-        """Generate Cloudinit standard config yaml
+    def _generate_cloudinit_userdata_config(self, VmId, Hostname=None, PublicKey:list=None, UserDataScript=None):
+        """Generate Cloudinit Userdata config yaml
 
         Generates a basic cloudinit config with hostname and public key entries. The only
         required parameter is the virtual machine Id (VmId). Hostname and PublicKey can
@@ -392,28 +383,27 @@ class VmManager:
 
         :param VmId: Virtual Machine Id. Used to fill the hostname if Hostname is not provided.
         :type VmId: str
-        :key Hostname: String to use as the hostname for the virtual machine.
+        :param Hostname: String to use as the hostname for the virtual machine. If not provided, the virtual
+            machine Id will be used instead
         :type Hostname: str
-        :key PublicKey: Public key to attach to the virtual machine.
+        :param PublicKey: Public key to attach to the virtual machine. If not used, no SSH key will
+            be provided.
         :type PublicKey: str
+        :param UserDataScript: User-data shell script to boot the instance with. Defaults to none.
+        :type UserDataScript: str
         :return: YAML cloudinit config
         :rtype: str
         """        
 
         # If hostname is not supplied, use the vm ID
-        if "Hostname" not in kwargs or kwargs["Hostname"] == None:
-            hostname = VmId
-        else:
-            hostname = kwargs["Hostname"]
-
         config_json = {
             "chpasswd": { "expire": False },
             "ssh_pwauth": False,
-            "hostname": hostname,
+            "hostname": Hostname if Hostname is not None else VmId,
         }
 
         ssh_keys_json = {
-            "ssh_authorized_keys": [kwargs["PublicKey"]] if "PublicKey" in kwargs else []
+            "ssh_authorized_keys": PublicKey if PublicKey is not None else []
         }
 
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
@@ -423,6 +413,33 @@ class VmManager:
         ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
 
         yaml_config = configfile + config_yaml + ssh_keys_yaml
+
+        if UserDataScript:
+            logging.debug("UserData script is included in request, making multipart file..")
+            sub_messages = []
+            format = 'x-shellscript'
+            sub_message = MIMEText(UserDataScript, format, sys.getdefaultencoding())
+            sub_message.add_header('Content-Disposition', 'attachment; filename="shellscript.sh"')
+            content_type = sub_message.get_content_type().lower()
+            if content_type not in KNOWN_CONTENT_TYPES:
+                logging.warning(f"WARNING: content type {content_type} may be incorrect!")
+            sub_messages.append(sub_message)
+
+
+            format = 'cloud-config'
+            sub_message = MIMEText(yaml_config, format, sys.getdefaultencoding())
+            sub_message.add_header('Content-Disposition', 'attachment; filename="userdata.yaml"')
+            content_type = sub_message.get_content_type().lower()
+            if content_type not in KNOWN_CONTENT_TYPES:
+                logging.warning(f"WARNING: content type {content_type} may be incorrect!")
+            sub_messages.append(sub_message)
+
+
+            combined_message = MIMEMultipart()
+            for msg in sub_messages:
+                combined_message.attach(msg)
+            logging.debug(combined_message)
+            return str(combined_message)
 
         return yaml_config
     
@@ -488,15 +505,23 @@ class VmManager:
             replace['BRIDGE_INTERFACE'] = f"""  <interface type="bridge">
 <source bridge="{vnet.config['bridge_interface']}"/>
 </interface>"""
+        
         else:
             # If the new VM is not using the BridgeToLan network type, add smbios
             # information for it to use the metadata service.
+            config = AppConfig()
+            metadata_api_url = f"{config.echome['metadata_api_url']}:{config.echome['metadata_api_port']}/{VmId}/"
+            logging.debug(f"Generated Metadata API url: {metadata_api_url}")
             with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
-                replace['SMBIOS_MODE'] = "<smbios mode='sysinfo'/>"
-                replace['SMBIOS_BODY'] = filehandle.read()
+                smbios_body_src = Template(filehandle.read())
+
+            replace['SMBIOS_MODE'] = "<smbios mode='sysinfo'/>"
+            replace['SMBIOS_BODY'] = smbios_body_src.substitute({
+                'NOCLOUD_URL': metadata_api_url
+            })
         
         logging.debug("Replacing variables in XML..")
-        logging.debug(replace)        
+        logging.debug(replace)
         return src.substitute(replace)
 
     
@@ -530,6 +555,24 @@ class VmManager:
             instances.append(data)
 
         return instances
+    
+    def get_anonymous_vm_metadata(self, vm_id=None, ip_addr=None):
+        if ip_addr:
+            select_stmt = select(self.db.user_instances.c).where(
+                self.db.user_instances.c.attached_interfaces["config_at_launch", "private_ip"].astext == ip_addr
+            )
+        elif vm_id:
+            select_stmt = select(self.db.user_instances.c).where(
+                self.db.user_instances.c.instance_id == vm_id
+            )
+        else:
+            return None
+        logging.debug(select_stmt)
+        rows = self.db.connection.execute(select_stmt).fetchall()
+        if rows:
+            return rows[0]
+        else:
+            return None
     
     # Returns an object with the configuration details of a defined VM. (dump xml)
     # Can optionally return the raw XML string

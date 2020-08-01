@@ -83,8 +83,7 @@ class Instance:
         return f"{self.itype}.{self.isize}"
 
     def get_all_instance_configurations(self):
-        for key in self.instanceSizes:
-            print(key)
+        return self.instanceSizes
 
 
     def get_cpu(self):

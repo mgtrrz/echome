@@ -239,8 +239,10 @@ def api_vm_modification(vm_id=None):
     return jsonify(vm.getInstanceMetadata(user, vm_id))
 
 
-@app.route('/v1/vm/instance_types/describe-all', methods=['POST'])
+@app.route('/v1/vm/instance_types/describe/all', methods=['GET'])
 def api_instance_types_describe_all():
+    inst = Instance()
+    instance_types = inst.get_all_instance_configurations()
     
     return jsonify(vm.getInstanceMetadata(user, vm_id))
 
@@ -311,7 +313,12 @@ def api_ssh_keys_all():
 @jwt_required
 def api_ssh_key(ssh_key_name=None):
     user = return_calling_user()
-    return jsonify(KeyStore.get_key(user, ssh_key_name, get_public_key=False))
+    try:
+        key = KeyStore.get_key(user, ssh_key_name, get_public_key=False)
+    except KeyDoesNotExist:
+        return {"error": "KeyName does not exist."}, 404
+
+    return jsonify(key)
 
 @app.route('/v1/vm/ssh_key/create', methods=['POST'])
 @jwt_required
@@ -339,7 +346,7 @@ def api_ssh_key_delete(ssh_key_name=None):
     try:
         result = KeyStore.delete_key(user, ssh_key_name)
     except KeyDoesNotExist:
-        return {"error": "Key (KeyName) with that name does not exist."}, 400
+        return {"error": "Key (KeyName) with that name does not exist."}, 404
 
     return jsonify(result)
 
@@ -373,11 +380,26 @@ def api_ssh_key_store():
 ####################
 # Namespace: access 
 # access/
-@app.route('/v1/access/describe', methods=['GET'])
+
+@app.route('/v1/access/describe/all', methods=['GET'])
 @jwt_required
-def api_access_describe():
+def api_access_describe_all():
     user = return_calling_user()
 
+@app.route('/v1/access/describe/caller', methods=['GET'])
+@jwt_required
+def api_access_describe_caller():
+    user = return_calling_user()
+
+@app.route('/v1/access/describe/<user>', methods=['GET'])
+@jwt_required
+def api_access_describe_user():
+    user = return_calling_user()
+
+@app.route('/v1/access/create/<user>', methods=['GET'])
+@jwt_required
+def api_access_create_user():
+    user = return_calling_user()
 
 ####################
 # Namespace: network 
@@ -454,6 +476,18 @@ def api_network_create_network():
     else:
         return jsonify({"error": "Other network types not currently built."})
 
+@app.route('/v1/network/delete/<vnet_id>', methods=['POST'])
+@jwt_required
+def api_network_delete_network(vnet_id=None):
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+    vnet = network.get_network(vnet_id, user)
+    response = []
+    if vnet:
+        vnet.delete()
+    
+    return jsonify(response)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0")

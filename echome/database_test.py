@@ -35,6 +35,10 @@ logger.setLevel(level=logging.DEBUG)
 # user.init_session()
 # user.add()
 
+script = """#!/bin/bash
+echo "Hello World.  The time is now $(date -R)!" | tee /root/output.txt
+"""
+
 
 def create_vm():
     user = check_existing_user()
@@ -47,7 +51,8 @@ def create_vm():
         KeyName="echome",
         DiskSize="10G",
         PrivateIp="172.16.9.30",
-        Tags={"Name": "Test-deployment", "Environment": "Test"}
+        Tags={"Name": "Test-deployment", "Environment": "Test"},
+        UserDataScript=script
     )
     print(id)
 

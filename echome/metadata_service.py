@@ -3,6 +3,8 @@ import flask
 import json
 import base64
 import datetime
+from string import Template
+from functools import wraps
 from markupsafe import escape
 from flask import request, jsonify, url_for
 from flask_jwt_extended import (
@@ -17,15 +19,18 @@ from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, Inv
 from backend.user import User
 from backend.database import Database, DbEngine
 from backend.config import AppConfig
-from functools import wraps
 
-echomeConfig = AppConfig()
+
+config = AppConfig()
 
 metadata_app = flask.Flask(__name__)
 metadata_app.config["DEBUG"] = True
-metadata_app.secret_key = echomeConfig.echome["api_secret"]
+metadata_app.secret_key = config.echome["api_secret"]
 jwt = JWTManager(metadata_app)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(filename=config.echome["api_server_log"], level=logging.DEBUG)
+
+logger = logging.getLogger()
+logger.setLevel(level=logging.DEBUG)
 
 
 vm = VmManager()
@@ -38,8 +43,7 @@ def home():
 def ping():
     return {"response": "pong"}
 
-USERDATA_TEMPLATE = """\
-#cloud-config
+USERDATA_TEMPLATE = """#cloud-config
 hostname: {{hostname}}
 local-hostname: {{hostname}}
 fqdn: {{hostname}}.localdomain
@@ -51,21 +55,27 @@ ssh_authorized_keys:
     - {{public_key_default}}
 """
 
+METADATA_TEMPLATE = """instance-id: $VMID
+local-hostname: $VMID
+"""
+
 class MetadataHandler(object):
     instance_id = None
     vm_metadata = None
 
     # Get VM metadata from remote_addr
-    def __init__(self):
+    def __init__(self, vm_id=None, ip_addr=None):
         vm = VmManager()
 
-        logging.debug(f"Searching for {request.remote_addr}/24")
-        self.vm_metadata = vm.get_instance_metadata_by_ip(f"{request.remote_addr}/24")
+
+        logging.debug(f"Searching for instance. IP: {ip_addr}, Vm_id: {vm_id}")
+        self.vm_metadata = vm.get_anonymous_vm_metadata(vm_id, ip_addr)
+
         if self.vm_metadata:
+            logging.debug(f"Found VM {self.vm_metadata['instance_id']}")
             self.instance_id = self.vm_metadata["instance_id"]
         else:
-            logging.error(f"Could not find VM metadata for calling IP: {request.remote_addr}")
-            raise
+            self.vm_metadata = None
 
     def _get_mgmt_mac(self):
         lease_file = '/var/lib/libvirt/dnsmasq/default.leases'
@@ -89,6 +99,15 @@ class MetadataHandler(object):
                "public-keys",
                ""]
         return self.format_response(res)
+    
+    def get_metadata(self, key):
+        if key == "instance-id":
+            return self.format_response(self.instance_id)
+        elif key == "hostname":
+            return self.format_response(self.instance_id)
+        elif key == "public-keys":
+            return self.get_public_key_names()
+        
 
     def gen_userdata(self):
         config = bottle.request.app.config
@@ -147,7 +166,27 @@ class MetadataHandler(object):
         elif isinstance(res, str):
             return f"{res}\n"
 
+class NotFound(Exception):
+    pass
 
+@metadata_app.route('/<vm_id>/meta-data')
+def metadata_bridge_to_lan(vm_id):
+
+    mdtemp = Template(METADATA_TEMPLATE)
+    str = mdtemp.substitute({
+        'VMID': vm_id
+    })
+
+    #handler = MetadataHandler()
+    return str
+
+
+@metadata_app.route('/<vm_id>/meta-data/<key>')
+def metadata_bridge_to_lan_option(vm_id, key):
+    if key not in ["instance-id", "hostname", "public-keys"]:
+        return "Not found", 404
+    handler = MetadataHandler(vm_id)
+    return handler.get_metadata(key)
 
 
 @metadata_app.route('/meta-data/')
