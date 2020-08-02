@@ -3,14 +3,12 @@
 echo "ecHome Host Server Setup\n\n"
 
 echo "Use 'http' or 'ssh' to git clone the echome repository?"
-echo "Defaults to 'http' on key press enter. No ssh key setup necessary."
-echo "ssh option requires creating ssh key and importing to your Github profile."
+echo "Defaults to 'http' on key press enter. Fastest, no ssh key setup necessary."
+echo "ssh option requires creating ssh key and importing it to your Github profile."
 read -p "Type: http -or- ssh [http] " -r
-echo    # (optional) move to a new line
 if [[ $REPLY =~ "http" || $REPLY == "" ]]
 then
   git_url="https://github.com/mgtrrz/echome.git"
-    # do dangerous stuff
 elif [[ $REPLY =~ "ssh" ]]
 then
   git_url="git@github.com:mgtrrz/echome.git"
@@ -92,7 +90,8 @@ sudo chown echome. /run/echome/
 
 echo ":   Copying services uwsgi files.."
 sudo cp "${echome_dir}/system/etc/emperor.ini" /etc/echome/
-sudo cp "${echome_dir}/system/etc/services/*" /etc/echome/services/
+sudo cp "${echome_dir}/system/etc/services/echome_metadata_uwsgi.ini" /etc/echome/services/
+sudo cp "${echome_dir}/system/etc/services/echome_uwsgi.ini" /etc/echome/services/
 
 sudo cp "${echome_dir}/system/echome.service" /etc/systemd/system/
 

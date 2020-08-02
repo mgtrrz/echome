@@ -72,7 +72,7 @@ class Database:
         logging.debug("Opening Postgres Engine connection..")
         self.engine = db.create_engine(ecHomeConfig.Database().url)
         self.connection = self.engine.connect()
-        self.metadata.create_all(self.engine)
+        #self.metadata.create_all(self.engine)
     
     def insert(self, query, data):
         print("yes yes yes")
