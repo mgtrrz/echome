@@ -62,7 +62,6 @@ sudo chgrp -R Developers ${echome_dir}/echome
 # Database/config files for echome
 echo ": Moving database configuration files into place."
 sudo mkdir -pv /etc/echome/services/
-sudo cp ${echome_dir}/database.ini.template /etc/echome/database.ini
 sudo cp ${echome_dir}/echome.ini.template /etc/echome/echome.ini
 sudo chown -R echome. /etc/echome
 
@@ -70,7 +69,7 @@ sudo chown -R echome. /etc/echome
 sudo mkdir -pv /var/log/echome/
 sudo chown echome. /var/log/echome/
 
-# Create PSQL user for echome
+# Create PSQL user with random password for echome
 psqlpass=$(openssl rand -base64 20)
 
 echo "    Setting up PostgreSQL user."
@@ -78,7 +77,7 @@ sudo -u postgres bash -c "psql -c \"CREATE USER echome WITH PASSWORD '${psqlpass
 sudo -u postgres bash -c "psql -c \"CREATE DATABASE echome;\""
 sudo -u postgres bash -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE echome to echome;\""
 
-sudo -u echome bash -c "echo \"[database]\" > /etc/echome/database.ini; echo \"db.url=postgresql://echome:${psqlpass}@localhost/echome\" >> /etc/echome/database.ini " 
+sudo -u echome bash -c "sed -i 's#url=PSQLADDR#url=postgresql://echome:${psqlpass}@localhost/echome#' /etc/echome/echome.ini"
 
 echo ": Creating virtualenv for ecHome."
 sudo -u echome -H bash -c "cd /opt/echome/app; virtualenv -p python3 venv;"

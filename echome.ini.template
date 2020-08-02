@@ -16,7 +16,8 @@ metadata_api_port=8080
 
 
 [database]
-db.url=postgresql://<USER>:<PASSWORD>@<HOST>/<DATABASE_NAME>
+; Postgres url in the following format: postgresql://<USER>:<PASSWORD>@<HOST>/<DATABASE_NAME>
+url=PSQLADDR
 
 
 [Metadata]
