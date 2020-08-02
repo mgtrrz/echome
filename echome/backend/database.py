@@ -3,7 +3,9 @@ from backend.config import ecHomeConfig
 from datetime import datetime
 import sqlalchemy as db
 #from uwsgidecorators import postfork
-from sqlalchemy import Table, Column, Integer, String, MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
+from sqlalchemy import Table, Column, Integer, String, \
+    MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import select, func
 from sqlalchemy.orm import sessionmaker
@@ -72,7 +74,9 @@ class Database:
         logging.debug("Opening Postgres Engine connection..")
         self.engine = db.create_engine(ecHomeConfig.Database().url)
         self.connection = self.engine.connect()
-        #self.metadata.create_all(self.engine)
+
+    def create(self):
+        self.metadata.create_all(self.engine)
     
     def insert(self, query, data):
         print("yes yes yes")

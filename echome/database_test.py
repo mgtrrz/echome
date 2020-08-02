@@ -45,11 +45,11 @@ def create_vm():
     vmanager = VmManager()
     id = vmanager.create_vm(
         user, 
-        Instance("standard", "micro"), 
+        Instance("standard", "large"), 
         NetworkProfile="home-network",
         ImageId="gmi-07b7e1e4",
         KeyName="echome",
-        DiskSize="10G",
+        DiskSize="50G",
         PrivateIp="172.16.9.30",
         Tags={"Name": "Test-deployment", "Environment": "Test"},
         UserDataScript=script
