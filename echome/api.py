@@ -174,7 +174,7 @@ def api_vm_create():
     key_name = None
     if "KeyName" in request.args:
         try:
-            KeyStore.get_key(user, request.args["KeyName"])
+            KeyStore().get(user, request.args["KeyName"])
             key_name = request.args["KeyName"]
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
@@ -316,6 +316,17 @@ def api_user_image_all():
 @jwt_required
 def api_ssh_keys_all():
     user = return_calling_user()
+    keystore = KeyStore()
+    keys = keystore.get_all(user)
+    k = []
+    for key in keys:
+        k.append({
+            "fingerprint": key.fingerprint,
+            "key_id": key.key_id,
+            "key_name": key.key_name,
+        })
+    
+
     return jsonify(KeyStore.get_all_keys(user))
 
 @app.route('/v1/vm/ssh_key/describe/<ssh_key_name>', methods=['GET'])
@@ -323,11 +334,17 @@ def api_ssh_keys_all():
 def api_ssh_key(ssh_key_name=None):
     user = return_calling_user()
     try:
-        key = KeyStore.get_key(user, ssh_key_name, get_public_key=False)
+        key = KeyStore().get(user, ssh_key_name)
     except KeyDoesNotExist:
         return {"error": "KeyName does not exist."}, 404
+    
+    resp = [{
+        "fingerprint": key.fingerprint,
+        "key_id": key.key_id,
+        "key_name": key.key_name,
+    }]
 
-    return jsonify(key)
+    return jsonify(resp)
 
 @app.route('/v1/vm/ssh_key/create', methods=['POST'])
 @jwt_required
@@ -353,11 +370,13 @@ def api_ssh_key_delete(ssh_key_name=None):
         return {"error": "KeyName must be provided when deleting an ssh key."}, 400
 
     try:
-        result = KeyStore.delete_key(user, ssh_key_name)
+        key = KeyStore().get(user, ssh_key_name)
     except KeyDoesNotExist:
         return {"error": "Key (KeyName) with that name does not exist."}, 404
+    
+    key.delete()
 
-    return jsonify(result)
+    return jsonify({"result": "ok"})
 
 @app.route('/v1/vm/ssh_key/import', methods=['POST'])
 @jwt_required

@@ -183,8 +183,10 @@ class VmManager:
             key_dict = None
             if "KeyName" in kwargs:
                 try:
-                    key_meta = KeyStore.get_key(user, kwargs["KeyName"])
-                    pub_key = key_meta[0]["public_key"]
+                    #key_meta = KeyStore.get_key(user, kwargs["KeyName"])
+                    keyObj = KeyStore().get(user, kwargs["KeyName"])
+                    #pub_key = key_meta[0]["public_key"]
+                    pub_key = keyObj.public_key
                     key_dict = {kwargs["KeyName"]: [pub_key]}
                     logging.debug("Got public key from KeyName")
                 except KeyDoesNotExist:

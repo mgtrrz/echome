@@ -117,6 +117,13 @@ class KeyStore:
             return key
         else:
             raise KeyDoesNotExist("Specified key name does not exist.")
+    
+    def get_all(self, User:User):
+        keys = dbengine.session.query(KeyObject).filter_by(
+            account=User.account
+        ).all()
+
+        return keys
 
     @staticmethod
     def store_key(user_obj, key_name, key):
