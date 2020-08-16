@@ -61,7 +61,7 @@ def home():
 
 @app.route('/v1/ping', methods=['GET'])
 def ping():
-    return {"response": "pong"}
+    return jsonify({"response": "pong"})
 
 
 @app.route('/v1/auth/api/login', methods=['POST'])
@@ -186,7 +186,7 @@ def api_vm_create():
             Tags=tags,
             KeyName=key_name,
             NetworkProfile=request.args["NetworkProfile"],
-            PrivateIp=request.args["PrivateIp"],
+            PrivateIp=request.args["PrivateIp"] if "PrivateIp" in request.args else "",
             ImageId=request.args["ImageId"],
             DiskSize=disk_size    
         )
