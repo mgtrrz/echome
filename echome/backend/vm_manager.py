@@ -196,7 +196,7 @@ class VmManager:
             cloudinit_userdata = self._generate_cloudinit_userdata_config(
                 VmId=vm_id,
                 PublicKey=[pub_key],
-                UserDataScript=kwargs["UserDataScript"]
+                UserDataScript=kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
             )
             cloudinit_yaml_file_path = f"{vmdir}/user-data"
             logging.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
