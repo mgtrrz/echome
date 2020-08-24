@@ -27,6 +27,11 @@ sudo apt install -y qemu-kvm libvirt-bin libvirt-dev virtinst bridge-utils cpu-c
 sudo apt install -y postgresql postgresql-contrib postgresql-server-dev-10
 sudo apt install -y python3-pip virtualenv nginx
 
+echo ": Installing Vault"
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install vault
+
 # This application to be installed in:
 # /opt/echome/
 

@@ -28,6 +28,12 @@ url=PSQLADDR
 ;region=us-central-tx
 ;availability_zone=home
 
+[Vault]
+; Vault stores encrypted keys for various services 
+
+addr=http://127.0.0.1:8200
+token=<server-token>
+
 
 [VirtualMachines]
 ; This is where your guest images are stored
