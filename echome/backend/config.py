@@ -59,6 +59,12 @@ class AppConfig:
         ini_section = "database"
 
         url = None
+    
+    class Vault(__base_section):
+        ini_section = "Vault"
+
+        addr = None
+        token = None
         
 
 class EcHomeConfigNotSet(Exception):

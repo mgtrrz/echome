@@ -102,6 +102,8 @@ class VmManager:
         :type UserDataScript: str
         :key Tags: Dictionary of tags to apply to this instance. Defaults to None
         :type Tags: dict
+        :key ServiceKey: Name of the SSH Keystore item for a ecHome service. This should not be set by a user. Defaults to None.
+        :type KeyName: str
 
         :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
         :raises LaunchError: If there was an error during build of the virtual machine.
@@ -191,6 +193,15 @@ class VmManager:
                     logging.debug("Got public key from KeyName")
                 except KeyDoesNotExist:
                     raise ValueError("Specified SSH Key Name does not exist.")
+            
+            if "ServiceKey" in kwargs:
+                try:
+                    keyObj = KeyStore().get(user, kwargs["ServiceKey"])
+                    svc_pub_key = keyObj.public_key
+                    key_dict[kwargs["ServiceKey"]] = [svc_pub_key]
+                    logging.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
+                except KeyDoesNotExist:
+                    raise ValueError("Error adding service key.")
             
             # Generate the cloudinit Userdata 
             cloudinit_userdata = self._generate_cloudinit_userdata_config(

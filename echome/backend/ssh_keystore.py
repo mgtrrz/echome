@@ -23,6 +23,7 @@ class KeyObject(Base):
     created = Column("created", DateTime(timezone=True), server_default=func.now())
     key_id =  Column("key_id", String(20), unique=True)
     account_user = Column("account_user", String(50))
+    service_key = Column("service_key", Boolean)
     key_name = Column("key_name", String(50))
     fingerprint = Column("fingerprint", TEXT)
     public_key = Column("public_key", TEXT)
@@ -43,7 +44,7 @@ class KeyObject(Base):
 class KeyStore:
 
     @staticmethod
-    def create_key(user_obj, key_name):
+    def create_key(user_obj, key_name, service_key=False):
         key = rsa.generate_private_key(
             backend=crypto_default_backend(), 
             public_exponent=65537, 

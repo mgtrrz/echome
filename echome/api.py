@@ -15,7 +15,7 @@ from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchErro
 from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
-from backend.user import User
+from backend.user import User, UserManager
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
 from functools import wraps
@@ -128,9 +128,7 @@ def return_calling_user():
 
     current_user = get_jwt_identity()
     try:
-        user = dbengine.session.query(User).filter_by(
-            auth_id=current_user
-        ).first()
+        user = UserManager().get_user(auth_id=current_user)
     except:  
         return jsonify({'auth.error': 'Token is invalid'}), 401
     
@@ -160,6 +158,9 @@ def api_vm_create():
     
     if not "NetworkProfile" in request.args:
         return {"error": "NetworkProfile must be provided when creating a VM."}, 400
+    
+    if "ServiceKey" in request.args:
+        return {"error": "Unrecognized option."}, 400
     
     iTypeSize = request.args["InstanceSize"].split(".")
     try:

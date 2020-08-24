@@ -4,6 +4,7 @@ from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
 from backend.vm_manager import VmManager
 from backend.instance_definitions import Instance
+from backend.kube_manager import KubeManager
 import json
 import logging
 
@@ -143,7 +144,9 @@ def check_networking():
     
     print(json.dumps(response, indent=4))
 
-    
 
+def create_kube_cluster():
+    kmanager = KubeManager()
+    kmanager.create_cluster()
 
-create_vm()
+create_kube_cluster()
