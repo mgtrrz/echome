@@ -12,7 +12,7 @@ import secrets
 import string
 import jwt
 
-from .database import DbEngine
+from .database import dbengine
 
 Base = declarative_base()
 
@@ -43,9 +43,7 @@ class User(Base):
     tags = Column(JSONB)
 
     def init_session(self):
-        dbengine = DbEngine()
         self.session = dbengine.return_session()
-        self.metadata.create_all(dbengine.engine)
         return self.session
 
     def commit(self):
@@ -103,6 +101,21 @@ class User(Base):
 
     def check_password(self, plaintext):
         return bcrypt.checkpw(plaintext.encode('utf8'), self.secret.encode('utf-8'))
+    
+class UserManager():
+
+    def get_user(self, user_id:str=None, auth_id:str=None):
+        if auth_id:
+            return dbengine.session.query(User).filter_by(
+                auth_id=auth_id
+            ).first()
+        elif user_id:
+            return dbengine.session.query(User).filter_by(
+                user_id=user_id
+            ).first()
+        else:
+            return False
+
 
 class UserNotInstantiated(Exception):
     pass
