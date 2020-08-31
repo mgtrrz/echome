@@ -6,6 +6,7 @@ ENV LANG en_US.utf8
 RUN \
   apt install -y \
     curl \
+    jq \
     openssh-client \
     python3 \
     python3-pip \

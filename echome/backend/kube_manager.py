@@ -4,6 +4,7 @@ import ipaddress
 import string
 import docker
 from backend.id_gen import IdGenerator
+from backend.config import AppConfig
 from backend.user import UserManager
 from backend.vm_manager import VmManager
 from backend.ssh_keystore import KeyStore
@@ -51,3 +52,17 @@ class KubeManager:
                 }
             )
             num = num + 1
+        
+        config = AppConfig()
+        docker_client = docker.from_env()
+        docker_client.containers.run(
+            '58e4981bd8fc',
+            detach=True,
+            environment=[
+                f"VAULT_TOKEN={config.Vault().token}",
+                f"VAULT_ADDR={config.Vault().addr}",
+                "VAULT_PATH=sshkeys",
+                f"SSH_PRIVATE_KEY={cluster_id}"
+            ]
+        )
+    

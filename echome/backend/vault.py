@@ -15,11 +15,11 @@ class Vault:
     
     def store_sshkey(self, path_name:str, key:str):
 
-        self.client.secrets.kv.v1.create_or_update_secret(
+        self.client.secrets.kv.v2.create_or_update_secret(
             mount_point="sshkeys",
             path=path_name,
             secret={
-                "ssh_private_key": key
+                "private_key": key
             },
         )
     
