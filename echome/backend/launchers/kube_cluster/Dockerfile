@@ -23,7 +23,7 @@ WORKDIR /ansible/playbooks
 RUN git clone https://github.com/kubernetes-sigs/kubespray.git
 
 COPY launch.sh /ansible/playbooks/launch.sh
-COPY inventory.ini /ansible/playbooks/inventory.ini
+COPY gen_payload.py /ansible/playbooks/kubespray/gen_payload.py
 COPY k8s-cluster.yml /ansible/playbooks/k8s-cluster.yml
 RUN chmod +x /ansible/playbooks/launch.sh
 

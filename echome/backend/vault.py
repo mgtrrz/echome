@@ -13,10 +13,10 @@ class Vault:
             token=config.Vault().token
         )
     
-    def store_sshkey(self, path_name:str, key:str):
+    def store_sshkey(self, mount_point:str, path_name:str, key:str):
 
         self.client.secrets.kv.v2.create_or_update_secret(
-            mount_point="sshkeys",
+            mount_point=mount_point,
             path=path_name,
             secret={
                 "private_key": key

@@ -65,6 +65,8 @@ class AppConfig:
 
         addr = None
         token = None
+        secret_id = None
+        secret_id_accessor = None
         
 
 class EcHomeConfigNotSet(Exception):
