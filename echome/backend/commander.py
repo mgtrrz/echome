@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import json
 
 class Commander():
 
@@ -11,13 +12,14 @@ class Commander():
         
         logging.debug("Running command: ")
         logging.debug(cmd)
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
-        output = process.stdout.readline()
-        logging.debug(output.strip())
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        stdout, stderr = proc.communicate()
+        logging.debug(stdout.strip())
 
-        return_code = process.poll()
+        return_code = proc.returncode
         logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        return output, return_code
+        logging.debug(stdout)
+        return stdout, return_code
 
 class QemuImg(Commander):
     """Create a QemuImg object to pass commands to qemu-img."""
@@ -79,5 +81,21 @@ class QemuImg(Commander):
         output, return_code = self.command(cmds)
         if return_code == 0:
             return True
+        else:
+            return False
+        
+    def info(self, filename: str):
+        """Get info about an image. Returns a dictionary if the image exists.
+
+        :param filename: Destination filename/location for the new image.
+
+        :returns: Dictionary if successful, False if the operation was unsuccessful. 
+        """
+        flags = ["--output", "json"]
+        
+        cmds = ["info"] + [filename] + flags
+        output, return_code = self.command(cmds)
+        if return_code == 0:
+            return json.loads(output)
         else:
             return False
