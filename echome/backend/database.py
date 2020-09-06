@@ -17,16 +17,6 @@ DB_CONFIG_FILE = "/etc/echome/database.ini"
 class Database:
 
     metadata = MetaData()
-    user_keys = Table("user_keys", metadata, 
-        Column("id", Integer, primary_key=True),
-        Column("account", String(25)),
-        Column("created", DateTime(timezone=True), server_default=func.now()),
-        Column("key_id", String(20), unique=True),
-        Column("account_user", String(50)),
-        Column("key_name", String(50)),
-        Column("fingerprint", TEXT),
-        Column("public_key", TEXT)
-    )
 
     accounts = Table("accounts", metadata, 
         Column("id", Integer, primary_key=True),
@@ -53,20 +43,6 @@ class Database:
         Column("attached_storage", JSONB),
         Column("key_name", String(50)),
         Column("assoc_firewall_rules", JSONB),
-        Column("tags", JSONB)
-    )
-
-    guest_images = Table("guest_images", metadata,
-        Column("id", Integer, primary_key=True),
-        Column("account", String(20), nullable=True),
-        Column("created", DateTime(), nullable=False, server_default=func.now()),
-        Column("guest_image_id", String(20), unique=True),
-        Column("guest_image_path", String(), nullable=False),
-        Column("name", String()),
-        Column("description", String()),
-        Column("host", String(50)),
-        Column("minimum_requirements", JSONB),
-        Column("guest_image_metadata", JSONB),
         Column("tags", JSONB)
     )
 

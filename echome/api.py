@@ -14,7 +14,7 @@ from backend.config import ecHomeConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
-from backend.guest_image import GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
+from backend.guest_image import ImageManager, GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
 from backend.user import User, UserManager
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
@@ -259,8 +259,20 @@ def api_instance_types_describe_all():
 
 @app.route('/v1/vm/images/guest/describe-all', methods=['GET'])
 def api_guest_image_all():
-    gmi = GuestImage()
-    return jsonify(gmi.getAllImages())
+    manager = ImageManager()
+    images = manager.getAllImages("guest")
+    imgs = []
+    for image in images:
+        imgs.append({
+            "created": image.created,
+            "image_id": image.guest_image_id,
+            "name": image.name,
+            "description": image.description,
+            "minimum_requirements": image.minimum_requirements,
+            "guest_image_metadata": image.guest_image_metadata,
+            "tags": image.tags
+        })
+    return jsonify(imgs)
 
 @app.route('/v1/vm/images/guest/describe/<img_id>', methods=['GET'])
 def api_guest_image_describe(img_id=None):

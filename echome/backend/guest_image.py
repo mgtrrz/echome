@@ -4,190 +4,147 @@ import json
 import datetime
 import subprocess
 from sqlalchemy import select, and_
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Table, Column, Integer, String, \
+    MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import select, func
 from .id_gen import IdGenerator
-from .database import Database
+from .database import dbengine
+from .user import User
+from .commander import QemuImg
 
-class BaseImage:
+Base = declarative_base()
+
+class BaseImage(Base):
     imageType = None
+    __tablename__ = "guest_images"
 
-    def __init__(self):
-        self.db = Database()
+    id = Column(Integer, primary_key=True)
+    account = Column(String(20), nullable=True)
+    created = Column(DateTime(), nullable=False, server_default=func.now())
+    guest_image_id = Column(String(20), unique=True)
+    guest_image_path = Column(String(), nullable=False)
+    name = Column(String())
+    description = Column(String())
+    host = Column(String(50))
+    minimum_requirements = Column(JSONB)
+    guest_image_metadata = Column(JSONB)
+    deactivated = Column(Boolean, default=False)
+    tags = Column(JSONB)
 
-    def getAllImages(self):
-        columns = [
-            self.db.guest_images.c.created,
-            self.db.guest_images.c.account,
-            self.db.guest_images.c.guest_image_id,
-            self.db.guest_images.c.guest_image_path,
-            self.db.guest_images.c.name,
-            self.db.guest_images.c.description,
-            self.db.guest_images.c.host,
-            self.db.guest_images.c.minimum_requirements,
-            self.db.guest_images.c.guest_image_metadata,
-            self.db.guest_images.c.tags,
-        ]
+    def init_session(self):
+        self.session = dbengine.return_session()
+        return self.session
 
-        if self.imageType == "guest":
-            select_stmt = select(columns).where(
-                self.db.guest_images.c.account == None
-            )
-        elif self.imageType == "user":
-            select_stmt = select(columns).where(
-                self.db.guest_images.c.account == self.user.account
-            )
-        
-        results = self.db.connection.execute(select_stmt).fetchall()
-        if results:
-            images = []
-            for row in results:
-                image_meta = {}
-                i = 0
-                for column in columns:
-                    if column.name == "created":
-                        image_meta[column.name] = str(row[i])
-                    else:
-                        image_meta[column.name] = row[i]
-                    i += 1
-                images.append(image_meta)
+    def commit(self):
+        self.session.commit()
 
-            return images
+    def add(self):
+        self.session.add(self)
+        self.session.commit()
+
+    def __str__(self):
+        return self.name
+
+
+class GuestImage(BaseImage):
+    imageType = "guest"
+    __tablename__ = "guest_images"
+
+class UserImage(BaseImage):
+    imageType = "user"
+    __tablename__ = "guest_images"
+
+
+
+class ImageManager:
+    def getAllImages(self, type:str, user:User=None):
+        if type == "guest":
+            res = dbengine.session.query(GuestImage).filter_by(
+                account=None
+            ).all()
+        elif type == "user":
+            res = dbengine.session.query(UserImage).filter_by(
+                account=user.account
+            ).all()
         else:
             return None
 
+        return res
     
-    def getImageMeta(self, img_id):
-
-        columns = [
-            self.db.guest_images.c.created,
-            self.db.guest_images.c.account,
-            self.db.guest_images.c.guest_image_id,
-            self.db.guest_images.c.guest_image_path,
-            self.db.guest_images.c.name,
-            self.db.guest_images.c.description,
-            self.db.guest_images.c.host,
-            self.db.guest_images.c.minimum_requirements,
-            self.db.guest_images.c.guest_image_metadata,
-            self.db.guest_images.c.tags,
-        ]
-
-        if self.imageType == "guest":
-            select_stmt = select(columns).where(
-                self.db.guest_images.c.guest_image_id == img_id
-            )
-        elif self.imageType == "user":
-            select_stmt = select(columns).where(
-                and_(
-                    self.db.guest_images.c.account == self.user.account_id,
-                    self.db.guest_images.c.guest_image_id == img_id
-                )
-            )
-
-
-        results = self.db.connection.execute(select_stmt).fetchall()
-        images = []
-        if results:
-            image_meta = {}
-            i = 0
-            for column in columns:
-                if column.name == "guest_image_metadata":
-                    image_meta[column.name] = results[0][i]
-                else:
-                    image_meta[column.name] = str(results[0][i])
-                i += 1
-            images.append(image_meta)
+    def getImage(self, img_type, img_id, user:User=None):
+        if img_type == "guest":
+            account = None
+            img = GuestImage
+        elif img_type == "user":
+            account = user.account
+            img = UserImage
         else:
-            logging.error(f"Image with that ID does not exist: {img_id}")
-            raise InvalidImageId(f"Image with that ID does not exist: {img_id}")
+            return False
         
-        return images
+        return dbengine.session.query(img).filter_by(
+            guest_image_id=img_id,
+            account=account,
+        ).all()
 
 
-    def registerImage(self, img_path, img_name, img_description, img_metadata={}, host="localhost"):
+    def registerImage(self, img_type, img_path, img_name, img_description, img_user, user:User=None, img_metadata={}, host="localhost", tags={}):
 
         # Check to see if a file exists at that path
         if not os.path.exists(img_path):
             logging.error(f"File does not exist at specified file path: {img_path}")
             raise InvalidImagePath(f"File does not exist at specified file path: {img_path}")
+
+        if img_type == "guest":
+            id = IdGenerator.generate(type="gmi")
+            account = None
+            img = GuestImage
+        elif img_type == "user":
+            id = IdGenerator.generate(type="vmi")
+            account = user.account
+            img = UserImage
+        else:
+            return False
         
         # Check to make sure an image at the path already exists
-        select_stmt = select(
-            [self.db.guest_images.c.guest_image_id]
-        ).where(self.db.guest_images.c.guest_image_path == img_path)
+        results = dbengine.session.query(img).filter_by(
+            guest_image_path=img_path
+        ).all()
 
-        results = self.db.connection.execute(select_stmt).fetchall()
         if results:
             logging.error(f"Image already exists in database. img_path={img_path}")
             raise InvalidImageAlreadyExists(f"Image already exists in database. img_path={img_path}")
 
 
         # Verify image type
-        result = self.run_command(["qemu-img", "info", img_path, "--output", "json"])
-        obj = json.loads(result["output"])
+        obj = QemuImg().info(img_path)
         print(obj["format"])
 
+        img_metadata["user"] = img_user
         img_metadata["format"] = obj["format"]
         img_metadata["actual-size"] = obj["actual-size"]
         img_metadata["virtual-size"] = obj["virtual-size"]
 
-        if self.imageType == "guest":
-            id = IdGenerator.generate(type="gmi")
-            stmt = self.db.guest_images.insert().values(
-                guest_image_id=id, 
-                guest_image_path=img_path,
-                name=img_name, 
-                description=img_description, 
-                host=host,
-                minimum_requirements={},
-                guest_image_metadata=img_metadata,
-                tags={}
-            )
-        elif self.imageType == "user":
-            id = IdGenerator.generate(type="vmi")
-            stmt = self.db.guest_images.insert().values(
-                account=self.user.account,
-                guest_image_id=id, 
-                guest_image_path=img_path,
-                name=img_name, 
-                description=img_description, 
-                host=host,
-                minimum_requirements={},
-                guest_image_metadata=img_metadata,
-                tags={}
-            )
-        
-        result = self.db.connection.execute(stmt)
-        if result:
-            return id
+
+        new_img = img(
+            account = account,
+            guest_image_id=id,
+            guest_image_path=img_path,
+            name=img_name,
+            description=img_description,
+            host=host,
+            minimum_requirements={},
+            guest_image_metadata=img_metadata,
+            tags=tags
+        )
+
+        new_img.add()
+        return id
 
     def __str__(self):
         return
     
-    def run_command(self, cmd: list):
-        logging.debug("Running command: ")
-        logging.debug(cmd)
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
-        output = ""
-        for line in process.stdout:
-            output = output + line
-
-        #logging.debug(output.strip())
-        return_code = process.poll()
-        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        return {
-            "return_code": return_code,
-            "output": output,
-        }
-
-class GuestImage(BaseImage):
-    imageType = "guest"
-
-
-class UserImage(BaseImage):
-    imageType = "user"
-
-    def __init__(self, user):
-        self.db = Database()
-        self.user = user
 
 
 class InvalidImageId(Exception):

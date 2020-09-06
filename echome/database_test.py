@@ -5,10 +5,11 @@ from backend.vnet import VirtualNetwork, InvalidNetworkType
 from backend.vm_manager import VmManager
 from backend.instance_definitions import Instance
 from backend.kube_manager import KubeManager
+from backend.guest_image import ImageManager
 import json
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 logger.setLevel(level=logging.DEBUG)
 
@@ -149,4 +150,19 @@ def create_kube_cluster():
     kmanager = KubeManager()
     kmanager.create_cluster()
 
-create_kube_cluster()
+def get_images():
+    user = check_existing_user()
+    manager = ImageManager()
+    print("Guest images: ")
+    images = manager.getAllImages("guest")
+    for image in images:
+        print(image)
+        
+    print("\nUser images: ")
+    images = manager.getAllImages("user", user)
+    for image in images:
+        print(image)
+
+
+get_images()
+#create_kube_cluster()
