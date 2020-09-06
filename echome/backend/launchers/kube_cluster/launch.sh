@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Running ecHome Kubernetes deployment"
+echo "Running ecHome Kubernetes deployment for cluster ${CLUSTER_ID}"
 
 pwd
 
