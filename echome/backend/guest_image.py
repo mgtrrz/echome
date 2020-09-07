@@ -83,10 +83,15 @@ class ImageManager:
         else:
             return False
         
-        return dbengine.session.query(img).filter_by(
+        results = dbengine.session.query(img).filter_by(
             guest_image_id=img_id,
             account=account,
-        ).all()
+        ).first()
+
+        if not results:
+            raise InvalidImageId
+            
+        return results
 
 
     def registerImage(self, img_type, img_path, img_name, img_description, img_user, user:User=None, img_metadata={}, host="localhost", tags={}):

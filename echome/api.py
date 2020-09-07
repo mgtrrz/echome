@@ -14,7 +14,8 @@ from backend.config import ecHomeConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
-from backend.guest_image import ImageManager, GuestImage, UserImage, UserImageInvalidUser, InvalidImageId
+from backend.guest_image import ImageManager, GuestImage, UserImage, UserImageInvalidUser, \
+    InvalidImageId, InvalidImagePath, InvalidImageAlreadyExists
 from backend.user import User, UserManager
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
@@ -265,7 +266,7 @@ def api_guest_image_all():
     for image in images:
         imgs.append({
             "created": image.created,
-            "image_id": image.guest_image_id,
+            "guest_image_id": image.guest_image_id,
             "name": image.name,
             "description": image.description,
             "minimum_requirements": image.minimum_requirements,
@@ -278,17 +279,32 @@ def api_guest_image_all():
 def api_guest_image_describe(img_id=None):
     if not img_id:
         return {"error": "Image Id must be provided."}, 400
-    gmi = GuestImage()
+    
+    manager = ImageManager()
+
     try: 
-        return jsonify(gmi.getImageMeta(img_id))
+        image = manager.getImage("guest", img_id)
     except InvalidImageId as e:
         return {"error": "Image Id does not exist."}, 404
+    
+    imgs = []
+    imgs.append({
+        "created": image.created,
+        "guest_image_id": image.guest_image_id,
+        "name": image.name,
+        "description": image.description,
+        "minimum_requirements": image.minimum_requirements,
+        "guest_image_metadata": image.guest_image_metadata,
+        "tags": image.tags
+    })
+
+    return jsonify(imgs)
 
 @app.route('/v1/vm/images/guest/register', methods=['POST'])
 @jwt_required
 def api_guest_image_register():
     user = return_calling_user()
-    gmi = GuestImage()
+    manager = ImageManager()
 
     if not "ImagePath" in request.args:
         return {"error": "ImagePath must be provided when registering a guest image."}, 400
@@ -300,10 +316,15 @@ def api_guest_image_register():
         return {"error": "ImageDescription must be provided when registering a guest image."}, 400 
 
     try: 
-        img_id = gmi.registerImage(
+        img_id = manager.registerImage(
+            "guest",
             request.args["ImagePath"], 
             request.args["ImageName"], 
-            request.args["ImageDescription"]
+            request.args["ImageDescription"],
+            request.args["ImageUser"],
+            user,
+            request.args["ImageMetadata"],
+            request.args["Tags"]
         )
     except InvalidImagePath:
         return {"error": "ImagePath: Provided path is not valid or file does not exist."}, 400
