@@ -147,8 +147,16 @@ def check_networking():
 
 
 def create_kube_cluster():
+    user = check_existing_user()
     kmanager = KubeManager()
-    kmanager.create_cluster()
+    kmanager.create_cluster(
+        user=user,
+        instance_size=Instance("standard", "medium"),
+        ips=["172.16.9.20", "172.16.9.21", "172.16.9.22"],
+        image_id="gmi-d8cacd92",
+        key_name="echome",
+        network_profile="home-network"
+    )
 
 def get_images():
     user = check_existing_user()
@@ -164,5 +172,4 @@ def get_images():
         print(image)
 
 
-get_images()
-#create_kube_cluster()
+create_kube_cluster()

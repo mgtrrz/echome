@@ -16,7 +16,7 @@ from sqlalchemy import select, and_
 from .database import Database
 from .instance_definitions import Instance
 from .id_gen import IdGenerator
-from .guest_image import GuestImage, InvalidImageId
+from .guest_image import GuestImage, UserImage, ImageManager, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import ecHomeConfig
 from .commander import QemuImg
@@ -234,7 +234,7 @@ class VmManager:
         # Determining the image to use for this VM
         # Is this a guest image or a user-created virtual machine image?
         logging.debug("Determining image metadata..")
-        gmi = GuestImage()
+        manager = ImageManager()
         if "ImageId" not in kwargs:
             msg = "ImageId was not found in launch configuration. Cannot continue!"
             logging.error(msg)
@@ -242,17 +242,13 @@ class VmManager:
 
         try:
             logging.debug(f"Grabbing image metadata from {kwargs['ImageId']}")
-            img = gmi.getImageMeta(kwargs['ImageId'])
-            # Reduce list
-            img = img[0]
+            img = manager.getImage("guest", kwargs['ImageId']) #TODO: Check if user image also
         except InvalidImageId as e:
             logging.error(e)
             raise InvalidLaunchConfiguration(e)
         
-
-        logging.debug(json.dumps(img, indent=4))
-        img_path = img["guest_image_path"]
-        img_format = img["guest_image_metadata"]["format"]
+        img_path = img.guest_image_path
+        img_format = img.guest_image_metadata["format"]
 
         # Create a copy of the VM image
         destination_vm_img = f"{vmdir}/{vm_id}.{img_format}"
@@ -335,7 +331,7 @@ class VmManager:
             assoc_firewall_rules = {},
             vm_image_metadata = {
                 "image_id": kwargs["ImageId"],
-                "image_name": img["name"],
+                "image_name": img.name,
             },
             tags = kwargs["Tags"] if "Tags" in kwargs else {},
         )
@@ -972,7 +968,6 @@ class VmManager:
         }
 
 class InstanceConfiguration():
-
     def __init__(self, vm_id, **kwargs):
         self.id = vm_id
 

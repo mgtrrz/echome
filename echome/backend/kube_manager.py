@@ -56,6 +56,7 @@ class KubeManager:
         image_user="ubuntu", image_ssh_port="22"):
 
         cluster_id = IdGenerator().generate("kube", 8)
+        logging.debug(f"Generated cluster id {cluster_id}")
         service_key_name = IdGenerator().generate("svc-kube", 12)
         logging.debug(f"Creating Service key {service_key_name}")
 
@@ -78,6 +79,7 @@ class KubeManager:
         num = 1
         for ip in ips:
             inv += f"node{num} ansible_host={ip} etcd_member_name=etcd{num}\n"
+            num += 1
         
         inv += "\n[kube-master]\n"
         inv += "node1\n\n"
@@ -96,6 +98,11 @@ class KubeManager:
 
         logging.debug(inv)
 
+        tmpfile = f"/tmp/{cluster_id}_inventory.ini"
+        with open(tmpfile, "w") as file:
+            file.write(inv)
+
+
         # Generate a temporary Vault token to pass to docker
         policy_name = f"kubesvc-{cluster_id}"
         vault.create_policy(
@@ -111,7 +118,7 @@ class KubeManager:
         num = 1
         for ip in ips:
             if num == 1:
-                name = "kubernetes-controller"
+                name = "kube-controller"
             else:
                 name = f"kube-node-{num}"
 
@@ -133,16 +140,18 @@ class KubeManager:
         config = AppConfig()
         docker_client = docker.from_env()
         docker_client.containers.run(
-            'kubelauncher:0.3',
+            'kubelauncher:0.4',
             detach=True,
             environment=[
                 f"VAULT_TOKEN={token_info['auth']['client_token']}",
                 f"VAULT_ADDR={config.Vault().addr}",
                 f"VAULT_PATH={mount}",
                 f"CLUSTER_ID={cluster_id}",
-                f"SSH_PRIVATE_KEY={cluster_id}",
-                f"INVENTORY={inv}"
-            ]
+                f"SSH_PRIVATE_KEY={cluster_id}"
+            ],
+            volumes={
+                tmpfile: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
+            }
         )
     
     # otp = one time policy

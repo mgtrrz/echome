@@ -43,8 +43,7 @@ class KeyObject(Base):
 
 class KeyStore:
 
-    @staticmethod
-    def create_key(user_obj, key_name, service_key=False):
+    def create_key(self, user_obj, key_name, service_key=False):
         key = rsa.generate_private_key(
             backend=crypto_default_backend(), 
             public_exponent=65537, 
@@ -61,7 +60,7 @@ class KeyStore:
         ).decode("utf-8")
 
         try:
-            result = KeyStore.store_key(user_obj, key_name, public_key)
+            result = self.store(user_obj, key_name, public_key)
             result["PrivateKey"] = private_key
         except KeyNameAlreadyExists as e:
             raise KeyNameAlreadyExists(e)
