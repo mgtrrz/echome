@@ -10,6 +10,41 @@ from backend.vm_manager import VmManager
 from backend.ssh_keystore import KeyStore
 from backend.instance_definitions import Instance
 from backend.vault import Vault
+from .database import dbengine
+from sqlalchemy import select, and_
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Table, Column, Integer, String, \
+    MetaData, DateTime, TEXT, ForeignKey, create_engine, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import select, func
+
+Base = declarative_base()
+
+class KubeCluster(Base):
+    __tablename__ = "kube_clusters"
+
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(String(20), unique=True)
+    account = Column(String(20), nullable=False)
+    created = Column(DateTime(), nullable=False, server_default=func.now())
+    type = Column(String())
+    primary_controller = Column(String())
+    assoc_instances = Column(JSONB)
+    tags = Column(JSONB)
+
+    def init_session(self):
+        self.session = dbengine.return_session()
+        return self.session
+
+    def commit(self):
+        self.session.commit()
+
+    def add(self):
+        self.session.add(self)
+        self.session.commit()
+
+    def __str__(self):
+        return self.cluster_id
 
 class KubeManager:
 
@@ -17,7 +52,8 @@ class KubeManager:
         pass
 
     def create_cluster(self, user:User, instance_size: Instance, \
-        ips:list, image_id:str, key_name:str, network_profile:str, disk_size="50G"):
+        ips:list, image_id:str, key_name:str, network_profile:str, disk_size="50G", \
+        image_user="ubuntu", image_ssh_port="22"):
 
         cluster_id = IdGenerator().generate("kube", 8)
         service_key_name = IdGenerator().generate("svc-kube", 12)
@@ -59,6 +95,17 @@ class KubeManager:
         inv += "kube-node\n"
 
         logging.debug(inv)
+
+        # Generate a temporary Vault token to pass to docker
+        policy_name = f"kubesvc-{cluster_id}"
+        vault.create_policy(
+            self._generate_vault_policy_otp(cluster_id), 
+            policy_name
+        )
+
+        token_info = vault.generate_temp_token(
+            [policy_name]
+        )
         
         vmanager = VmManager()
         num = 1
@@ -86,10 +133,10 @@ class KubeManager:
         config = AppConfig()
         docker_client = docker.from_env()
         docker_client.containers.run(
-            'kubelauncher:0.2',
+            'kubelauncher:0.3',
             detach=True,
             environment=[
-                f"VAULT_TOKEN={config.Vault().token}",
+                f"VAULT_TOKEN={token_info['auth']['client_token']}",
                 f"VAULT_ADDR={config.Vault().addr}",
                 f"VAULT_PATH={mount}",
                 f"CLUSTER_ID={cluster_id}",
@@ -97,4 +144,12 @@ class KubeManager:
                 f"INVENTORY={inv}"
             ]
         )
+    
+    # otp = one time policy
+    def _generate_vault_policy_otp(self, path:str):
+        return """
+path "kubesvc/%s" {
+  capabilities = ["read", "list", "create"]
+}
+""" % path
     

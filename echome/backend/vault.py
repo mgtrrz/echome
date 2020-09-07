@@ -23,3 +23,15 @@ class Vault:
             },
         )
     
+    def create_policy(self, policy:str, name:str):
+        return self.client.sys.create_or_update_policy(
+            name=name,
+            policy=policy,
+        )
+    
+    def generate_temp_token(self, policies:list, lease='1h'):
+        return self.client.create_token(
+            policies=policies, 
+            lease=lease, 
+            renewable=False
+        )
