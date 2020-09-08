@@ -551,5 +551,21 @@ def api_network_delete_network(vnet_id=None):
     
     return jsonify(response)
 
+####################
+# Namespace: kube 
+# Component: cluster
+# kube/cluster
+
+@app.route('/v1/kube/cluster/describe/all', methods=['GET'])
+@jwt_required
+def kube_cluster_describe_all():
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+    vnet = network.get_network(vnet_id, user)
+    response = []
+    if vnet:
+        vnet.delete()
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
