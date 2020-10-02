@@ -12,6 +12,7 @@ from flask_jwt_extended import (
 )
 from backend.config import ecHomeConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
+from backend.kube_manager import KubeManager, ClusterDoesNotExist, ServerError
 from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import ImageManager, GuestImage, UserImage, UserImageInvalidUser, \
@@ -561,12 +562,161 @@ def api_network_delete_network(vnet_id=None):
 def kube_cluster_describe_all():
     user = return_calling_user()
 
-    network = VirtualNetwork()
-    vnet = network.get_network(vnet_id, user)
+    kman = KubeManager()
+    clusters = kman.get_all_clusters(user)
     response = []
-    if vnet:
-        vnet.delete()
+    for cluster in clusters:
+        response.append({
+            "cluster_id": cluster.cluster_id,
+            "created": cluster.created,
+            "type": cluster.type,
+            "status": {
+                "status": cluster.status,
+                "last_updated": cluster.last_status_update
+            },
+            "primary_controller": cluster.primary_controller,
+            "associated_instances": cluster.assoc_instances,
+            "cluster_metadata": cluster.cluster_metadata,
+            "tags": cluster.tags
+        })
+    
+    return response
 
+@app.route('/v1/kube/cluster/describe/<cluster_id>', methods=['GET'])
+@jwt_required
+def kube_cluster_describe_cluster(cluster_id):
+    user = return_calling_user()
+
+    kman = KubeManager()
+    clusters = kman.get_cluster_by_id(cluster_id, user)
+    response = []
+    for cluster in clusters:
+        response.append({
+            "cluster_id": cluster.cluster_id,
+            "created": cluster.created,
+            "type": cluster.type,
+            "status": {
+                "status": cluster.status,
+                "last_updated": cluster.last_status_update
+            },
+            "primary_controller": cluster.primary_controller,
+            "associated_instances": cluster.assoc_instances,
+            "cluster_metadata": cluster.cluster_metadata,
+            "tags": cluster.tags
+        })
+    
+    return response
+
+@app.route('/v1/kube/cluster/create', methods=['POST'])
+@jwt_required
+def kube_cluster_create_cluster():
+    user = return_calling_user()
+
+    if not "ImageId" in request.args:
+        return {"error": "ImageId must be provided when creating a Kubernetes cluster."}, 400
+    
+    if not "InstanceSize" in request.args:
+        return {"error": "InstanceSize must be provided when creating a Kubernetes cluster."}, 400
+    
+    if not "NetworkProfile" in request.args:
+        return {"error": "NetworkProfile must be provided when creating a Kubernetes cluster."}, 400
+    
+    vnet_obj = VirtualNetwork().get_network_by_profile_name(request.args["NetworkProfile"], user)
+    if not vnet_obj:
+        return {"error": "Specified NetworkProfile does not exist."}, 400
+    
+    iTypeSize = request.args["InstanceSize"].split(".")
+    try:
+        instanceDefinition = Instance(iTypeSize[0], iTypeSize[1])
+    except InvalidInstanceType:
+        return {"error": "Provided InstanceSize is not a valid type or size."}, 400
+    
+    key_name = None
+    if "KeyName" in request.args:
+        try:
+            KeyStore().get(user, request.args["KeyName"])
+            key_name = request.args["KeyName"]
+        except KeyDoesNotExist:
+            return {"error": "Provided KeyName does not exist."}, 400
+    
+    # Right now, the create kube cluster command expects these IPs to be statically defined
+    # In the future, we'll look into generating these IPs ourselves if the user does not wish
+    # to set the IPs.
+    if not "ControllerIp" in request.args:
+        return {"error": "ControllerIp must be provided when creating a Kubernetes cluster."}, 400
+
+    ips = []
+    ips.append(request.args["ControllerIp"])
+    
+    there_are_ips = True
+    x = 1
+    while there_are_ips:
+        if f"Node.{x}.Ip" in request.args:
+            try:
+                if vnet_obj.validate_ip(request.args[f"Node.{x}.Ip"]):
+                    ips.append(request.args[f"Node.{x}.Ip"])
+                else:
+                    return {"error": f"Provided value for Node.{x}.Ip is not a valid IP address for this network."}, 400
+            except ValueError as e:
+                logging.debug(e)
+                return {"error": f"Provided value for Node.{x}.Ip is not valid."}, 400
+        else:
+            there_are_ips = False
+            continue
+        x += 1
+    
+    tags = unpack_tags(request.args)
+
+    kman = KubeManager()
+    try:
+        cluster_id = kman.create_cluster(
+            user=user,
+            instance_size=instanceDefinition,
+            ips=ips,
+            image_id=request.args["ImageId"],
+            key_name=key_name,
+            network_profile=request.args["NetworkProfile"],
+            tags=tags,
+        )
+    except:
+        logging.debug("Encountered error when creating Kubernetes cluster")
+        return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
+
+    
+    return jsonify({"cluster_id": cluster_id})
+
+@app.route('/v1/kube/cluster/terminate/<cluster_id>', methods=['POST'])
+@jwt_required
+def kube_cluster_terminate_cluster(cluster_id):
+    user = return_calling_user()
+
+    kman = KubeManager()
+    cluster = kman.get_cluster_by_id(cluster_id, user)
+    if not cluster:
+        return {"error": "Cluster with that cluster_id not found."}, 404
+    
+    kman.delete_cluster(cluster_id, user)
+    
+    return jsonify({"success": True})
+
+@app.route('/v1/kube/cluster/config/<cluster_id>', methods=['GET'])
+@jwt_required
+def kube_cluster_get_cluster_config(cluster_id):
+    user = return_calling_user()
+
+    kman = KubeManager()
+    cluster = kman.get_cluster_config(cluster_id, user)
+    if not cluster:
+        return {"error": "Cluster with that cluster_id not found."}, 404
+    
+    try:
+        config = kman.get_cluster_config(cluster_id, user)
+    except ClusterDoesNotExist as e:
+        return {"error": "Cluster with that cluster_id not found."}, 404
+    except ServerError as e:
+        return {"error": e}, 500
+    
+    return jsonify({"kube_config": config})
 
 ####################
 # Namespace: service 
@@ -577,12 +727,6 @@ def kube_cluster_describe_all():
 @jwt_required
 def service_msg():
     user = return_calling_user()
-
-    network = VirtualNetwork()
-    vnet = network.get_network(vnet_id, user)
-    response = []
-    if vnet:
-        vnet.delete()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0")

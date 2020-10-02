@@ -61,6 +61,11 @@ class KubeManager:
                 account=user.account
             ).first()
 
+    def get_all_clusters(self, user:User):
+        return dbengine.session.query(KubeCluster).filter_by(
+                account=user.account
+            ).all()
+
     def process_cluster_update(self, cluster_id:str, msg:str):
         cluster = self.get_cluster_by_id(cluster_id)
         if not cluster:
@@ -74,19 +79,28 @@ class KubeManager:
         cluster.commit()
 
     def get_cluster_config(self, cluster_id:str, user:User):
+        cluster = dbengine.session.query(KubeCluster).filter_by(
+                cluster_id=cluster_id,
+                account=user.account
+            ).first()
+
+        if not cluster:
+            logging.debug(f"Could not get specified cluster id")
+            raise ClusterDoesNotExist()
+
         vault = Vault()
         try:
             conf = vault.get_secret(self.vault_mount_point, f"{cluster_id}/admin")
             conf = conf["data"]["data"]["admin.conf"]
         except Exception:
             logging.debug(f"Could not extract config from Vault for {cluster_id}/admin")
-            return False
+            raise ServerError("Could not retrieve config for specified cluster.")
         
         return conf
 
     def delete_cluster(self, cluster_id:str, user:User):
 
-        cluster = self.get_cluster_by_id(cluster_id)
+        cluster = self.get_cluster_by_id(cluster_id, user)
         if not cluster:
             raise ClusterDoesNotExist()
 
@@ -231,6 +245,8 @@ class KubeManager:
                 tmpfile: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
             }
         )
+
+        return cluster_id
     
     # otp = one time policy
     def _generate_vault_policy_otp(self, path:str):
@@ -241,4 +257,7 @@ path "kubesvc/data/%s/*" {
 """ % path
     
 class ClusterDoesNotExist(Exception):
+    pass
+
+class ServerError(Exception):
     pass

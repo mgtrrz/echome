@@ -170,6 +170,19 @@ def delete_kube_cluster():
     kmanager = KubeManager()
     kmanager.delete_cluster("kube-3a0be876", user)
 
+def get_all_clusters():
+    user = check_existing_user()
+    Kmanager = KubeManager()
+    clusters = Kmanager.get_all_clusters(user)
+    for cluster in clusters:
+        print(cluster)
+
+def get_cluster_config():
+    user = check_existing_user()
+    Kmanager = KubeManager()
+    conf = Kmanager.get_cluster_config("kube-9206ef78", user)
+    print(conf)
+
 def get_images():
     user = check_existing_user()
     manager = ImageManager()
@@ -184,5 +197,4 @@ def get_images():
         print(image)
 
 
-create_kube_cluster()
-#delete_kube_cluster()
+get_cluster_config()
