@@ -2,7 +2,7 @@
 
 Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
 
-This is a work-in-progress and not fully installable yet from this repo. Currently, the installation steps only support Ubuntu 18.04.
+This is a work-in-progress and the installation steps only support Ubuntu 18.04.
 
 Changes will be continuously pushed to **Master** until I feel that we've reached a point with features where we can put in a version number. However, if there's any objection to that, please let me know. 
 
@@ -10,17 +10,20 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 
 ## Requirements
 
-### Application requirements
+### Application Requirements
 
 * A clean Ubuntu 18.04 installation
 * Python 3.6
 * Postgres 11
 * QEMU 2.11
 
+The installation script will install Python, Postgres, QEMU, and the necessary packages for you.
+
 A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT repository only has version 2.11. In the future, we'll look into installing and utilizing more recent QEMU versions. For now, we're focusing on a lot of the base functionality.
 
+When launching Kubernetes clusters, ecHome depends on Docker and Hashicorp Vault.
 
-### Server requirements
+### Server Requirements
 
 * Virtualization enabled in the BIOS for your Intel/AMD CPU.
 * Enough disk space for guest images and your virtual machines
@@ -79,7 +82,7 @@ At the root of the stack is the API. The API runs on the computer/host designate
 
 ecHome uses the `libvirt-python` library to coordinate virtual machine management with the Libvirt API. The `VmManager` class in `./echome/backend/vm_manager.py` has methods that create, terminate, and get information about a virtual machine using Libvirt.
 
-There is not yet a web server installed or configured to serve requests to the Python API. See the section below for running the API in debug mode using Flask's built-in webserver.
+In front of the API is UWSGI and Nginx that serves requests to the ecHome API and the instance metadata API.
 
 Code for all of the services exists in `./echome/backend/`
 
@@ -98,24 +101,17 @@ $ curl 172.16.9.6:5000/v1/ping
 
 In ecHome's current iteration, there is no user authentication and all implemented ecHome requests can be made to the server.
 
-You can interact with the HTTP API directly to manage your ecHome host, however, it's preferred you use the Web Interface, Python-SDK (programmatic) or the CLI to do everything you need. However, an example request to create a virtual machine with the HTTP API would look like:
+You can interact with the HTTP API directly to manage your ecHome host. An example request to create a virtual machine with the HTTP API would look like:
 
 ```
 $ curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
  \&InstanceSize=standard.small \
- \&NetworkType=BridgeToLan \
- \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
- \&NetworkInterfaceGatewayIp=172.16.9.1 \
+ \&NetworkProfile=home-lan \
+ \&PrivateIp=172.16.9.10\
  \&KeyName=echome
 ```
 
-### Frontend/Web-Interface
-
-Note: Not yet implemented
-
-Web interface that communicates to the Backend/API to manage ecHome. Javascript running on the page will be responsible for making the HTTP requests directly to the API.
-
-Code for this service exists in `./echome/web/`
+However, it's preferred you use the Python-SDK (programmatic) or the CLI to do everything you need. 
 
 ### Python-SDK
 
@@ -216,6 +212,13 @@ $ echome sshkeys describe test_key --format json
 ]
 ```
 
+### Frontend/Web-Interface
+
+Note: Not yet implemented
+
+Web interface that communicates to the Backend/API to manage ecHome. Javascript running on the page will be responsible for making the HTTP requests directly to the API.
+
+Code for this service exists in `./echome/web/`
 
 ## Authors
 
