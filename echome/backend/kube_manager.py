@@ -36,20 +36,14 @@ class KubeCluster(Base):
     cluster_metadata = Column(JSONB)
     tags = Column(JSONB)
 
-    def init_session(self):
-        self.session = dbengine.return_session()
-        return self.session
-
     def commit(self):
-        if not self.session:
-            self.init_session()
-        self.session.commit()
-
-    def add(self):
-        if not self.session:
-            self.init_session()
-        self.session.add(self)
-        self.session.commit()
+        dbengine.session.add(self)
+        dbengine.session.commit()
+    
+    # Delete this object from the database
+    def delete(self):
+        dbengine.session.delete(self)
+        dbengine.session.commit()
 
     def __str__(self):
         return self.cluster_id
@@ -61,9 +55,10 @@ class KubeManager:
     def create_minikube_cluster(self):
         pass
 
-    def get_cluster_by_id(self, cluster_id:str):
+    def get_cluster_by_id(self, cluster_id:str, user:User):
         return dbengine.session.query(KubeCluster).filter_by(
-                cluster_id=cluster_id
+                cluster_id=cluster_id,
+                account=user.account
             ).first()
 
     def process_cluster_update(self, cluster_id:str, msg:str):
@@ -111,7 +106,7 @@ class KubeManager:
 
         vault.delete_key(mount_point=self.vault_mount_point, path_name=cluster_id)
         
-        self.update_cluster_status(cluster, "TERMINATED")
+        cluster.delete()
         return True
 
 
@@ -205,17 +200,20 @@ class KubeManager:
             num += 1
         
         # Create an entry in the DB
+        primary = instances[0]
+        instances.pop(0)
+        nodes = instances
         cluster = KubeCluster(
             cluster_id = cluster_id,
             account = user.account,
             type = "cluster",
             status = "BUILDING",
-            primary_controller = instances[0],
-            assoc_instances = instances.pop(0),
+            primary_controller = primary,
+            assoc_instances = nodes,
             tags = tags
         )
 
-        cluster.add()
+        cluster.commit()
         
         config = AppConfig()
         docker_client = docker.from_env()

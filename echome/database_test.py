@@ -158,6 +158,18 @@ def create_kube_cluster():
         network_profile="home-network"
     )
 
+def update_kube_cluster():
+    user = check_existing_user()
+    kmanager = KubeManager()
+    cluster = kmanager.get_cluster_by_id("kube-3a0be876")
+    cluster.assoc_instances = ["vm-3b0120e8", "vm-3b0120e9"]
+    cluster.commit()
+
+def delete_kube_cluster():
+    user = check_existing_user()
+    kmanager = KubeManager()
+    kmanager.delete_cluster("kube-3a0be876", user)
+
 def get_images():
     user = check_existing_user()
     manager = ImageManager()
@@ -173,3 +185,4 @@ def get_images():
 
 
 create_kube_cluster()
+#delete_kube_cluster()

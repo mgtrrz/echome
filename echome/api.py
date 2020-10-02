@@ -567,5 +567,22 @@ def kube_cluster_describe_all():
     if vnet:
         vnet.delete()
 
+
+####################
+# Namespace: service 
+# Component: msg
+# service/msg
+
+@app.route('/v1/service/msg', methods=['POST'])
+@jwt_required
+def service_msg():
+    user = return_calling_user()
+
+    network = VirtualNetwork()
+    vnet = network.get_network(vnet_id, user)
+    response = []
+    if vnet:
+        vnet.delete()
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
