@@ -446,23 +446,88 @@ def api_ssh_key_store():
 
 @app.route('/v1/access/describe/all', methods=['GET'])
 @jwt_required
-def api_access_describe_all():
+def api_access_describe_all_users():
     user = return_calling_user()
+
+    usermanager = UserManager()
+    users = usermanager.get_all_users(user.account)
+    resp = []
+    for usr in users:
+        resp.append({
+            "user_id": usr.user_id,
+            "username": usr.username,
+            "name": usr.name,
+            "created": usr.created,
+            "active": usr.active,
+            "tags": usr.tags
+        })
+    
+    return resp
+
 
 @app.route('/v1/access/describe/caller', methods=['GET'])
 @jwt_required
 def api_access_describe_caller():
     user = return_calling_user()
 
-@app.route('/v1/access/describe/<user>', methods=['GET'])
+    usermanager = UserManager()
+    users = usermanager.get_user(user.user_id)
+    resp = []
+    for usr in users:
+        resp.append({
+            "user_id": usr.user_id,
+            "username": usr.username,
+            "name": usr.name,
+            "created": usr.created,
+            "active": usr.active,
+            "tags": usr.tags
+        })
+    
+    return resp
+
+@app.route('/v1/access/describe/<user_id>', methods=['GET'])
 @jwt_required
-def api_access_describe_user():
+def api_access_describe_user(user_id):
     user = return_calling_user()
 
-@app.route('/v1/access/create/<user>', methods=['GET'])
+    usermanager = UserManager()
+    users = usermanager.get_user(user_id)
+    resp = []
+    for usr in users:
+        resp.append({
+            "user_id": usr.user_id,
+            "username": usr.username,
+            "name": usr.name,
+            "created": usr.created,
+            "active": usr.active,
+            "tags": usr.tags
+        })
+    
+    return resp
+
+@app.route('/v1/access/create/<user>', methods=['POST'])
 @jwt_required
 def api_access_create_user():
     user = return_calling_user()
+
+    if "Username" not in request.args:
+        return {"error": "Username must be provided when creating a new user."}, 400
+
+    if "Name" not in request.args:
+        return {"error": "Name must be provided when creating a new user."}, 400
+    
+    tags = unpack_tags(request.args)
+
+    usermanager = UserManager()
+    new_user = usermanager.create_user(
+        user.account, 
+        request.args["Username"], 
+        request.args["Name"],
+        tags,
+        request.args["Password"] if "Password" in request.args else None
+    )
+
+    return jsonify(new_user)
 
 ####################
 # Namespace: network 
@@ -612,13 +677,13 @@ def kube_cluster_describe_cluster(cluster_id):
 def kube_cluster_create_cluster():
     user = return_calling_user()
 
-    if not "ImageId" in request.args:
+    if "ImageId" not in request.args:
         return {"error": "ImageId must be provided when creating a Kubernetes cluster."}, 400
     
-    if not "InstanceSize" in request.args:
+    if "InstanceSize" not in request.args:
         return {"error": "InstanceSize must be provided when creating a Kubernetes cluster."}, 400
     
-    if not "NetworkProfile" in request.args:
+    if "NetworkProfile" not in request.args:
         return {"error": "NetworkProfile must be provided when creating a Kubernetes cluster."}, 400
     
     vnet_obj = VirtualNetwork().get_network_by_profile_name(request.args["NetworkProfile"], user)
@@ -642,7 +707,7 @@ def kube_cluster_create_cluster():
     # Right now, the create kube cluster command expects these IPs to be statically defined
     # In the future, we'll look into generating these IPs ourselves if the user does not wish
     # to set the IPs.
-    if not "ControllerIp" in request.args:
+    if "ControllerIp" not in request.args:
         return {"error": "ControllerIp must be provided when creating a Kubernetes cluster."}, 400
 
     ips = []

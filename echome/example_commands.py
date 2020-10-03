@@ -1,4 +1,4 @@
-from backend.user import User
+from backend.user import UserManager, User
 from backend.id_gen import IdGenerator
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
@@ -91,6 +91,12 @@ def create_user():
     # Checking to see if the password or secret match
     print(user.check_password("MyPassword"))
 
+def get_users():
+    user = check_existing_user()
+    uman = UserManager()
+    users = uman.get_all_users(user.account)
+    for user in users:
+        print(user)
 
 
 def create_new_network():
@@ -197,4 +203,4 @@ def get_images():
         print(image)
 
 
-get_cluster_config()
+get_users()

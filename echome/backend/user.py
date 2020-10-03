@@ -115,6 +115,42 @@ class UserManager():
             ).first()
         else:
             return False
+    
+    def get_user_aliases(self, user:User):
+        return dbengine.session.query(User).filter(
+                User.related == user.user_id,
+                User.account == user.account,
+            ).all()
+
+    def get_all_users(self, account:str, get_aliases=False):
+        return dbengine.session.query(User).filter(
+                User.account == account,
+                User.user_id != None,
+            ).all()
+
+    def create_user(self, account:str, username:str, name:str, tags:dict, password:str=None):
+        newUser = User(
+            user_id=IdGenerator.generate("user"),
+            primary=True,
+            account=account,
+            username=username,
+            name=name,
+        )
+
+        user_info = {}
+        user_info['user_id'] = newUser.user_id
+        user_info['user_name'] = username
+
+        if not password:
+            # Set rand password
+            user_info['password'] = secrets.token_urlsafe(12)
+            password = user_info['password']
+
+        newUser.set_password(password)
+        dbengine.session.add(newUser)
+        dbengine.session.commit()
+
+        return user_info
 
 
 class UserNotInstantiated(Exception):
