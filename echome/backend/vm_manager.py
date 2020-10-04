@@ -129,7 +129,7 @@ class VmManager:
             raise LaunchError(e)
         except Exception as e:
             logging.error(f"Encountered other error: {e}")
-            raise Exception(e)
+            raise Exception(e) from e
         
         return result
 
@@ -140,6 +140,8 @@ class VmManager:
         All of the parameters from create_vm() are passed here in addition to
         vm_id, used to uniquely identify the new VM.
         """        
+
+        logging.debug(kwargs)
 
         # Creating the directory for the virtual machine
         vmdir = self.__generate_vm_path(user.account, vm_id)
@@ -183,7 +185,8 @@ class VmManager:
             logging.debug("Determining if KeyName is present.")
             pub_key = None
             key_dict = None
-            if "KeyName" in kwargs:
+            if "KeyName" in kwargs and kwargs["KeyName"] is not None:
+                logging.debug(f"Checking KeyName: {kwargs['KeyName']}.")
                 try:
                     #key_meta = KeyStore.get_key(user, kwargs["KeyName"])
                     keyObj = KeyStore().get(user, kwargs["KeyName"])
@@ -194,7 +197,7 @@ class VmManager:
                 except KeyDoesNotExist:
                     raise ValueError("Specified SSH Key Name does not exist.")
             
-            if "ServiceKey" in kwargs:
+            if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
                 try:
                     keyObj = KeyStore().get(user, kwargs["ServiceKey"])
                     svc_pub_key = keyObj.public_key

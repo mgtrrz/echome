@@ -125,7 +125,7 @@ class KubeManager:
 
 
     def create_cluster(self, user:User, instance_size: Instance, \
-        ips:list, image_id:str, key_name:str, network_profile:str, disk_size="50G", \
+        ips:list, image_id:str, network_profile:str, key_name=None, disk_size="50G", \
         image_user="ubuntu", image_ssh_port="22", tags={}):
 
         cluster_id = IdGenerator().generate("kube", 8)

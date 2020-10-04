@@ -8,7 +8,7 @@ from flask import request, jsonify, url_for
 from flask_jwt_extended import (
     JWTManager, jwt_required, create_access_token,
     jwt_refresh_token_required, create_refresh_token,
-    get_jwt_identity, fresh_jwt_required
+    get_jwt_identity, fresh_jwt_required, jwt_optional
 )
 from backend.config import ecHomeConfig
 from backend.vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
@@ -126,9 +126,10 @@ def auth_identity():
     pass
 
 def return_calling_user():
-    print("Grabbing returning user")
-
+    logging.debug("Grabbing user from request")
     current_user = get_jwt_identity()
+    logging.debug(current_user)
+
     try:
         user = UserManager().get_user(auth_id=current_user)
     except:  
@@ -361,8 +362,7 @@ def api_ssh_keys_all():
             "key_name": key.key_name,
         })
     
-
-    return jsonify(KeyStore.get_all_keys(user))
+    return jsonify(k)
 
 @app.route('/v1/vm/ssh_key/describe/<ssh_key_name>', methods=['GET'])
 @jwt_required
@@ -462,28 +462,40 @@ def api_access_describe_all_users():
             "tags": usr.tags
         })
     
-    return resp
+    return jsonify(resp)
 
 
 @app.route('/v1/access/describe/caller', methods=['GET'])
-@jwt_required
+@jwt_optional
 def api_access_describe_caller():
     user = return_calling_user()
 
     usermanager = UserManager()
-    users = usermanager.get_user(user.user_id)
+
+    alias_details = {}
+    if user.primary is False:
+        uid = user.related
+        alias_details = {
+            "alias_auth_id": user.auth_id,
+            "created": user.created,
+            "tags": user.tags,
+        }
+    else:
+        uid = user.user_id
+
+    usr = usermanager.get_user(uid)
     resp = []
-    for usr in users:
-        resp.append({
-            "user_id": usr.user_id,
-            "username": usr.username,
-            "name": usr.name,
-            "created": usr.created,
-            "active": usr.active,
-            "tags": usr.tags
-        })
+    resp.append({
+        "user_id": usr.user_id,
+        "username": usr.username,
+        "name": usr.name,
+        "created": usr.created,
+        "active": usr.active,
+        "alias": alias_details,
+        "tags": usr.tags,
+    })
     
-    return resp
+    return jsonify(resp)
 
 @app.route('/v1/access/describe/<user_id>', methods=['GET'])
 @jwt_required
@@ -491,23 +503,46 @@ def api_access_describe_user(user_id):
     user = return_calling_user()
 
     usermanager = UserManager()
-    users = usermanager.get_user(user_id)
+    usr = usermanager.get_user(user_id)
     resp = []
-    for usr in users:
-        resp.append({
-            "user_id": usr.user_id,
-            "username": usr.username,
-            "name": usr.name,
-            "created": usr.created,
-            "active": usr.active,
-            "tags": usr.tags
-        })
+    resp.append({
+        "user_id": usr.user_id,
+        "username": usr.username,
+        "name": usr.name,
+        "created": usr.created,
+        "active": usr.active,
+        "tags": usr.tags
+    })
     
-    return resp
+    return jsonify(resp)
 
-@app.route('/v1/access/create/<user>', methods=['POST'])
+@app.route('/v1/access/create', methods=['POST'])
 @jwt_required
 def api_access_create_user():
+    user = return_calling_user()
+
+    if "Username" not in request.args:
+        return {"error": "Username must be provided when creating a new user."}, 400
+
+    if "Name" not in request.args:
+        return {"error": "Name must be provided when creating a new user."}, 400
+    
+    tags = unpack_tags(request.args)
+
+    usermanager = UserManager()
+    new_user = usermanager.create_user(
+        user.account, 
+        request.args["Username"], 
+        request.args["Name"],
+        tags,
+        request.args["Password"] if "Password" in request.args else None
+    )
+
+    return jsonify(new_user)
+
+@app.route('/v1/access/terminate/<user_id>', methods=['POST'])
+@jwt_required
+def api_access_terminate_user():
     user = return_calling_user()
 
     if "Username" not in request.args:
@@ -645,7 +680,7 @@ def kube_cluster_describe_all():
             "tags": cluster.tags
         })
     
-    return response
+    return jsonify(response)
 
 @app.route('/v1/kube/cluster/describe/<cluster_id>', methods=['GET'])
 @jwt_required
@@ -653,24 +688,23 @@ def kube_cluster_describe_cluster(cluster_id):
     user = return_calling_user()
 
     kman = KubeManager()
-    clusters = kman.get_cluster_by_id(cluster_id, user)
+    cluster = kman.get_cluster_by_id(cluster_id, user)
     response = []
-    for cluster in clusters:
-        response.append({
-            "cluster_id": cluster.cluster_id,
-            "created": cluster.created,
-            "type": cluster.type,
-            "status": {
-                "status": cluster.status,
-                "last_updated": cluster.last_status_update
-            },
-            "primary_controller": cluster.primary_controller,
-            "associated_instances": cluster.assoc_instances,
-            "cluster_metadata": cluster.cluster_metadata,
-            "tags": cluster.tags
-        })
-    
-    return response
+    response.append({
+        "cluster_id": cluster.cluster_id,
+        "created": cluster.created,
+        "type": cluster.type,
+        "status": {
+            "status": cluster.status,
+            "last_updated": cluster.last_status_update
+        },
+        "primary_controller": cluster.primary_controller,
+        "associated_instances": cluster.assoc_instances,
+        "cluster_metadata": cluster.cluster_metadata,
+        "tags": cluster.tags
+    })
+
+    return jsonify(response)
 
 @app.route('/v1/kube/cluster/create', methods=['POST'])
 @jwt_required
@@ -703,6 +737,7 @@ def kube_cluster_create_cluster():
             key_name = request.args["KeyName"]
         except KeyDoesNotExist:
             return {"error": "Provided KeyName does not exist."}, 400
+
     
     # Right now, the create kube cluster command expects these IPs to be statically defined
     # In the future, we'll look into generating these IPs ourselves if the user does not wish
@@ -733,19 +768,19 @@ def kube_cluster_create_cluster():
     tags = unpack_tags(request.args)
 
     kman = KubeManager()
-    try:
-        cluster_id = kman.create_cluster(
-            user=user,
-            instance_size=instanceDefinition,
-            ips=ips,
-            image_id=request.args["ImageId"],
-            key_name=key_name,
-            network_profile=request.args["NetworkProfile"],
-            tags=tags,
-        )
-    except:
-        logging.debug("Encountered error when creating Kubernetes cluster")
-        return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
+    #try:
+    cluster_id = kman.create_cluster(
+        user=user,
+        instance_size=instanceDefinition,
+        ips=ips,
+        image_id=request.args["ImageId"],
+        key_name=key_name,
+        network_profile=request.args["NetworkProfile"],
+        tags=tags,
+    )
+    #except:
+    #    logging.debug("Encountered error when creating Kubernetes cluster")
+    #    return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
 
     
     return jsonify({"cluster_id": cluster_id})
