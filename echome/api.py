@@ -540,7 +540,7 @@ def api_access_create_user():
 
     return jsonify(new_user)
 
-@app.route('/v1/access/terminate/<user_id>', methods=['POST'])
+@app.route('/v1/access/delete/<user_id>', methods=['POST'])
 @jwt_required
 def api_access_terminate_user():
     user = return_calling_user()
