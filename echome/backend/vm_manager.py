@@ -12,6 +12,8 @@ import json
 import datetime
 import yaml
 import xmltodict
+import platform
+import psutil
 from sqlalchemy import select, and_
 from .database import Database
 from .instance_definitions import Instance
@@ -132,6 +134,10 @@ class VmManager:
             raise Exception(e) from e
         
         return result
+    
+    def determine_host_details(self):
+        # Can we determine if the host is using an AMD or Intel CPU from here?
+        pass
 
     # Set to replace __createInstance
     def _create_virtual_machine(self, user: User, vm_id: str, instanceType:Instance, **kwargs):
