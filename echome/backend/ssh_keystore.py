@@ -119,10 +119,11 @@ class KeyStore:
             raise KeyDoesNotExist("Specified key name does not exist.")
     
     def get_all(self, User:User, show_svc_keys=False):
-        keys = dbengine.session.query(KeyObject).filter(
-            KeyObject.account=User.account,
-            or_(KeyObject.service_key=show_svc_keys, KeyObject.service_key is None)
-        ).all()
+        # keys = dbengine.session.query(KeyObject).filter(
+        #     KeyObject.account=User.account,
+        #     or_(KeyObject.service_key=show_svc_keys, KeyObject.service_key is None)
+        # ).all()
+        keys = None
 
         return keys
 

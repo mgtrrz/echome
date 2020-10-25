@@ -33,16 +33,12 @@ class BaseImage(Base):
     deactivated = Column(Boolean, default=False)
     tags = Column(JSONB)
 
-    def init_session(self):
-        self.session = dbengine.return_session()
-        return self.session
-
     def commit(self):
-        self.session.commit()
+        dbengine.session.commit()
 
     def add(self):
-        self.session.add(self)
-        self.session.commit()
+        dbengine.session.add(self)
+        dbengine.session.commit()
 
     def __str__(self):
         return self.name
@@ -94,7 +90,7 @@ class ImageManager:
         return results
 
 
-    def registerImage(self, img_type, img_path, img_name, img_description, img_user, user:User=None, img_metadata={}, host="localhost", tags={}):
+    def registerImage(self, img_type, img_path, img_name, img_description, img_user="", user:User=None, host="localhost", tags={}):
 
         # Check to see if a file exists at that path
         if not os.path.exists(img_path):
@@ -126,6 +122,7 @@ class ImageManager:
         obj = QemuImg().info(img_path)
         print(obj["format"])
 
+        img_metadata = {}
         img_metadata["user"] = img_user
         img_metadata["format"] = obj["format"]
         img_metadata["actual-size"] = obj["actual-size"]
@@ -141,7 +138,8 @@ class ImageManager:
             host=host,
             minimum_requirements={},
             guest_image_metadata=img_metadata,
-            tags=tags
+            tags=tags,
+            deactivated=False
         )
 
         new_img.add()

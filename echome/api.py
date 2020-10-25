@@ -323,10 +323,10 @@ def api_guest_image_register():
             request.args["ImagePath"], 
             request.args["ImageName"], 
             request.args["ImageDescription"],
-            request.args["ImageUser"],
+            request.args["ImageUser"] if "ImageUser" in request.args else "",
             user,
-            request.args["ImageMetadata"],
-            request.args["Tags"]
+            host=None,
+            tags=request.args["Tags"] if "Tags" in request.args else {},
         )
     except InvalidImagePath:
         return {"error": "ImagePath: Provided path is not valid or file does not exist."}, 400
