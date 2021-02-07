@@ -26,6 +26,8 @@ Thumbs.db
 ##########
 venv/
 vscodeenv/
+.venv/
+.dev_venv/
 
 
 # Byte-compiled / optimized / DLL files
