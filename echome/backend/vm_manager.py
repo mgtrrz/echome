@@ -761,6 +761,10 @@ class VmManager:
             logging.info(f"Starting VM '{vm_id}'")
             vm.create()
         
+        logging.debug("Setting autostart to 1 for started instances")
+        domain = self.__get_virtlib_domain(vm_id)
+        domain.setAutostart(1)
+        
         return {
             "success": True,
             "meta_data": {},
@@ -785,6 +789,10 @@ class VmManager:
             print(f"Stopping VM '{vm_id}'")
         else:
             print(f"VM '{vm_id}' is already stopped")
+        
+        logging.debug("Setting autostart to 0 for stopped instances")
+        domain = self.__get_virtlib_domain(vm_id)
+        domain.setAutostart(0)
 
         vm_force_stop_time = 240
         seconds_waited = 0
