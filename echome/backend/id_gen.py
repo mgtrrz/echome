@@ -11,13 +11,16 @@ class IdGenerator:
         # Use default length unless length is manually specified
         if type == "vm":
             prefix = "vm-"
-            len = default_vm_length if length == "" else length 
+            l = default_vm_length if length == "" else length 
         elif type  == "vmi":
             prefix = "vmi-"
-            len = default_vmi_length if length == "" else length 
+            l = default_vmi_length if length == "" else length 
         else:
             prefix = f"{type}-"
             len = default if length == "" else length 
 
-        uid = str(uuid.uuid1()).replace("-", "")[0:len]
+        uuid = str(uuid.uuid4()).replace("-", "")
+        if l > len(uuid):
+            l = len(uuid)
+        uid = uuid[0:l]
         return f"{prefix}{uid}"

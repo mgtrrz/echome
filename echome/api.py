@@ -194,11 +194,14 @@ def api_vm_create():
             ImageId=request.args["ImageId"],
             DiskSize=disk_size    
         )
-    except InvalidLaunchConfiguration:
+    except InvalidLaunchConfiguration as e:
+        logging.debug(e)
         return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400
-    except LaunchError:
+    except LaunchError as e:
+        logging.debug(e)
         return {"error": "There was an error when creating the instance."}, 500
-    except Exception:
+    except Exception as e:
+        logging.debug(e)
         return {"error": "There was an error when processing the request."}, 500
     
     return jsonify({"vm_id": vm_id})
