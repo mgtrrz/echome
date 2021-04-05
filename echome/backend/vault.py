@@ -23,6 +23,13 @@ class Vault:
             },
         )
     
+    def store_dict(self, mount_point:str, path_name:str, value:dict):
+        self.client.secrets.kv.v2.create_or_update_secret(
+            mount_point=mount_point,
+            path=path_name,
+            secret=value,
+        )
+    
     def delete_key(self, mount_point:str, path_name:str):
         self.client.secrets.kv.v2.delete_metadata_and_all_versions(
             mount_point=mount_point,
