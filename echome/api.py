@@ -216,10 +216,10 @@ def api_vm_create():
         logging.debug(e)
         return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400
     except LaunchError as e:
-        logging.debug(e)
+        logging.error(e)
         return {"error": "There was an error when creating the instance."}, 500
     except Exception as e:
-        logging.debug(e)
+        logging.error(e)
         return {"error": "There was an error when processing the request."}, 500
     
     return jsonify({"vm_id": vm_id})
@@ -653,8 +653,9 @@ def api_network_create_network():
                 Type=request.args["Type"],
                 **request.args
             )
-        except:
-            return {"error": f"Error creating network."}, 400
+        except Exception as e:
+            logging.error(e)
+            return {"error": "Error creating network."}, 500
     
         return jsonify({"vnet_id": new_network})
     else:
@@ -800,8 +801,8 @@ def kube_cluster_create_cluster():
             tags=tags,
         )
     except Exception as e:
-       logging.debug("Encountered error when creating Kubernetes cluster")
-       logging.debug(e)
+       logging.error("Encountered error when creating Kubernetes cluster")
+       logging.error(e)
        return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
 
     
@@ -833,10 +834,9 @@ def kube_cluster_get_cluster_config(cluster_id):
     
     try:
         config = kman.get_cluster_config(cluster_id, user)
-    except ClusterDoesNotExist as e:
-        return {"error": "Cluster with that cluster_id not found."}, 404
-    except ServerError as e:
-        return {"error": e}, 500
+    except Exception as e:
+        logging.error(e)
+        return {"error": "Server encountered an error."}, 500
     
     return jsonify({"kube_config": config})
 
@@ -864,7 +864,7 @@ def service_msg():
                 kube.update_cluster_status(cluster, request.args["Status"])
                 return jsonify({"message": "Request completed."}), 200
             except Exception as e:
-                logging.debug(e)
+                logging.error(e)
                 return jsonify({"error": "Cluster update status failed."}), 500
     
     return jsonify({"message": "Nothing to update."}), 200
