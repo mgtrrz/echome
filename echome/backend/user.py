@@ -11,6 +11,7 @@ import bcrypt
 import secrets
 import string
 import jwt
+import re
 
 from .database import dbengine
 
@@ -42,19 +43,19 @@ class User(Base):
     active = Column(Boolean, default=True)
     tags = Column(JSONB)
 
-    def init_session(self):
-        self.session = dbengine.return_session()
-        return self.session
+    # def init_session(self):
+    #     self.session = dbengine.return_session()
+    #     return self.session
 
-    def commit(self):
-        self.session.commit()
+    # def commit(self):
+    #     self.session.commit()
 
-    def add(self):
-        self.session.add(self)
-        self.session.commit()
+    # def add(self):
+    #     self.session.add(self)
+    #     self.session.commit()
 
     def __str__(self):
-        return self.username
+        return self.username if self.username is not None else self.user_id
 
     def get_user_id(self):
         return self.user_id
@@ -101,6 +102,13 @@ class User(Base):
 
     def check_password(self, plaintext):
         return bcrypt.checkpw(plaintext.encode('utf8'), self.secret.encode('utf-8'))
+    
+    def is_service_account(self):
+        if re.match(r"svc-", self.user_id):
+            return True
+        else:
+            return False
+
     
 class UserManager():
 
@@ -152,6 +160,33 @@ class UserManager():
 
         return user_info
 
+class ServiceAccountManager():
+    def create_service_account(self, account:str):
+        user = User()
+        secret_token = user.generate_token()
+
+        svc_acct = User(
+            user_id=IdGenerator.generate("svc"),
+            auth_id=IdGenerator.generate("auth"),
+            secret=user.set_password(secret_token, return_hash_secret=True),
+            server_secret=user.generate_token(length=60),
+            primary=True,
+            account=account,
+        )
+
+        dbengine.session.add(svc_acct)
+        dbengine.session.commit()
+        return svc_acct.auth_id, secret_token
+    
+    def get_service_account(self, auth_id:str=None):
+        user = dbengine.session.query(User).filter_by(
+                auth_id=auth_id
+            ).first()
+
+        if user is not None and user.is_service_account():
+            return user
+
+        return False  
 
 class UserNotInstantiated(Exception):
     pass
