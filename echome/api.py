@@ -17,7 +17,7 @@ from backend.ssh_keystore import KeyStore, KeyDoesNotExist, KeyNameAlreadyExists
 from backend.instance_definitions import Instance, InvalidInstanceType
 from backend.guest_image import ImageManager, GuestImage, UserImage, UserImageInvalidUser, \
     InvalidImageId, InvalidImagePath, InvalidImageAlreadyExists
-from backend.user import User, UserManager
+from backend.user import User, UserManager, ServiceAccountManager
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkName, InvalidNetworkType, InvalidNetworkConfiguration
 from functools import wraps
@@ -139,6 +139,24 @@ def return_calling_user():
         return jsonify({'auth.error': 'Invalid user'}), 401
 
     return user
+
+def return_calling_service_account():
+    logging.debug("Grabbing service account from request")
+    current_user = get_jwt_identity()
+    logging.debug(current_user)
+
+    try:
+        user = ServiceAccountManager().get_service_account(auth_id=current_user)
+    except:  
+        return jsonify({'auth.error': 'Token is invalid'}), 401
+    
+    if user is None:
+        return jsonify({'auth.error': 'Invalid service account'}), 401
+    
+    if user.is_service_account():
+        return user
+    else:
+        return jsonify({'auth.error': 'Unauthorized'}), 401
 
 ####################
 # Namespace: vm 
@@ -592,7 +610,7 @@ def api_network_describe_all():
 
 @app.route('/v1/network/describe/<vnet_id>', methods=['GET'])
 @jwt_required
-def api_network_describe_network(vnet_id=None):
+def api_network_describe_network(vnet_id):
     user = return_calling_user()
 
     network = VirtualNetwork()
@@ -771,19 +789,20 @@ def kube_cluster_create_cluster():
     tags = unpack_tags(request.args)
 
     kman = KubeManager()
-    #try:
-    cluster_id = kman.create_cluster(
-        user=user,
-        instance_size=instanceDefinition,
-        ips=ips,
-        image_id=request.args["ImageId"],
-        key_name=key_name,
-        network_profile=request.args["NetworkProfile"],
-        tags=tags,
-    )
-    #except:
-    #    logging.debug("Encountered error when creating Kubernetes cluster")
-    #    return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
+    try:
+        cluster_id = kman.create_cluster(
+            user=user,
+            instance_size=instanceDefinition,
+            ips=ips,
+            image_id=request.args["ImageId"],
+            key_name=key_name,
+            network_profile=request.args["NetworkProfile"],
+            tags=tags,
+        )
+    except Exception as e:
+       logging.debug("Encountered error when creating Kubernetes cluster")
+       logging.debug(e)
+       return {"error": "Server encountered an error when creating Kubernetes cluster."}, 500
 
     
     return jsonify({"cluster_id": cluster_id})
@@ -829,7 +848,28 @@ def kube_cluster_get_cluster_config(cluster_id):
 @app.route('/v1/service/msg', methods=['POST'])
 @jwt_required
 def service_msg():
-    user = return_calling_user()
+    try:
+        user = return_calling_service_account()
+    except Exception as e:
+        return jsonify({"auth.error": e})
+    
+    logging.debug(user)
+    logging.debug(request.args)
+    logging.debug(request.args["Destination"])
+    if "Destination" in request.args and request.args["Destination"] == "kube":
+        if request.args["Type"] == "StatusUpdate":
+            kube = KubeManager()
+            try:
+                cluster = kube.get_cluster_by_id(request.args["ClusterID"], user)
+                kube.update_cluster_status(cluster, request.args["Status"])
+                return jsonify({"message": "Request completed."}), 200
+            except Exception as e:
+                logging.debug(e)
+                return jsonify({"error": "Cluster update status failed."}), 500
+    
+    return jsonify({"message": "Nothing to update."}), 200
+
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0")
