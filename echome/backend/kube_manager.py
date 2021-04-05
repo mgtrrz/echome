@@ -4,8 +4,8 @@ import ipaddress
 import string
 import docker
 from backend.id_gen import IdGenerator
-from backend.config import AppConfig
-from backend.user import UserManager, User
+from .config import ecHomeConfig
+from backend.user import UserManager, User, ServiceAccountManager
 from backend.vm_manager import VmManager
 from backend.ssh_keystore import KeyStore
 from backend.instance_definitions import Instance
@@ -75,7 +75,7 @@ class KubeManager:
     def update_cluster_status(self, cluster:KubeCluster, status:str):
         if status not in self.statuses:
             raise ValueError("Provided status is not in list of statuses for KubeCluster")
-        cluster.status == status
+        cluster.status = status
         cluster.commit()
 
     def get_cluster_config(self, cluster_id:str, user:User):
@@ -125,7 +125,7 @@ class KubeManager:
 
 
     def create_cluster(self, user:User, instance_size: Instance, \
-        ips:list, image_id:str, network_profile:str, key_name=None, disk_size="50G", \
+        ips:list, image_id:str, network_profile:str, kubernetes_version="v1.18.5", key_name=None, disk_size="50G", \
         image_user="ubuntu", image_ssh_port="22", tags={}):
 
         cluster_id = IdGenerator().generate("kube", 8)
@@ -170,10 +170,26 @@ class KubeManager:
 
         logging.debug(inv)
 
-        tmpfile = f"/tmp/{cluster_id}_inventory.ini"
-        with open(tmpfile, "w") as file:
+        tmp_inv_file = f"/tmp/{cluster_id}_inventory.ini"
+        with open(tmp_inv_file, "w") as file:
             file.write(inv)
 
+        # Cluster yaml generation
+
+        source_template_cluster_yaml = f"{ecHomeConfig.EcHome().base_dir}/templates/kube/k8s-cluster.yaml"
+        rendered_tmp_cluster_file = f"/tmp/{cluster_id}_k8s_cluster.yaml"
+        with open(source_template_cluster_yaml, "r") as template_file:
+            template_contents = string.Template(template_file.read())
+            cluster_yaml_render = template_contents.substitute({
+                'KUBERNETES_VERSION': kubernetes_version,
+                'KUBERNETES_SERVICE_ADDRESSES': "10.233.0.0/18",
+                'KUBERNETES_PODS_SUBNET': "10.233.64.0/18",
+                'KUBERNETES_NETWORK_NODE_PREFIX': "24",
+                'KUBERNETES_CLUSTER_NAME': f"{cluster_id}.local",
+            })
+
+        with open(rendered_tmp_cluster_file, "w") as file:
+            file.write(cluster_yaml_render) 
 
         # Generate a temporary Vault token to pass to docker
         policy_name = f"kubesvc-{cluster_id}"
@@ -181,7 +197,7 @@ class KubeManager:
             self._generate_vault_policy_otp(cluster_id), 
             policy_name
         )
-
+    
         token_info = vault.generate_temp_token(
             [policy_name]
         )
@@ -228,21 +244,33 @@ class KubeManager:
         )
 
         cluster.commit()
+
+        # Create a service API key for the ansible job
+        # to report back to ecHome when it is complete.
+        # TODO: Expiry for the service accounts
+        svc_manager = ServiceAccountManager()
+        auth_id, secret = svc_manager.create_service_account(user.account)
+        vault.store_dict(self.vault_mount_point, f"{cluster_id}/echome", {'key': auth_id, 'secret': secret})
         
-        config = AppConfig()
         docker_client = docker.from_env()
         docker_client.containers.run(
-            'kubelauncher:0.4',
+            'kubelauncher:0.5',
             detach=True,
             environment=[
                 f"VAULT_TOKEN={token_info['auth']['client_token']}",
-                f"VAULT_ADDR={config.Vault().addr}",
+                f"VAULT_ADDR={ecHomeConfig.Vault().addr}",
                 f"VAULT_PATH={self.vault_mount_point}",
+                f"VAULT_SVC_KEY_PATH={self.vault_mount_point}/{cluster_id}/svckey",
+                f"VAULT_ADMIN_PATH={self.vault_mount_point}/{cluster_id}/admin",
                 f"CLUSTER_ID={cluster_id}",
-                f"SSH_PRIVATE_KEY={cluster_id}"
+                f"ECHOME_SERVER={ecHomeConfig.EcHome().api_url}",
+                f"ECHOME_MSG_API=/v1/service/msg"
+                f"ECHOME_AUTH_LOGIN_API=/v1/auth/api/login",
+                f"ECHOME_SVC_CREDS={self.vault_mount_point}/{cluster_id}/echome"
             ],
             volumes={
-                tmpfile: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
+                tmp_inv_file: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
+                rendered_tmp_cluster_file: {'bind': '/mnt/k8s-cluster.yaml', 'mode': 'rw'},
             }
         )
 
