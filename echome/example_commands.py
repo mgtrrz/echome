@@ -1,4 +1,4 @@
-from backend.user import UserManager, User
+from backend.user import UserManager, User, ServiceAccountManager
 from backend.id_gen import IdGenerator
 from backend.database import dbengine
 from backend.vnet import VirtualNetwork, InvalidNetworkType
@@ -121,7 +121,7 @@ def use_existing_network():
 
     user = check_existing_user()
     network = VirtualNetwork()
-    vnet = network.get_network("vnet-517d0ed2", user)
+    vnet = network.get_network("vnet-798db052", user)
 
     print(vnet)
     print(vnet.config)
@@ -158,10 +158,11 @@ def create_kube_cluster():
     kmanager.create_cluster(
         user=user,
         instance_size=Instance("standard", "medium"),
-        ips=["172.16.9.20", "172.16.9.21", "172.16.9.22"],
+        ips=["172.16.9.41", "172.16.9.42", "172.16.9.43"],
         image_id="gmi-d8cacd92",
         key_name="echome",
-        network_profile="home-network"
+        network_profile="home-network",
+        kubernetes_version="v1.19.9"
     )
 
 def update_kube_cluster():
@@ -202,5 +203,14 @@ def get_images():
     for image in images:
         print(image)
 
+def create_service_account():
+    svc_manager = ServiceAccountManager()
+    results = svc_manager.create_service_account("12345")
+    print(results)
 
-get_users()
+def check_if_service_account():
+    svc_manager = ServiceAccountManager()
+    val = svc_manager.get_service_account("user-d4193166")
+    print(val)
+
+create_kube_cluster()

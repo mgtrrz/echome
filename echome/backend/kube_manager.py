@@ -264,9 +264,9 @@ class KubeManager:
                 f"VAULT_ADMIN_PATH={self.vault_mount_point}/{cluster_id}/admin",
                 f"CLUSTER_ID={cluster_id}",
                 f"ECHOME_SERVER={ecHomeConfig.EcHome().api_url}",
-                f"ECHOME_MSG_API=/v1/service/msg"
+                f"ECHOME_MSG_API=/v1/service/msg",
                 f"ECHOME_AUTH_LOGIN_API=/v1/auth/api/login",
-                f"ECHOME_SVC_CREDS={self.vault_mount_point}/{cluster_id}/echome"
+                f"ECHOME_SVC_CREDS={self.vault_mount_point}/{cluster_id}/echome",
             ],
             volumes={
                 tmp_inv_file: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
