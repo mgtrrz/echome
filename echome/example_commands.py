@@ -6,6 +6,7 @@ from backend.vm_manager import VmManager
 from backend.instance_definitions import Instance
 from backend.kube_manager import KubeManager
 from backend.guest_image import ImageManager
+from backend.vault import Vault
 import json
 import logging
 
@@ -213,4 +214,11 @@ def check_if_service_account():
     val = svc_manager.get_service_account("user-d4193166")
     print(val)
 
-create_kube_cluster()
+def vault_check():
+    vault = Vault()
+    things = vault.list_keys("kubesvc", "kube-4c2b8fea")
+    print(json.dumps(things, indent=4))
+    print(vault.delete_kv_dir("kubesvc", "kube-4c2b8fea"))
+
+#create_kube_cluster()
+vault_check()

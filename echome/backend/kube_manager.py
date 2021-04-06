@@ -117,8 +117,7 @@ class KubeManager:
         # Delete Vault entries
         vault = Vault()
         vault.client.sys.delete_policy(f"kubesvc-{cluster_id}")
-
-        vault.delete_key(mount_point=self.vault_mount_point, path_name=cluster_id)
+        vault.delete_kv_dir(mount_point=self.vault_mount_point, path_name=cluster_id)
         
         cluster.delete()
         return True
