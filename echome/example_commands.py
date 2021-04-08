@@ -96,8 +96,12 @@ def get_users():
     user = check_existing_user()
     uman = UserManager()
     users = uman.get_all_users(user.account)
-    for user in users:
-        print(user)
+
+    auths = uman.get_user_aliases(user)
+    for auth in auths:
+        print(auth.auth_id)
+    # for user in users:
+    #     print(user)
 
 
 def create_new_network():
@@ -221,4 +225,4 @@ def vault_check():
     print(vault.delete_kv_dir("kubesvc", "kube-4c2b8fea"))
 
 #create_kube_cluster()
-vault_check()
+get_users()

@@ -521,19 +521,35 @@ def api_access_describe_caller():
 @app.route('/v1/access/describe/<user_id>', methods=['GET'])
 @jwt_required
 def api_access_describe_user(user_id):
-    user = return_calling_user()
+    calling_user = return_calling_user()
 
-    usermanager = UserManager()
-    usr = usermanager.get_user(user_id)
+    manager = UserManager()
+    usr = manager.get_user(user_id_or_username=user_id, account=calling_user.account)
     resp = []
-    resp.append({
-        "user_id": usr.user_id,
-        "username": usr.username,
-        "name": usr.name,
-        "created": usr.created,
-        "active": usr.active,
-        "tags": usr.tags
-    })
+    if usr:
+        # Also retrieve any Auth IDs related to this user
+        auths = []
+        aliases = manager.get_user_aliases(usr)
+        for auth in aliases:
+            print(auth.auth_id)
+            auths.append({
+                "auth_id": auth.auth_id,
+                "created": auth.created,
+                "active": auth.active,
+                "type": "Api"
+            })
+
+        resp.append({
+            "user_id": usr.user_id,
+            "username": usr.username,
+            "name": usr.name,
+            "created": usr.created,
+            "active": usr.active,
+            "tags": usr.tags,
+            "auth": auths,
+            "type": "User"
+        })
+
     
     return jsonify(resp)
 

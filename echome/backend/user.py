@@ -112,15 +112,32 @@ class User(Base):
     
 class UserManager():
 
-    def get_user(self, user_id:str=None, auth_id:str=None):
+    def get_user(self, user_id_or_username:str=None, auth_id:str=None, account:str=None):
         if auth_id:
             return dbengine.session.query(User).filter_by(
                 auth_id=auth_id
             ).first()
-        elif user_id:
-            return dbengine.session.query(User).filter_by(
-                user_id=user_id
-            ).first()
+        elif user_id_or_username:
+            if re.match(r"user-", user_id_or_username):
+                if account:
+                    return dbengine.session.query(User).filter_by(
+                        user_id=user_id_or_username,
+                        account=account
+                    ).first()
+                else:
+                    return dbengine.session.query(User).filter_by(
+                        user_id=user_id_or_username
+                    ).first()
+            else:
+                if account:
+                    return dbengine.session.query(User).filter_by(
+                        account=account,
+                        username=user_id_or_username
+                    ).first()
+                else:
+                    return dbengine.session.query(User).filter_by(
+                        username=user_id_or_username
+                    ).first()
         else:
             return False
     
@@ -131,10 +148,16 @@ class UserManager():
             ).all()
 
     def get_all_users(self, account:str, get_aliases=False):
-        return dbengine.session.query(User).filter(
+        results = dbengine.session.query(User).filter(
                 User.account == account,
                 User.user_id != None,
             ).all()
+        users = []
+        for user in results:
+            if user.is_service_account() is False:
+                users.append(user)
+        
+        return users
 
     def create_user(self, account:str, username:str, name:str, tags:dict, password:str=None):
         newUser = User(
