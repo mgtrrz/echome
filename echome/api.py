@@ -561,8 +561,11 @@ def api_access_create_user():
     if "Username" not in request.args:
         return {"error": "Username must be provided when creating a new user."}, 400
 
-    if "Name" not in request.args:
-        return {"error": "Name must be provided when creating a new user."}, 400
+    name = None
+    if "Name" in request.args:
+        if request.args["Name"].strip() == "":
+            return {"error": "Name cannot be blank."}, 400
+        name = request.args["Name"]
     
     tags = unpack_tags(request.args)
 
@@ -570,7 +573,7 @@ def api_access_create_user():
     new_user = usermanager.create_user(
         user.account, 
         request.args["Username"], 
-        request.args["Name"],
+        name,
         tags,
         request.args["Password"] if "Password" in request.args else None
     )
