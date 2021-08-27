@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   db:
@@ -10,18 +10,17 @@ services:
     volumes:
       - echome_postgres_data:/var/lib/postgresql/data/
     ports:
-      - 5432:5432
-  # web:
-  #   build: .
-  #   command: python /app/mfeed/manage.py runserver 0.0.0.0:8000
-  #   environment:
-  #     - DATABASE_URL=postgres://echome:echome@host.docker.internal:5432/echome
-  #   volumes:
-  #     - .:/code
-  #   ports:
-  #     - 8000:8000
-  #   depends_on:
-  #     - db
+      - 15432:5432
+  api:
+    build: .
+    environment:
+      - DATABASE_URL=postgres://echome:echome@host.docker.internal:15432/echome
+    volumes:
+      - .:/code
+    ports:
+      - 18000:8000
+    depends_on:
+      - db
 
 volumes:
   echome_postgres_data:

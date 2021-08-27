@@ -2,10 +2,11 @@
 FROM ubuntu:20.04
 
 ENV TZ=America/Central
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN apt update && apt upgrade -y
-RUN apt install python3-libvirt
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && apt install -y tzdata
+RUN apt install python3 python3-libvirt python3-dev python3-pip libpq-dev -y
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -18,8 +19,8 @@ WORKDIR /app
 COPY . /app/
 
 # Install dependencies
-RUN pip install pipenv
-#RUN pip install -r requirements.txt
-#COPY Pipfile Pipfile.lock /app/
-#COPY Pipfile /app/
-RUN pipenv install
+RUN pip install -r requirements-django.txt
+
+EXPOSE 8000
+
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "--chdir", "./echome" ,"echome.wsgi"]
