@@ -7,7 +7,7 @@ class Account(models.Model):
     name = models.CharField(max_length=40)
     created = models.DateTimeField(auto_now_add=True, null=False)
     secret = models.TextField()
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.account_id
@@ -18,7 +18,7 @@ class User(AbstractUser):
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
     secret = models.TextField()
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.user_id
@@ -29,7 +29,7 @@ class UserAccessAccounts(AbstractBaseUser):
     parent_user = models.ForeignKey(User, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
     secret = models.TextField()
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.auth_id
@@ -42,7 +42,7 @@ class ServerServiceAccounts(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=False)
     active = models.BooleanField(default=True)
     secret = models.TextField()
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.sa_id

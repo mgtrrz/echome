@@ -6,7 +6,7 @@ class HostMachines(models.Model):
     ip = models.GenericIPAddressField()
     created = models.DateTimeField(auto_now_add=True, null=False)
     location = models.CharField(max_length=40)
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.name
@@ -21,7 +21,7 @@ class UserKeys(models.Model):
     service_owner = models.CharField(max_length=40, null=True)
     fingerprint = models.TextField()
     public_key = models.TextField()
-    tags = models.JSONField()
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.name
@@ -38,8 +38,8 @@ class VirtualMachines(models.Model):
     interfaces = models.JSONField()
     storage = models.JSONField()
     key_name = models.CharField(max_length=50)
-    firewall_rules = models.JSONField()
-    tags = models.JSONField()
+    firewall_rules = models.JSONField(null=True)
+    tags = models.JSONField(null=True)
 
     def __str__(self) -> str:
         return self.instance_id
