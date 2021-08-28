@@ -15,8 +15,6 @@ services:
     build: .
     environment:
       - DATABASE_URL=postgres://echome:echome@host.docker.internal:15432/echome
-    volumes:
-      - .:/code
     ports:
       - 18000:8000
     depends_on:
