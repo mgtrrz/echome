@@ -1,4 +1,6 @@
+from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 class Account(models.Model):
     account_id = models.CharField(max_length=20, unique=True)
@@ -11,13 +13,10 @@ class Account(models.Model):
         return self.account_id
 
 
-class User(models.Model):
+class User(AbstractUser):
     user_id = models.CharField(max_length=20, unique=True)
-    name = models.CharField(max_length=40)
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
-    last_login = models.DateTimeField(auto_now=False, null=True)
-    active = models.BooleanField(default=True)
     secret = models.TextField()
     tags = models.JSONField()
 
@@ -25,13 +24,10 @@ class User(models.Model):
         return self.user_id
 
 
-class UserAccessAccounts(models.Model):
+class UserAccessAccounts(AbstractBaseUser):
     auth_id = models.CharField(max_length=20, unique=True)
-    name = models.CharField(max_length=40)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    parent_user = models.ForeignKey(User, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
-    last_login = models.DateTimeField(auto_now=False, null=True)
-    active = models.BooleanField(default=True)
     secret = models.TextField()
     tags = models.JSONField()
 
