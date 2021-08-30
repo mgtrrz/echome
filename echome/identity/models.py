@@ -29,7 +29,6 @@ class UserManager(BaseUserManager):
 
     def create_user(self, username, password=None, account=None):
         acct = Account.objects.get(account_id=account)
-        print(acct)
         if not acct:
             raise AccountNotFound
 
