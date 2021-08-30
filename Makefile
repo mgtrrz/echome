@@ -1,5 +1,8 @@
 UTIL_SERVICE := api
-DOCKER_COMPOSE := docker-compose -f docker-compose.yml
+DB_COMPOSE_FILE := docker-compose-local.yml
+COMPOSE_FILE := docker-compose.yml
+DOCKER_COMPOSE := docker-compose -f ${COMPOSE_FILE}
+DOCKER_COMPOSE_DB := docker-compose -f ${DB_COMPOSE_FILE}
 DOCKER_COMPOSE_EXEC := ${DOCKER_COMPOSE} exec ${UTIL_SERVICE}
 
 help:
@@ -10,6 +13,12 @@ ssh: ## Launch a shell in the container
 
 initdb: ## Initialize the database
 	${DOCKER_COMPOSE_EXEC} python echome/manage.py migrate
+
+dbstart: ## Start just the database
+	${DOCKER_COMPOSE_DB} up --build -d
+
+dbstop: ## Stop the database
+	${DOCKER_COMPOSE_DB} down
 
 dropdb: ## Drop the database
 	${DOCKER_COMPOSE_EXEC} python echome/manage.py reset_db --noinput
@@ -34,5 +43,5 @@ createsuperuser: ## Create a new Django admin superuser
 manageshell: ## Launch a Django shell
 	${DOCKER_COMPOSE_EXEC} python echome/manage.py shell
 
-.PHONY: ssh initdb dropdb resetdb clean start createsuperuser manageshell
+.PHONY: ssh dbstart dbstop initdb dropdb resetdb clean start createsuperuser manageshell
 .DEFAULT_GOAL := help
