@@ -26,10 +26,12 @@ class Command(BaseCommand):
         
         try:
             self.stdout.write(f"Creating access key for user: {user_id}")
-            newkey.user_id = user_id
+            newkey.parent_user_id = user_id
             key = newkey.generate_secret()
             newkey.save()
-            self.stdout.write(self.style.SUCCESS(f'Successfully created access key with secret: {key}'))
+            self.stdout.write(self.style.SUCCESS(f'Successfully created access key for user: {user_id}'))
+            self.stdout.write(f'Access ID: {newkey.access_id}')
+            self.stdout.write(f'Secret Key: {key}')
         except Exception as e:
             self.stdout.write(e)
             self.stderr.write('Error: There was an error when attempting to create the access key.')
