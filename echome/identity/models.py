@@ -8,10 +8,15 @@ import secrets
 class AttemptedOverrideOfImmutableIdException(Exception):
     pass
 
+class UserTypeNotSetException(Exception):
+    pass
+
 class AccountNotFound(Exception):
     pass
 
 class Account(models.Model):
+    # Unique identifier for this account.
+    # Designated by the "acct-" prefix.
     account_id = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=40)
     created = models.DateTimeField(auto_now_add=True, null=False)
@@ -55,11 +60,36 @@ class UserManager(BaseUserManager):
         return user
 
 class User(AbstractUser):
-    user_id = models.CharField(max_length=20, unique=True)
+
+    class Type(models.TextChoices):
+        REGULAR = 'RG', 'Regular'
+        ACCESS_KEY = 'AK', 'Access Key'
+        SERVICE = 'SR', 'Service'
+
+    # Unique identifier for this login.
+    # A primary or "main" user is designated by is_main = True and the "user-" prefix 
+    # while an access account is designated by is_main = False and with "auth-" prefix.
+    user_id = models.CharField(max_length=20, unique=True, db_index=True)
+
+    type = models.CharField(
+        max_length=2,
+        choices=Type.choices,
+        default=Type.REGULAR,
+    )
+
+    # Account this user belongs to
     account = models.ForeignKey(Account, on_delete=models.CASCADE, to_field="account_id")
+
     created = models.DateTimeField(auto_now_add=True, null=False)
+
+    # Possibly not needed
     secret = models.TextField(null=True)
+
+    # Tags for this user.
     tags = models.JSONField(default=dict)
+
+    # Parent user must be specified if type == ACCESS_KEY or SERVICE
+    parent = models.ForeignKey("self", on_delete=models.CASCADE, to_field="user_id", null=True)
 
     objects = UserManager()
 
@@ -67,59 +97,75 @@ class User(AbstractUser):
         'account'
     ]
 
+    # TODO: Investigate adding constraints 
+    # class Meta:
+    #     constraints = [
+    #         models.UniqueConstraint(fields=['is_main'], condition=Q(status=False), name='')
+    #     ]
+
     def generate_id(self):
         if self.user_id is None:
-            self.user_id = IdGenerator.generate("user")
+            if self.type == self.Type.REGULAR:
+                t = "user"
+            elif self.type == self.Type.ACCESS_KEY:
+                t = "auth"
+            elif self.type == self.Type.SERVICE:
+                t = "svc"
+            else:
+                raise UserTypeNotSetException
+            self.user_id = IdGenerator.generate(t)
         else:
             raise AttemptedOverrideOfImmutableIdException
+        
+        return self.user_id
 
     def __str__(self) -> str:
         return self.user_id
 
 
-class UserAccessAccounts(AbstractBaseUser):
-    access_id = models.CharField(max_length=20, unique=True)
-    parent_user = models.ForeignKey(User, on_delete=models.CASCADE, to_field="user_id")
-    created = models.DateTimeField(auto_now_add=True, null=False)
-    secret = models.TextField(null=True)
-    tags = models.JSONField(default=dict)
+# class UserAccessAccounts(AbstractBaseUser):
+#     access_id = models.CharField(max_length=20, unique=True)
+#     parent_user = models.ForeignKey(User, on_delete=models.CASCADE, to_field="user_id")
+#     created = models.DateTimeField(auto_now_add=True, null=False)
+#     secret = models.TextField(null=True)
+#     tags = models.JSONField(default=dict)
 
-    USERNAME_FIELD = 'access_id'
+#     USERNAME_FIELD = 'access_id'
 
-    REQUIRED_FIELDS = [
-        'parent_user'
-    ]
+#     REQUIRED_FIELDS = [
+#         'parent_user'
+#     ]
 
-    def generate_id(self):
-        if self.access_id is not None:
-            self.access_id = IdGenerator.generate("auth")
-        else:
-            raise AttemptedOverrideOfImmutableIdException
+#     def generate_id(self):
+#         if self.access_id is not None:
+#             self.access_id = IdGenerator.generate("auth")
+#         else:
+#             raise AttemptedOverrideOfImmutableIdException
     
-    def generate_secret(self, length=40):
-        alphabet = string.ascii_letters + string.digits
-        pw = ''.join(secrets.choice(alphabet) for i in range(length))
-        self.set_password(pw)
-        return pw
+#     def generate_secret(self, length=40):
+#         alphabet = string.ascii_letters + string.digits
+#         pw = ''.join(secrets.choice(alphabet) for i in range(length))
+#         self.set_password(pw)
+#         return pw
 
-    def __str__(self) -> str:
-        return self.access_id
+#     def __str__(self) -> str:
+#         return self.access_id
 
 
-class ServerServiceAccounts(models.Model):
-    sa_id = models.CharField(max_length=20, unique=True)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, to_field="account_id")
-    owner = models.CharField(max_length=40)
-    created = models.DateTimeField(auto_now_add=True, null=False)
-    active = models.BooleanField(default=True)
-    secret = models.TextField()
-    tags = models.JSONField(default=dict)
+# class ServerServiceAccounts(models.Model):
+#     sa_id = models.CharField(max_length=20, unique=True)
+#     account = models.ForeignKey(Account, on_delete=models.CASCADE, to_field="account_id")
+#     owner = models.CharField(max_length=40)
+#     created = models.DateTimeField(auto_now_add=True, null=False)
+#     active = models.BooleanField(default=True)
+#     secret = models.TextField()
+#     tags = models.JSONField(default=dict)
 
-    def generate_id(self):
-        if self.account_id is None:
-            self.account_id = IdGenerator.generate("auth")
-        else:
-            raise AttemptedOverrideOfImmutableIdException
+#     def generate_id(self):
+#         if self.account_id is None:
+#             self.account_id = IdGenerator.generate("auth")
+#         else:
+#             raise AttemptedOverrideOfImmutableIdException
 
-    def __str__(self) -> str:
-        return self.sa_id
+#     def __str__(self) -> str:
+#         return self.sa_id
