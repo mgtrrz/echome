@@ -60,15 +60,27 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
 
+    # Unique identifier for this login.
+    # A primary or "main" user is designated by the "user-" prefix and type REGULAR
+    # while an access account is designated with "auth-" prefix and the type ACCESS_KEY.
+    user_id = models.CharField(max_length=20, unique=True, db_index=True)
+
+    # User type: Identifies the type of user. A single user that interacts with ecHome
+    #   must have a REGULAR user at a minimum and can have multiple ACCESS_KEY 'users' associated
+    #   with the REGULAR user.
+    # REGULAR: A regular user identifies a person who can log in to the UI and has permissions 
+    #   set to make changes on the cluster. This type of user can also have Django's
+    #   superuser flag set which will allow them to make changes to the cluster.
+    #   Regular users/credentials cannot be used to obtain a token for the API; an Access
+    #   Key must be created instead.
+    # ACCESS_KEY: A user that is used for API access. This is not a unique user and instead
+    #   has a parent user which must be tied to a REGULAR user. 
+    # SERVICE: A user that is created by ecHome for making changes on behalf of the
+    #   account. Users do not see this type.
     class Type(models.TextChoices):
         REGULAR = 'RG', 'Regular'
         ACCESS_KEY = 'AK', 'Access Key'
         SERVICE = 'SR', 'Service'
-
-    # Unique identifier for this login.
-    # A primary or "main" user is designated by is_main = True and the "user-" prefix 
-    # while an access account is designated by is_main = False and with "auth-" prefix.
-    user_id = models.CharField(max_length=20, unique=True, db_index=True)
 
     type = models.CharField(
         max_length=2,
