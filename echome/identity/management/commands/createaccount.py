@@ -1,40 +1,40 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.core import exceptions
 from django.utils.text import capfirst
-from identity.models import UserAccessAccounts
+from identity.models import Account
 
 class Command(BaseCommand):
-    help = 'Create an echome user access key and secret.'
+    help = 'Create an echome account'
+
+    # def add_arguments(self, parser):
+    #     parser.add_argument('poll_ids', nargs='+', type=int)
 
     def handle(self, *args, **options):
-        newkey = UserAccessAccounts()
-        newkey.generate_id()
+        newacct = Account()
+        newacct.generate_id()
 
-        user_id_field = UserAccessAccounts._meta.get_field('parent_user')
-        verbose_field_name = user_id_field.verbose_name
-        user_id = None
+        accountname = Account._meta.get_field('name')
+        verbose_field_name = accountname.verbose_name
+        name = None
         
-        while user_id is None:
-            message = self._get_input_message(user_id_field)
-            user_id = self.get_input_data(user_id_field, message)
-            if user_id:
-                error_msg = self._validate_acctname(user_id, verbose_field_name)
+        while name is None:
+            message = self._get_input_message(accountname)
+            name = self.get_input_data(accountname, message)
+            if name:
+                error_msg = self._validate_acctname(name, verbose_field_name)
                 if error_msg:
                     self.stderr.write(error_msg)
-                    user_id = None
+                    name = None
                     continue
         
         try:
-            self.stdout.write(f"Creating access key for user: {user_id}")
-            newkey.parent_user_id = user_id
-            key = newkey.generate_secret()
-            newkey.save()
-            self.stdout.write(self.style.SUCCESS(f'Successfully created access key for user: {user_id}'))
-            self.stdout.write(f'Access ID: {newkey.access_id}')
-            self.stdout.write(f'Secret Key: {key}')
+            newacct.name = name
+            self.stdout.write(f"Creating account '{name}' with account id: {newacct.account_id}")
+            newacct.save()
+            self.stdout.write(self.style.SUCCESS('Successfully created account'))
         except Exception as e:
             self.stdout.write(e)
-            self.stderr.write('Error: There was an error when attempting to create the access key.')
+            self.stderr.write('Error: There was an error when attempting to create the account.')
     
     def get_input_data(self, field, message, default=None):
         """

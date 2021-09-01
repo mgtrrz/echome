@@ -1,41 +1,53 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.core import exceptions
 from django.utils.text import capfirst
-from identity.models import Account
+from identity.models import User, Account
 
 class Command(BaseCommand):
-    help = 'Create an echome account'
-
-    # def add_arguments(self, parser):
-    #     parser.add_argument('poll_ids', nargs='+', type=int)
+    help = 'Create an echome user access key and secret.'
 
     def handle(self, *args, **options):
-        newacct = Account()
-        newacct.generate_id()
+        newkey = User()
 
-        accountname = Account._meta.get_field('name')
-        verbose_field_name = accountname.verbose_name
-        print(accountname)
-        name = None
+        newkey.type = User.Type.ACCESS_KEY
+        newkey.generate_id()
+
+        parent_field = User._meta.get_field('parent')
+        verbose_field_name = parent_field.verbose_name
+        parent_user_id = None
         
-        while name is None:
-            message = self._get_input_message(accountname)
-            name = self.get_input_data(accountname, message)
-            if name:
-                error_msg = self._validate_acctname(name, verbose_field_name)
+        while parent_user_id is None:
+            message = self._get_input_message(parent_field)
+            parent_user_id = self.get_input_data(parent_field, message)
+            if parent_user_id:
+                error_msg = self._validate_acctname(parent_user_id, verbose_field_name)
                 if error_msg:
                     self.stderr.write(error_msg)
-                    name = None
+                    parent_user_id = None
                     continue
         
+        # Setting parent user
+        newkey.parent = User.objects.get(user_id=parent_user_id)
+        if newkey.parent is None:
+            self.stderr.write('Error: No user found with that ID.')
+            exit(1)
+        
+        # Setting account based off parent user's account
+        newkey.account = Account.objects.get(account_id=newkey.parent.account_id)
+
+        # Setting the username the same as the user_id
+        newkey.username = newkey.user_id
+
         try:
-            self.stdout.write(f"Creating account with account id {newacct.account_id}")
-            newacct.name = name
-            newacct.save()
-            self.stdout.write(self.style.SUCCESS('Successfully created account'))
+            self.stdout.write(f"Creating access key for user: {parent_user_id}")
+            key = newkey.generate_secret()
+            newkey.save()
+            self.stdout.write(self.style.SUCCESS(f'Successfully created access key for user: {parent_user_id}'))
+            self.stdout.write(f'Access ID: {newkey.user_id}')
+            self.stdout.write(f'Secret Key: {key}')
         except Exception as e:
             self.stdout.write(e)
-            self.stderr.write('Error: There was an error when attempting to create the account.')
+            self.stderr.write('Error: There was an error when attempting to create the access key.')
     
     def get_input_data(self, field, message, default=None):
         """
