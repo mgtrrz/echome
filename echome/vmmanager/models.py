@@ -1,18 +1,18 @@
 from django.db import models
 
 class HostMachines(models.Model):
-    host_id = models.CharField(max_length=20, unique=True)
+    host_id = models.CharField(max_length=20, unique=True, db_index=True)
     name = models.CharField(max_length=40)
     ip = models.GenericIPAddressField()
     created = models.DateTimeField(auto_now_add=True, null=False)
-    location = models.CharField(max_length=40)
-    tags = models.JSONField(null=True)
+    metadata = models.JSONField(default=dict)
+    tags = models.JSONField(default=dict)
 
     def __str__(self) -> str:
         return self.name
 
 class UserKeys(models.Model):
-    key_id = models.CharField(max_length=20, unique=True)
+    key_id = models.CharField(max_length=20, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
@@ -21,13 +21,13 @@ class UserKeys(models.Model):
     service_owner = models.CharField(max_length=40, null=True)
     fingerprint = models.TextField()
     public_key = models.TextField()
-    tags = models.JSONField(null=True)
+    tags = models.JSONField(default=dict)
 
     def __str__(self) -> str:
         return self.name
 
 class VirtualMachines(models.Model):
-    instance_id = models.CharField(max_length=20, unique=True)
+    instance_id = models.CharField(max_length=20, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
@@ -39,7 +39,7 @@ class VirtualMachines(models.Model):
     storage = models.JSONField()
     key_name = models.CharField(max_length=50)
     firewall_rules = models.JSONField(null=True)
-    tags = models.JSONField(null=True)
+    tags = models.JSONField(default=dict)
 
     def __str__(self) -> str:
         return self.instance_id
