@@ -1,11 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from echome.id_gen import IdGenerator
+from echome.exceptions import AttemptedOverrideOfImmutableIdException
 import string
 import secrets
-
-class AttemptedOverrideOfImmutableIdException(Exception):
-    pass
 
 class UserTypeNotSetException(Exception):
     pass
