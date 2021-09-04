@@ -1,12 +1,16 @@
+from django.core import exceptions
 import sshpubkeys
 import logging
 from django.db import models
+from django.core.exceptions import ObjectDoesNotExist
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 from echome.id_gen import IdGenerator
 from identity.models import User
+
+logger = logging.getLogger(__name__)
 
 class HostMachines(models.Model):
     host_id = models.CharField(max_length=20, unique=True, db_index=True)
@@ -32,11 +36,10 @@ class UserKeys(models.Model):
     tags = models.JSONField(default=dict)
 
     def generate_sshkey(self, user:User, key_name:str, service_key=False):
-        if self.name is not None or self.name != "":
-            self.key_id = IdGenerator.generate("key")
-        else:
-            raise AttemptedOverrideOfImmutableIdException
-
+        """
+        Generate an SSH key to save in the database.
+        The private key is returned and not saved in the database.
+        """
         key = rsa.generate_private_key(
             backend=crypto_default_backend(), 
             public_exponent=65537, 
@@ -72,48 +75,56 @@ class UserKeys(models.Model):
             raise AttemptedOverrideOfImmutableIdException
     
     def store_key(self, user:User, key_name:str, public_key:str):
-        # Check to make sure that we haven't already imported this key by
-        # checking its MD5
+        """
+        Store a public key and fingerprint in the database
+        """
+
+        # Generate an MD5 with the provided public key
         sshkey_obj = sshpubkeys.SSHKey(public_key)
         new_md5 = sshkey_obj.hash_md5()
 
-        # Check if the key with this KeyName already exists
-        try_key = UserKeys.objects.get(
-            account=user.account,
-            name=key_name
-        )
-
-        try_key = dbengine.session.query(KeyObject).filter_by(
-            account=User.account,
-            key_name=KeyName
-        ).first()
-        if try_key:
-            logging.error(f"Key with that name already exists. key_name={KeyName}")
+        # Check if the key with this KeyName already exists (unique
+        # for an account)
+        try:
+            try_key = UserKeys.objects.get(
+                account=user.account,
+                name=key_name
+            )
+        except ObjectDoesNotExist:
+            pass
+        else:
+            logger.error(f"Key with that name already exists. key_name={key_name}")
             raise KeyNameAlreadyExists(f"Key with that name already exists.")
-            
-        try_key = dbengine.session.query(KeyObject).filter_by(
-            account=User.account,
-            fingerprint=new_md5
-        ).first()
-        if try_key:
-            logging.error(f"Key with that fingerprint already exists. key_name={KeyName}")
-            raise PublicKeyAlreadyExists(f"Key with that fingerprint already exists.")
+        
+        # Check to make sure that we haven't already imported this 
+        # key by checking its MD5
+        try:
+            try_key = UserKeys.objects.get(
+                account=user.account,
+                fingerprint=new_md5
+            )
+        except ObjectDoesNotExist:
+            pass
+        else:
+            logger.error(f"Key with that fingerprint already exists. key_name={key_name}")
+            raise KeyNameAlreadyExists(f"Key with that fingerprint already exists.")
 
-        newkey = KeyObject(
-            account = User.account,
-            key_id = IdGenerator.generate("key"),
-            account_user = User.user_id,
-            key_name = KeyName,
-            fingerprint = new_md5,
-            public_key = PublicKey
-        )
+        self.generate_id()
+        self.account = user.account
+        self.name = key_name
+        self.fingerprint = new_md5
+        self.public_key = public_key
 
-        newkey.commit()
-        return {
-            "key_name": KeyName,
-            "key_id": newkey.key_id,
-            "fingerprint": newkey.fingerprint,
-        }
+        try:
+            self.save()
+            return {
+                "key_name": key_name,
+                "key_id": self.key_id,
+                "fingerprint": new_md5,
+            }
+        except Exception as e:
+            logger.error("Could not save new key to database!")
+            raise e
 
     def __str__(self) -> str:
         return self.key_id
