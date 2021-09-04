@@ -1,9 +1,14 @@
+import logging
 from django.shortcuts import render
 from django.http.response import JsonResponse
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from api.api_view import View
 from .instance_definitions import Instance, InvalidInstanceType
+from django.core.exceptions import ObjectDoesNotExist
+from .models import UserKeys
+
+logger = logging.getLogger(__name__)
 
 ####################
 # Namespace: vm 
@@ -44,14 +49,17 @@ class CreateVM(View):
         key_name = None
         if "KeyName" in request.POST:
             try:
-                KeyStore().get(user, request.args["KeyName"])
-                key_name = request.args["KeyName"]
-            except KeyDoesNotExist:
+                key = UserKeys.objects.get(
+                    account=request.user.account,
+                    name=request.POST["KeyName"]
+                )
+                key_name = request.POST["KeyName"]
+            except ObjectDoesNotExist:
                 return {"error": "Provided KeyName does not exist."}, 400
 
         try:
             vm_id = vm.create_vm(
-                user=user, 
+                user=request.user, 
                 instanceType=instanceDefinition, 
                 Tags=tags,
                 KeyName=key_name,
@@ -61,13 +69,13 @@ class CreateVM(View):
                 DiskSize=disk_size    
             )
         except InvalidLaunchConfiguration as e:
-            logging.debug(e)
+            logger.debug(e)
             return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400
         except LaunchError as e:
-            logging.error(e)
+            logger.error(e)
             return {"error": "There was an error when creating the instance."}, 500
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             return {"error": "There was an error when processing the request."}, 500
                 
         return JsonResponse({"vm_id": vm_id})
