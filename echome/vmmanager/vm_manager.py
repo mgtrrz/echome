@@ -24,6 +24,8 @@ from identity.models import User
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+logger = logging.getLogger(__name__)
+
 KNOWN_CONTENT_TYPES = [
     'text/x-include-once-url',
     'text/x-include-url',
