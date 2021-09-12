@@ -8,11 +8,11 @@ import random
 import shutil
 import time
 import json
-import datetime
+# import datetime
 import yaml
 import xmltodict
-import platform
-import psutil
+# import platform
+# import psutil
 from .instance_definitions import Instance
 from echome.id_gen import IdGenerator
 from images.models import GuestImage, UserImage, ImageManager, InvalidImageId
