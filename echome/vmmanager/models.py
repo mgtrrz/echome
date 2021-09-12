@@ -1,5 +1,4 @@
 from django.core import exceptions
-from sqlalchemy.sql.sqltypes import Boolean
 import sshpubkeys
 import logging
 from django.db import models
@@ -161,26 +160,6 @@ class InstanceDefinition(models.Model):
 
     def __str__(self) -> str:
         return self.instance_id
-
-
-class BaseImage(models.Model):
-    image_id = models.CharField(max_length=20, unique=True, db_index=True)
-    account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id", null=True)
-    created = models.DateTimeField(auto_now_add=True, null=False)
-    last_modified = models.DateTimeField(auto_now=True)
-    
-    image_path = models.CharField()
-    name = models.CharField()
-    description = models.CharField()
-    host = models.ForeignKey(HostMachines, on_delete=models.CASCADE)
-
-    minimum_requirements = models.JSONField(default=dict)
-    image_metadata = models.JSONField(default=dict)
-    deactivated = models.JSONField(Boolean, default=False)
-    tags = models.JSONField(default=dict)
-
-    def __str__(self) -> str:
-        return self.image_id
 
 class KeyDoesNotExist(Exception):
     pass
