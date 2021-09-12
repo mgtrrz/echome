@@ -2,46 +2,7 @@ import logging
 import os.path
 from echome.id_gen import IdGenerator
 from identity.models import User
-from .commander import QemuImg
-
-Base = declarative_base()
-
-class BaseImage(Base):
-    imageType = None
-    __tablename__ = "guest_images"
-
-    id = Column(Integer, primary_key=True)
-    account = Column(String(20), nullable=True)
-    created = Column(DateTime(), nullable=False, server_default=func.now())
-    guest_image_id = Column(String(20), unique=True)
-    guest_image_path = Column(String(), nullable=False)
-    name = Column(String())
-    description = Column(String())
-    host = Column(String(50))
-    minimum_requirements = Column(JSONB)
-    guest_image_metadata = Column(JSONB)
-    deactivated = Column(Boolean, default=False)
-    tags = Column(JSONB)
-
-    def commit(self):
-        dbengine.session.commit()
-
-    def add(self):
-        dbengine.session.add(self)
-        dbengine.session.commit()
-
-    def __str__(self):
-        return self.name
-
-
-class GuestImage(BaseImage):
-    imageType = "guest"
-    __tablename__ = "guest_images"
-
-class UserImage(BaseImage):
-    imageType = "user"
-    __tablename__ = "guest_images"
-
+from echome.commander import QemuImg
 
 
 class ImageManager:

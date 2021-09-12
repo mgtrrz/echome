@@ -18,7 +18,7 @@ from echome.id_gen import IdGenerator
 from .guest_image import GuestImage, UserImage, ImageManager, InvalidImageId
 from .vnet import VirtualNetwork, VirtualNetworkObject
 from .config import ecHomeConfig
-from .commander import QemuImg
+from echome.commander import QemuImg
 from .models import UserKeys, KeyDoesNotExist
 from identity.models import User
 from email.mime.multipart import MIMEMultipart

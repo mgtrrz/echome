@@ -35,6 +35,7 @@ ALLOWED_HOSTS = ['*']
 INSTALLED_APPS = [
     'api.apps.ApiConfig',
     'identity.apps.IdentityConfig',
+    'images.apps.ImagesConfig',
     'vmmanager.apps.VmManagerConfig',
     'django.contrib.admin',
     'django.contrib.auth',
