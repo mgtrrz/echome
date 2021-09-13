@@ -19,6 +19,20 @@ services:
       - 18000:8000
     depends_on:
       - db
+  vault:
+    image: "vault:1.8.2"
+    ports:
+      - "8200:8200"
+    restart: always
+    environment:
+      - 'VAULT_LOCAL_CONFIG={"backend": {"file": {"path": "/vault/file"}}, "default_lease_ttl": "168h", "max_lease_ttl": "720h"}'
+    volumes:
+      - echome_vault_data:/vault/
+    cap_add:
+      - IPC_LOCK
+    command: vault server
+
 
 volumes:
-  echome_postgres_data:
+  echome_postgres_data: []
+  echome_vault_data: []
