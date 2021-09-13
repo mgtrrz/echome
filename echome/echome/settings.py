@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'images.apps.ImagesConfig',
     'kube.apps.KubeConfig',
     'network.apps.NetworkConfig',
+    'vault.apps.VaultConfig',
     'vmmanager.apps.VmManagerConfig',
     'django.contrib.admin',
     'django.contrib.auth',

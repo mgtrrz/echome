@@ -1,9 +1,16 @@
 import logging
+import docker
 from django.db import models
-from echome.id_gen import IdGenerator
 from identity.models import User
 from vmmanager.instance_definitions import Instance
+from vmmanager.vm_manager import VmManager
+from vmmanager.models import UserKeys
+from echome.id_gen import IdGenerator
+from echome.config import ecHomeConfig
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
+from vault.vault import Vault
+
+logger = logging.getLogger(__name__)
 
 class KubeCluster(models.Model):
     cluster_id = models.CharField(max_length=20, unique=True, db_index=True)
@@ -53,7 +60,7 @@ class KubeCluster(models.Model):
             conf = vault.get_secret(self.vault_mount_point, f"{cluster_id}/admin")
             conf = conf["data"]["data"]["admin.conf"]
         except Exception:
-            logging.debug(f"Could not extract config from Vault for {cluster_id}/admin")
+            logger.debug(f"Could not extract config from Vault for {cluster_id}/admin")
             raise ServerError("Could not retrieve config for specified cluster.")
         
         return conf
@@ -67,11 +74,11 @@ class KubeCluster(models.Model):
         self.update_cluster_status(cluster, "DELETING")
 
         vmanager = VmManager()
-        logging.debug(f"Terminating primary controller: {cluster.primary_controller}")
+        logger.debug(f"Terminating primary controller: {cluster.primary_controller}")
         vmanager.terminateInstance(user, cluster.primary_controller)
-        logging.debug("Terminating nodes..")
+        logger.debug("Terminating nodes..")
         for inst in cluster.assoc_instances:
-            logging.debug(f"..node {inst}")
+            logger.debug(f"..node {inst}")
             vmanager.terminateInstance(user, inst)
 
         # Delete Vault entries
@@ -88,9 +95,9 @@ class KubeCluster(models.Model):
         image_user="ubuntu", image_ssh_port="22", tags={}):
 
         cluster_id = IdGenerator().generate("kube", 8)
-        logging.debug(f"Generated cluster id {cluster_id}")
+        logger.debug(f"Generated cluster id {cluster_id}")
         service_key_name = IdGenerator().generate("svc-kube", 12)
-        logging.debug(f"Creating Service key {service_key_name}")
+        logger.debug(f"Creating Service key {service_key_name}")
 
         # Create a new service key for ansible to install/setup the cluster
         kstore = KeyStore()
@@ -101,7 +108,7 @@ class KubeCluster(models.Model):
         vault.store_sshkey(self.vault_mount_point, f"{cluster_id}/svckey", key["PrivateKey"])
 
         # Generate the inventory file for Ansible
-        logging.debug("Creating inventory file")
+        logger.debug("Creating inventory file")
         inv = "[all:vars]\n"
         inv += f"ansible_user = {image_user}\n"
         inv += f"ansible_port = {image_ssh_port}\n\n"
@@ -127,7 +134,7 @@ class KubeCluster(models.Model):
         inv += "kube-master\n"
         inv += "kube-node\n"
 
-        logging.debug(inv)
+        logger.debug(inv)
 
         tmp_inv_file = f"/tmp/{cluster_id}_inventory.ini"
         with open(tmp_inv_file, "w") as file:

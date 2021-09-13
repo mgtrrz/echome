@@ -1,7 +1,7 @@
 import time
 import logging
 import hvac
-from backend.config import AppConfig
+from echome.config import AppConfig
 
 class Vault:
     client = None
