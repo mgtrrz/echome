@@ -71,7 +71,7 @@ class KubeCluster(models.Model):
         if not cluster:
             raise ClusterDoesNotExist()
 
-        self.update_cluster_status(cluster, "DELETING")
+        self.status = self.Status.DELETING
 
         vmanager = VmManager()
         logger.debug(f"Terminating primary controller: {cluster.primary_controller}")
@@ -145,7 +145,7 @@ class KubeCluster(models.Model):
         source_template_cluster_yaml = f"{ecHomeConfig.EcHome().base_dir}/templates/kube/k8s-cluster.yaml"
         rendered_tmp_cluster_file = f"/tmp/{cluster_id}_k8s_cluster.yaml"
         with open(source_template_cluster_yaml, "r") as template_file:
-            template_contents = string.Template(template_file.read())
+            template_contents = str.Template(template_file.read())
             cluster_yaml_render = template_contents.substitute({
                 'KUBERNETES_VERSION': kubernetes_version,
                 'KUBERNETES_SERVICE_ADDRESSES': "10.233.0.0/18",

@@ -6,7 +6,7 @@ ENV TZ=America/Central
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y tzdata
-RUN apt install python3 python3-libvirt python3-dev python3-pip libpq-dev -y
+RUN apt install python3 python3-libvirt python3-dev python3-pip libpq-dev pkg-config -y
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
