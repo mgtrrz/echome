@@ -144,6 +144,12 @@ class VirtualMachines(models.Model):
     firewall_rules = models.JSONField(null=True)
     tags = models.JSONField(default=dict)
 
+    def generate_id(self):
+        if self.instance_id is None or self.instane_id == "":
+            self.instance_id = IdGenerator.generate("vm")
+        else:
+            raise AttemptedOverrideOfImmutableIdException
+
     def __str__(self) -> str:
         return self.instance_id
 
