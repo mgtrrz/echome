@@ -15,8 +15,8 @@ import xmltodict
 # import psutil
 from .instance_definitions import Instance
 from echome.id_gen import IdGenerator
-from images.models import GuestImage, UserImage, ImageManager, InvalidImageId
-from .vnet import VirtualNetwork, VirtualNetworkObject
+from images.models import GuestImage, UserImage, InvalidImageId
+from network.models import VirtualNetwork
 from echome.config import ecHomeConfig
 from echome.commander import QemuImg
 from .models import UserKeys, KeyDoesNotExist
@@ -344,7 +344,7 @@ class VmManager:
         print(f"Successfully created VM: {vm_id} : {vmdir}")
         return vm_id
     
-    def _generate_cloudinit_network_config(self, vnet: VirtualNetworkObject, priv_ip_addr=None):
+    def _generate_cloudinit_network_config(self, vnet: VirtualNetwork, priv_ip_addr=None):
         """Generate Cloudinit network config yaml
         Generates a network cloudinit config. This is meant to be used for BridgeToLan VMs
         where network information isn't set at VM build time but must instead be determined/
@@ -353,15 +353,18 @@ class VmManager:
         interfaces, or possibly set through the metadata api.
         :param vnet: VirtualNetwork object where the virtual machine will be launched in. The vnet
             object will fill in details such as the gateway and DNS servers.
-        :type vnet: VirtualNetworkObject
+        :type vnet: VirtualNetwork
         :param priv_ip_addr: Private IP address, defaults to None. If an IP address is not provided
             dhcp4 will be set to True. The Private IP address is not tested if it's valid for this
             network, please perform the check before calling this function.
         :type priv_ip_addr: str, optional
         :return: Cloudinit yaml 
         :rtype: str
-        """        
-        if vnet.type != "BridgeToLan":
+        """
+
+        # Right now, this only works for bridge interfaces
+        # When we get NAT working, we'll check for it here too
+        if vnet.type != VirtualNetwork.Type.BRIDGE_TO_LAN:
             # Other network types should use the metadata API
             logging.debug("Tried to create cloudinit network config for non-BridgeToLan VM")
             return
@@ -479,9 +482,9 @@ class VmManager:
         
         return VmId
     
-    # Required: VmId, XmlTemplate, vnet:VirtualNetworkObject, Cpu, Memory, VmImg
+    # Required: VmId, XmlTemplate, vnet:VirtualNetwork, Cpu, Memory, VmImg
     # Optional: CloudInitIso
-    def _generate_xml_template(self, VmId, XmlTemplate, vnet: VirtualNetworkObject, **kwargs):
+    def _generate_xml_template(self, VmId, XmlTemplate, vnet: VirtualNetwork, **kwargs):
         """Generates the XML template for use with defining in libvirt.
         This function at the moment utilizes "template" XML documents in the `xml_templates`
         directory. Template() is then used to fill in variables in the XML documents to
@@ -492,7 +495,7 @@ class VmManager:
         :param XmlTemplate: This is the name of the xml template to use from the `xml_templates` directory.
         :type XmlTemplate: str
         :param vnet: Virtual Network object for determining if a bridge interface should be used.
-        :type vnet: VirtualNetworkObject
+        :type vnet: VirtualNetwork
         :key Cpu: Number of CPUs (threads) to set for this virtual machine
         :type Cpu: str
         :key Memory: Memory value for the virtual machine. Values would be anything that libvirt accepts, 512M, 4G, etc.

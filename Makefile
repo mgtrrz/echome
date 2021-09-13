@@ -9,10 +9,10 @@ help:
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 ssh: ## Launch a shell in the container
-	${DOCKER_COMPOSE_EXEC} sh
+	${DOCKER_COMPOSE_EXEC} bash
 
 initdb: ## Initialize the database
-	${DOCKER_COMPOSE_EXEC} python echome/manage.py migrate
+	${DOCKER_COMPOSE_EXEC} python3 echome/manage.py migrate
 
 dbstart: ## Start just the database
 	${DOCKER_COMPOSE_DB} up --build -d
@@ -21,7 +21,7 @@ dbstop: ## Stop the database
 	${DOCKER_COMPOSE_DB} down
 
 dropdb: ## Drop the database
-	${DOCKER_COMPOSE_EXEC} python echome/manage.py reset_db --noinput
+	${DOCKER_COMPOSE_EXEC} python3 echome/manage.py reset_db --noinput
 
 resetdb: ## Reset the database
 	make dropdb
@@ -38,10 +38,13 @@ stop: ## Stop the app
 	@${DOCKER_COMPOSE} down
 
 createsuperuser: ## Create a new Django admin superuser
-	${DOCKER_COMPOSE_EXEC} python echome/manage.py createsuperuser
+	${DOCKER_COMPOSE_EXEC} python3 echome/manage.py createsuperuser
 
 manageshell: ## Launch a Django shell
-	${DOCKER_COMPOSE_EXEC} python echome/manage.py shell
+	${DOCKER_COMPOSE_EXEC} python3 echome/manage.py shell
+
+manage: ## Pass a manage command to Django cmd="do something"
+	${DOCKER_COMPOSE_EXEC} python3 echome/manage.py $(cmd)
 
 .PHONY: ssh dbstart dbstop initdb dropdb resetdb clean start createsuperuser manageshell
 .DEFAULT_GOAL := help
