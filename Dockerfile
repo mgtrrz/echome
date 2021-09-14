@@ -12,14 +12,16 @@ RUN apt install python3 python3-libvirt python3-dev python3-pip libpq-dev pkg-co
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+# Install dependencies
+RUN pip install -r requirements.txt
+
 # Set work directory
 WORKDIR /app
 
 # Copy project
 COPY . /app/
 
-# Install dependencies
-RUN pip install -r requirements.txt
+#RUN pip install -r requirements.txt
 
 EXPOSE 8000
 
