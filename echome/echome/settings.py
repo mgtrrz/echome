@@ -33,6 +33,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'django_extensions',
     'api.apps.ApiConfig',
     'identity.apps.IdentityConfig',
     'images.apps.ImagesConfig',
