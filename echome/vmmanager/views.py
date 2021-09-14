@@ -1,19 +1,19 @@
 import logging
 from django.shortcuts import render
 from django.http.response import JsonResponse
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from api.api_view import View
 from .instance_definitions import Instance, InvalidInstanceType
-from django.core.exceptions import ObjectDoesNotExist
 from .models import UserKeys
+from .vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 
 logger = logging.getLogger(__name__)
 
 ####################
 # Namespace: vm 
 # vm/
-1
 # /vm/create
 # Example command:
 # curl <URL>/v1/vm/create\?ImageId=gmi-fc1c9a62 \
@@ -56,6 +56,8 @@ class CreateVM(View):
                 key_name = request.POST["KeyName"]
             except ObjectDoesNotExist:
                 return {"error": "Provided KeyName does not exist."}, 400
+
+        vm = VmManager()
 
         try:
             vm_id = vm.create_vm(

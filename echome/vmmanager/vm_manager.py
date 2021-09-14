@@ -13,16 +13,16 @@ import yaml
 import xmltodict
 # import platform
 # import psutil
-from .instance_definitions import Instance
-from echome.id_gen import IdGenerator
-from images.models import GuestImage, UserImage, InvalidImageId
-from network.models import VirtualNetwork
-from echome.config import ecHomeConfig
-from echome.commander import QemuImg
-from .models import UserKeys, KeyDoesNotExist
-from identity.models import User
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from echome.id_gen import IdGenerator
+from echome.config import ecHomeConfig
+from echome.commander import QemuImg
+from identity.models import User
+from images.models import GuestImage, UserImage, InvalidImageId
+from network.models import VirtualNetwork
+from .models import UserKeys, KeyDoesNotExist
+from .instance_definitions import Instance
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class VmManager:
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
-        self.db = Database()
+        #self.db = Database()
 
     def getConnection(self):
         return self.currentConnection
@@ -108,23 +108,23 @@ class VmManager:
         :rtype: str
         """
         # Create the vm id to pass into the other functions
-        logging.debug("Generating vm-id")
+        logger.debug("Generating vm-id")
         vm_id = IdGenerator.generate()
         self.vm_id_in_process = vm_id
-        logging.info(f"Generated vm-id: {vm_id}")
+        logger.info(f"Generated vm-id: {vm_id}")
 
         try:
             result = self._create_virtual_machine(user, vm_id, instanceType, **kwargs)
         except InvalidLaunchConfiguration as e:
-            logging.error(f"Launch Configuration error: {e}")
+            logger.error(f"Launch Configuration error: {e}")
             self._clean_up(user, vm_id)
             raise InvalidLaunchConfiguration(e)
         except LaunchError as e:
-            logging.error(f"Launch error: {e}")
+            logger.error(f"Launch error: {e}")
             self._clean_up(user, vm_id)
             raise LaunchError(e)
         except Exception as e:
-            logging.error(f"Encountered other error: {e}")
+            logger.error(f"Encountered other error: {e}")
             raise Exception(e) from e
         
         return result
@@ -141,7 +141,7 @@ class VmManager:
         vm_id, used to uniquely identify the new VM.
         """        
 
-        logging.debug(kwargs)
+        logger.debug(kwargs)
 
         # Creating the directory for the virtual machine
         vmdir = self.__generate_vm_path(user.account, vm_id)
@@ -165,7 +165,7 @@ class VmManager:
         cloudinit_iso_path = None
         # Cloud-init
         if vnet.type == "BridgeToLan":
-            logging.debug("New virtual machine is using vnet type BridgeToLan")
+            logger.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
             if private_ip and not vnet.validate_ip(kwargs["PrivateIp"]):
                 raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
@@ -173,27 +173,27 @@ class VmManager:
             # Generate the Cloudinit Networking config
             network_cloudinit_config = self._generate_cloudinit_network_config(vnet, private_ip)
             network_yaml_file_path = f"{vmdir}/network.yaml"
-            logging.debug(f"Network cloudinit file path: {network_yaml_file_path}")
+            logger.debug(f"Network cloudinit file path: {network_yaml_file_path}")
 
             # create the file
             with open(network_yaml_file_path, "w") as filehandle:
-                logging.debug("Writing cloudinit yaml: network.yaml")
+                logger.debug("Writing cloudinit yaml: network.yaml")
                 filehandle.write(network_cloudinit_config)
         
             # Like with Networking above, BridgeToLan uses ISOs to set cloudinit stuff.
             # Other networking types should use the metadata API.
-            logging.debug("Determining if KeyName is present.")
+            logger.debug("Determining if KeyName is present.")
             pub_key = None
             key_dict = None
             if "KeyName" in kwargs and kwargs["KeyName"] is not None:
-                logging.debug(f"Checking KeyName: {kwargs['KeyName']}.")
+                logger.debug(f"Checking KeyName: {kwargs['KeyName']}.")
                 try:
                     #key_meta = KeyStore.get_key(user, kwargs["KeyName"])
                     keyObj = KeyStore().get(user, kwargs["KeyName"])
                     #pub_key = key_meta[0]["public_key"]
                     pub_key = keyObj.public_key
                     key_dict = {kwargs["KeyName"]: [pub_key]}
-                    logging.debug("Got public key from KeyName")
+                    logger.debug("Got public key from KeyName")
                 except KeyDoesNotExist:
                     raise ValueError("Specified SSH Key Name does not exist.")
             
@@ -202,7 +202,7 @@ class VmManager:
                     keyObj = KeyStore().get(user, kwargs["ServiceKey"])
                     svc_pub_key = keyObj.public_key
                     key_dict[kwargs["ServiceKey"]] = [svc_pub_key]
-                    logging.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
+                    logger.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
                 except KeyDoesNotExist:
                     raise ValueError("Error adding service key.")
             
@@ -213,19 +213,19 @@ class VmManager:
                 UserDataScript=kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
             )
             cloudinit_yaml_file_path = f"{vmdir}/user-data"
-            logging.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
+            logger.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
 
             with open(cloudinit_yaml_file_path, "w") as filehandle:
-                logging.debug("Writing cloudinit userdata file: user-data")
+                logger.debug("Writing cloudinit userdata file: user-data")
                 filehandle.write(cloudinit_userdata)
             
             # Finally, the meta-data file
             cloudinit_metadata = self._generate_cloudinit_metadata(vm_id, IpAddr=private_ip, PublicKey=key_dict)
             cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
-            logging.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
+            logger.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
 
             with open(cloudinit_metadata_yaml_file_path, "w") as filehandle:
-                logging.debug("Writing cloudinit metadata file: meta-data")
+                logger.debug("Writing cloudinit metadata file: meta-data")
                 filehandle.write(cloudinit_metadata)
 
         
@@ -236,18 +236,18 @@ class VmManager:
         # Machine Image
         # Determining the image to use for this VM
         # Is this a guest image or a user-created virtual machine image?
-        logging.debug("Determining image metadata..")
+        logger.debug("Determining image metadata..")
         manager = ImageManager()
         if "ImageId" not in kwargs:
             msg = "ImageId was not found in launch configuration. Cannot continue!"
-            logging.error(msg)
+            logger.error(msg)
             raise InvalidLaunchConfiguration(msg)
 
         try:
-            logging.debug(f"Grabbing image metadata from {kwargs['ImageId']}")
+            logger.debug(f"Grabbing image metadata from {kwargs['ImageId']}")
             img = manager.getImage("guest", kwargs['ImageId']) #TODO: Check if user image also
         except InvalidImageId as e:
-            logging.error(e)
+            logger.error(e)
             raise InvalidLaunchConfiguration(e)
         
         img_path = img.guest_image_path
@@ -256,25 +256,25 @@ class VmManager:
         # Create a copy of the VM image
         destination_vm_img = f"{vmdir}/{vm_id}.{img_format}"
         try:
-            logging.debug(f"Copying image: {img_path} TO directory {vmdir} as {vm_id}.{img_format}")
+            logger.debug(f"Copying image: {img_path} TO directory {vmdir} as {vm_id}.{img_format}")
             shutil.copy2(img_path, destination_vm_img)
         except:
             raise LaunchError("Encountered an error on VM copy. Cannot continue.")
 
-        logging.debug(f"Final image: {destination_vm_img}")
+        logger.debug(f"Final image: {destination_vm_img}")
 
 
         # Define XML template
         # If we're using a customXML (usually for debugging), specify it.
         # Otherwise, use the XML that's set in the InstanceType.
         if "CustomXML" in kwargs:
-            logging.debug(f"Custom XML defined: {kwargs['CustomXML']}")
+            logger.debug(f"Custom XML defined: {kwargs['CustomXML']}")
             xml_template = kwargs['CustomXML']
         else:
             xml_template = instanceType.get_xml_template()
 
         # Generate VM
-        logging.debug(f"Generating VM config")
+        logger.debug(f"Generating VM config")
         try:
             xmldoc = self._generate_xml_template(
                 VmId=vm_id,
@@ -286,32 +286,32 @@ class VmManager:
                 CloudInitIso=cloudinit_iso_path
             )
         except Exception as e:
-            logging.error(f"Error when creating XML template. {e}")
+            logger.error(f"Error when creating XML template. {e}")
             raise LaunchError("Error when creating XML template.")
 
         # Create the actual XML template in the vm directory
         with open(f"{vmdir}/vm.xml", 'w') as filehandle:
-            logging.debug("Writing virtual machine XML document: vm.xml")
+            logger.debug("Writing virtual machine XML document: vm.xml")
             filehandle.write(xmldoc)
 
         # Disk resize
         qimg = QemuImg()
-        logging.debug(f"Resizing image size to {kwargs['DiskSize']}")
+        logger.debug(f"Resizing image size to {kwargs['DiskSize']}")
         try:
             qimg.resize(destination_vm_img, kwargs["DiskSize"])
         except Exception as e:
-            logging.error(f"Encountered error when running qemu resize. {e}")
+            logger.error(f"Encountered error when running qemu resize. {e}")
             raise LaunchError("Encountered error when running qemu resize.")
 
         
-        logging.debug("Attempting to define XML with virsh..")
+        logger.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
         
-        logging.debug("Setting autostart to 1")
+        logger.debug("Setting autostart to 1")
         domain = self.__get_virtlib_domain(vm_id)
         domain.setAutostart(1)
         
-        logging.info("Starting VM..")
+        logger.info("Starting VM..")
         self.startInstance(vm_id)
 
         # Add the information for this VM in the db
@@ -338,9 +338,9 @@ class VmManager:
             },
             tags = kwargs["Tags"] if "Tags" in kwargs else {},
         )
-        logging.debug(stmt)
+        logger.debug(stmt)
         result = self.db.connection.execute(stmt)
-        logging.debug(result)
+        logger.debug(result)
         print(f"Successfully created VM: {vm_id} : {vmdir}")
         return vm_id
     
@@ -366,7 +366,7 @@ class VmManager:
         # When we get NAT working, we'll check for it here too
         if vnet.type != VirtualNetwork.Type.BRIDGE_TO_LAN:
             # Other network types should use the metadata API
-            logging.debug("Tried to create cloudinit network config for non-BridgeToLan VM")
+            logger.debug("Tried to create cloudinit network config for non-BridgeToLan VM")
             return
 
         if priv_ip_addr:
@@ -432,14 +432,14 @@ class VmManager:
         yaml_config = configfile + config_yaml + ssh_keys_yaml
 
         if UserDataScript:
-            logging.debug("UserData script is included in request, making multipart file..")
+            logger.debug("UserData script is included in request, making multipart file..")
             sub_messages = []
             format = 'x-shellscript'
             sub_message = MIMEText(UserDataScript, format, sys.getdefaultencoding())
             sub_message.add_header('Content-Disposition', 'attachment; filename="shellscript.sh"')
             content_type = sub_message.get_content_type().lower()
             if content_type not in KNOWN_CONTENT_TYPES:
-                logging.warning(f"WARNING: content type {content_type} may be incorrect!")
+                logger.warning(f"WARNING: content type {content_type} may be incorrect!")
             sub_messages.append(sub_message)
 
 
@@ -448,14 +448,14 @@ class VmManager:
             sub_message.add_header('Content-Disposition', 'attachment; filename="userdata.yaml"')
             content_type = sub_message.get_content_type().lower()
             if content_type not in KNOWN_CONTENT_TYPES:
-                logging.warning(f"WARNING: content type {content_type} may be incorrect!")
+                logger.warning(f"WARNING: content type {content_type} may be incorrect!")
             sub_messages.append(sub_message)
 
 
             combined_message = MIMEMultipart()
             for msg in sub_messages:
                 combined_message.attach(msg)
-            logging.debug(combined_message)
+            logger.debug(combined_message)
             return str(combined_message)
 
         return yaml_config
@@ -546,7 +546,7 @@ class VmManager:
             # information for it to use the metadata service.
             ech = ecHomeConfig.EcHome()
             metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{VmId}/"
-            logging.debug(f"Generated Metadata API url: {metadata_api_url}")
+            logger.debug(f"Generated Metadata API url: {metadata_api_url}")
             with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
                 smbios_body_src = Template(filehandle.read())
 
@@ -555,8 +555,8 @@ class VmManager:
                 'NOCLOUD_URL': metadata_api_url
             })
         
-        logging.debug("Replacing variables in XML..")
-        logging.debug(replace)
+        logger.debug("Replacing variables in XML..")
+        logger.debug(replace)
         return src.substitute(replace)
 
     
@@ -602,7 +602,7 @@ class VmManager:
             )
         else:
             return None
-        logging.debug(select_stmt)
+        logger.debug(select_stmt)
         rows = self.db.connection.execute(select_stmt).fetchall()
         if rows:
             return rows[0]
@@ -659,9 +659,9 @@ class VmManager:
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
         vmi_id = IdGenerator.generate("vmi")
 
-        logging.debug(f"Creating VMI from {vm_id}")
+        logger.debug(f"Creating VMI from {vm_id}")
         # Instance needs to be turned off to create an image
-        logging.debug(f"Stopping {vm_id}")
+        logger.debug(f"Stopping {vm_id}")
         self.stopInstance(vm_id)
 
 
@@ -672,10 +672,10 @@ class VmManager:
         new_image_full_path = f"{user_vmi_dir}/{vmi_id}.qcow2"
 
         try:
-            logging.debug(f"Copying image: {vm_name} TO {vmi_id}")
+            logger.debug(f"Copying image: {vm_name} TO {vmi_id}")
             #shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
         except:
-            logging.error("Encountered an error on VM copy. Cannot continue.")
+            logger.error("Encountered an error on VM copy. Cannot continue.")
             raise
         
         output = self.__run_command(["/usr/bin/qemu-img", "convert", "-O", "qcow2", current_image_full_path, new_image_full_path])
@@ -684,14 +684,14 @@ class VmManager:
             #TODO: Condition on error
             print("Return code not None")
 
-        logging.debug(f"Running Sysprep on: {new_image_full_path}")
+        logger.debug(f"Running Sysprep on: {new_image_full_path}")
         output = self.__run_command(["sudo", "/usr/bin/virt-sysprep", "-a", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
 
-        logging.debug(f"Running Sparsify on: {new_image_full_path}")
+        logger.debug(f"Running Sparsify on: {new_image_full_path}")
         self.__run_command(["sudo", "/usr/bin/virt-sparsify", "--in-place", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
@@ -744,13 +744,13 @@ class VmManager:
             }
 
         if vm.isActive():
-            logging.info(f"VM '{vm_id}' already started")
+            logger.info(f"VM '{vm_id}' already started")
 
         while not vm.isActive():
-            logging.info(f"Starting VM '{vm_id}'")
+            logger.info(f"Starting VM '{vm_id}'")
             vm.create()
         
-        logging.debug("Setting autostart to 1 for started instances")
+        logger.debug("Setting autostart to 1 for started instances")
         vm.setAutostart(1)
         
         return {
@@ -760,7 +760,7 @@ class VmManager:
         }
     
     def stopInstance(self, vm_id):
-        logging.debug(f"Stopping vm: {vm_id}")
+        logger.debug(f"Stopping vm: {vm_id}")
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
             return {
@@ -770,7 +770,7 @@ class VmManager:
             }
 
         if not vm.isActive():
-            logging.info(f"VM '{vm_id}' already stopped")
+            logger.info(f"VM '{vm_id}' already stopped")
             return 
 
         if vm.isActive():
@@ -778,7 +778,7 @@ class VmManager:
         else:
             print(f"VM '{vm_id}' is already stopped")
         
-        logging.debug("Setting autostart to 0 for stopped instances")
+        logger.debug("Setting autostart to 0 for stopped instances")
         vm.setAutostart(0)
 
         vm_force_stop_time = 240
@@ -789,7 +789,7 @@ class VmManager:
                 time.sleep(1)
                 seconds_waited += 1
                 if seconds_waited >= vm_force_stop_time:
-                    logging.warning(f"Timeout was reached and VM '{vm_id}' hasn't stopped yet. Force shutting down...")
+                    logger.warning(f"Timeout was reached and VM '{vm_id}' hasn't stopped yet. Force shutting down...")
                     vm.destroy()
             except libvirt.libvirtError as e:
                 # Error code 55 = Not valid operation: domain is not running
@@ -814,7 +814,7 @@ class VmManager:
 
     # Terminate the instance 
     def terminateInstance(self, user_obj, vm_id):
-        logging.debug(f"Terminating vm: {vm_id}")
+        logger.debug(f"Terminating vm: {vm_id}")
         account_id = user_obj.account
 
         vm = self.__get_virtlib_domain(vm_id)
@@ -849,7 +849,7 @@ class VmManager:
             # Undefine it to remove it from virt
             vm.undefine()
         except libvirt.libvirtError as e:
-            logging.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
+            logger.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
             return {
                 "success": False,
                 "meta_data": {},
@@ -882,7 +882,7 @@ class VmManager:
     def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None, cloudinit_metadata_file_path=None):
 
         # Validate the yaml file
-        logging.debug("Validating Cloudinit config yaml.")        
+        logger.debug("Validating Cloudinit config yaml.")        
         output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_yaml_file_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
@@ -890,7 +890,7 @@ class VmManager:
             print("Return code not None")
 
         if cloudinit_network_yaml_file_path:
-            logging.debug("Validating Cloudinit Network config yaml.")
+            logger.debug("Validating Cloudinit Network config yaml.")
             output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_network_yaml_file_path])
             if output["return_code"] is not None:
                 # There was an issue with the resize
@@ -915,7 +915,7 @@ class VmManager:
             #TODO: Condition on error
             print("Return code not None")
 
-        logging.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
+        logger.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
 
         return cloudinit_iso_path
 
@@ -929,20 +929,20 @@ class VmManager:
     # Create a path for the files to be created in
     def __generate_vm_path(self, account_id, vm_id):
         vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
-        logging.debug(f"Generated VM Path: {vm_path}. Creating..")
+        logger.debug(f"Generated VM Path: {vm_path}. Creating..")
         try:
             pathlib.Path(vm_path).mkdir(parents=True, exist_ok=False)
-            logging.info(f"Created VM Path: {vm_path}")
+            logger.info(f"Created VM Path: {vm_path}")
             return vm_path
         except:
-            logging.error("Encountered an error when attempting to generate VM path. Cannot continue.")
+            logger.error("Encountered an error when attempting to generate VM path. Cannot continue.")
             raise
 
     # Delete the path for the files
     def __delete_vm_path(self, account_id, vm_id):
         # let's not delete all of the vm's in a user's folder
         if not vm_id:
-            logging.debug("vm_id empty when calling delete_vm_path. Exiting!")
+            logger.debug("vm_id empty when calling delete_vm_path. Exiting!")
             return
         
         # If it got created in virsh but still failed, undefine it
@@ -951,19 +951,19 @@ class VmManager:
             vm.undefine()
 
         path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
-        logging.debug(f"Deleting VM Path: {path}")
+        logger.debug(f"Deleting VM Path: {path}")
 
         try:
             shutil.rmtree(path)
         except:
-            logging.error("Encountered an error when atempting to delete VM path.")
+            logger.error("Encountered an error when atempting to delete VM path.")
 
     def __run_command(self, cmd: list):
-        logging.debug("Running command: ")
-        logging.debug(cmd)
+        logger.debug("Running command: ")
+        logger.debug(cmd)
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
         output = process.stdout.readline()
-        logging.debug(output.strip())
+        logger.debug(output.strip())
         return_code = process.poll()
         logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
         return {
