@@ -19,7 +19,7 @@ WORKDIR /app
 COPY . /app/
 
 # Install dependencies
-RUN pip install -r requirements-django.txt
+RUN pip install -r requirements.txt
 
 EXPOSE 8000
 
