@@ -70,8 +70,6 @@ class VirtualNetwork(models.Model):
     # Tags: {"Environment": "Home"}
     def create(self, name:str, user: User, type:Type, **kwargs):
         logger.debug("Creating new network")
-        if type not in self.Type.choices:
-            raise InvalidNetworkType("Specified type is not a valid network type.")
 
         # Check to see if a network with that name does not already exist
         logger.debug("Checking if network with the name already exists..")
