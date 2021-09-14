@@ -26,7 +26,10 @@ services:
       - vault
       - rabbitmq
     volumes:
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
       - /etc/echome:/etc/echome
+    devices:
+      - /dev/kvm
   vault:
     image: "vault:1.8.2"
     ports:
