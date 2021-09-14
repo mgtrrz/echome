@@ -46,17 +46,6 @@ class CreateVM(View):
 
         disk_size = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
         
-        key_name = None
-        if "KeyName" in request.POST:
-            try:
-                key = UserKeys.objects.get(
-                    account=request.user.account,
-                    name=request.POST["KeyName"]
-                )
-                key_name = request.POST["KeyName"]
-            except ObjectDoesNotExist:
-                return {"error": "Provided KeyName does not exist."}, 400
-
         vm = VmManager()
 
         try:
@@ -64,7 +53,7 @@ class CreateVM(View):
                 user=request.user, 
                 instanceType=instanceDefinition, 
                 Tags=tags,
-                KeyName=key_name,
+                KeyName=request.POST["KeyName"] if "KeyName" in request.POST else None,
                 NetworkProfile=request.args["NetworkProfile"],
                 PrivateIp=request.args["PrivateIp"] if "PrivateIp" in request.args else "",
                 ImageId=request.args["ImageId"],
@@ -72,7 +61,10 @@ class CreateVM(View):
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)
-            return {"error": "A supplied value was invalid and could not successfully build the virtual machine."}, 400
+            return {"error": "InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine."}, 400
+        except ValueError as e:
+            logger.debug(e)
+            return {"error": "ValueError: A supplied value was invalid and could not successfully build the virtual machine."}, 400
         except LaunchError as e:
             logger.error(e)
             return {"error": "There was an error when creating the instance."}, 500
