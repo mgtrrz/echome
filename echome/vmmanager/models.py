@@ -12,7 +12,7 @@ from identity.models import User
 
 logger = logging.getLogger(__name__)
 
-class HostMachines(models.Model):
+class HostMachine(models.Model):
     host_id = models.CharField(max_length=20, unique=True, db_index=True)
     name = models.CharField(max_length=40)
     ip = models.GenericIPAddressField()
@@ -23,7 +23,7 @@ class HostMachines(models.Model):
     def __str__(self) -> str:
         return self.name
 
-class UserKeys(models.Model):
+class UserKey(models.Model):
     key_id = models.CharField(max_length=20, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
     created = models.DateTimeField(auto_now_add=True, null=False)
@@ -129,7 +129,7 @@ class UserKeys(models.Model):
     def __str__(self) -> str:
         return self.key_id
 
-class VirtualMachines(models.Model):
+class VirtualMachine(models.Model):
     instance_id = models.CharField(max_length=20, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
     created = models.DateTimeField(auto_now_add=True, null=False)
