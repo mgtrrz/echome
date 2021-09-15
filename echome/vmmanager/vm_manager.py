@@ -242,22 +242,38 @@ class VmManager:
         # Determining the image to use for this VM
         # Is this a guest image or a user-created virtual machine image?
         logger.debug("Determining image metadata..")
-        manager = ImageManager()
+
         if "ImageId" not in kwargs:
             msg = "ImageId was not found in launch configuration. Cannot continue!"
             logger.error(msg)
             raise InvalidLaunchConfiguration(msg)
         
-
+        # check if it's a user image
+        image = None
         try:
-            logger.debug(f"Grabbing image metadata from {kwargs['ImageId']}")
-            img = manager.getImage("guest", kwargs['ImageId']) #TODO: Check if user image also
-        except InvalidImageId as e:
-            logger.error(e)
-            raise InvalidLaunchConfiguration(e)
+            image = UserImage.objects.get(
+                account=user.account,
+                image_id=kwargs['ImageId'],
+                deactivated=False
+            )
+        except Exception as e:
+            logger.debug(e)
+            
+        try:
+            image = GuestImage.objects.get(
+                image_id=kwargs['ImageId'],
+                deactivated=False
+            )
+        except Exception as e:
+            logger.debug(e)
         
-        img_path = img.guest_image_path
-        img_format = img.guest_image_metadata["format"]
+        if image == None:
+            msg = "ImageId does not exist."
+            logger.error(msg)
+            raise InvalidLaunchConfiguration(msg)
+        
+        img_path = image.image_path
+        img_format = image.image_metadata["format"]
 
         # Create a copy of the VM image
         destination_vm_img = f"{vmdir}/{vm.instance_id}.{img_format}"
@@ -338,7 +354,7 @@ class VmManager:
         vm.firewall_rules = {}
         vm.image_metadata = {
             "image_id": kwargs["ImageId"],
-            "image_name": img.name,
+            "image_name": image.name,
         }
         vm.tags = kwargs["Tags"] if "Tags" in kwargs else {}
         
@@ -949,7 +965,7 @@ class VmManager:
     # Delete the path for the files
     def __delete_vm_path(self, account_id, vm_id):
         # let's not delete all of the vm's in a user's folder
-        if not vm_id:
+        if not vm_id or vm_id == "":
             logger.debug("vm_id empty when calling delete_vm_path. Exiting!")
             return
         
