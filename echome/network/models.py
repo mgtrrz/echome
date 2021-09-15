@@ -15,7 +15,7 @@ class VirtualNetwork(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
 
-    name = models.CharField(max_length=40)
+    name = models.CharField(max_length=40, null=False)
     class Type(models.TextChoices):
         BRIDGE_TO_LAN = 'BTL', 'BridgeToLan'
         NAT = 'NAT', 'NetworkAddressTranslation'
@@ -26,7 +26,7 @@ class VirtualNetwork(models.Model):
         default=Type.BRIDGE_TO_LAN,
     )
     config = models.JSONField(default=dict)
-    deactivated = models.BooleanField(null=False)
+    deactivated = models.BooleanField(default=False, null=False)
     tags = models.JSONField(default=dict)
 
     def generate_id(self):
@@ -117,7 +117,7 @@ class VirtualNetwork(models.Model):
         self.name = name
         self.type = type
         self.config = config
-        self.tags = kwargs["Tags"] if "tags" in kwargs else dict
+        self.tags = kwargs["Tags"] if "tags" in kwargs else {}
         
         self.save()
         return self.network_id
