@@ -22,7 +22,7 @@ from echome.commander import QemuImg
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
-from .models import UserKeys, KeyDoesNotExist
+from .models import VirtualMachine, UserKey, KeyDoesNotExist
 from .instance_definitions import Instance
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ KNOWN_CONTENT_TYPES = [
 ]
 
 
-VM_ROOT_DIR = ecHomeConfig.VirtualMachines().user_dir
+VM_ROOT_DIR = ecHomeConfig.VirtualMachine().user_dir
 XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
 
 # if at any point during the VM Creation process fails,
@@ -110,19 +110,21 @@ class VmManager:
         """
         # Create the vm id to pass into the other functions
         logger.debug("Generating vm-id")
-        vm_id = IdGenerator.generate()
-        self.vm_id_in_process = vm_id
-        logger.info(f"Generated vm-id: {vm_id}")
+        new_instance = VirtualMachine()
+        new_instance.generate_id()
+
+        self.vm_id_in_process = new_instance.instance_id
+        logger.info(f"Generated vm-id: {new_instance.instance_id}")
 
         try:
-            result = self._create_virtual_machine(user, vm_id, instanceType, **kwargs)
+            result = self._create_virtual_machine(user, new_instance, instanceType, **kwargs)
         except InvalidLaunchConfiguration as e:
             logger.error(f"Launch Configuration error: {e}")
-            self._clean_up(user, vm_id)
+            self._clean_up(user, new_instance.instance_id)
             raise InvalidLaunchConfiguration(e)
         except LaunchError as e:
             logger.error(f"Launch error: {e}")
-            self._clean_up(user, vm_id)
+            self._clean_up(user, new_instance.instance_id)
             raise LaunchError(e)
         except Exception as e:
             logger.error(f"Encountered other error: {e}")
@@ -135,7 +137,7 @@ class VmManager:
         pass
 
     # Set to replace __createInstance
-    def _create_virtual_machine(self, user: User, vm_id: str, instanceType:Instance, **kwargs):
+    def _create_virtual_machine(self, user: User, vm:VirtualMachine, instanceType:Instance, **kwargs):
         """Actual method that creates a virtual machine.
         
         All of the parameters from create_vm() are passed here in addition to
@@ -145,7 +147,7 @@ class VmManager:
         logger.debug(kwargs)
 
         # Creating the directory for the virtual machine
-        vmdir = self.__generate_vm_path(user.account, vm_id)
+        vmdir = self.__generate_vm_path(user.account, vm.instance_id)
 
         # Networking
         # For VMs launched with BridgeToLan, we'll need to create a cloudinit
@@ -155,17 +157,19 @@ class VmManager:
         # API.
 
         # Determine what network profile we're using:
-        vn = VirtualNetwork()
-        vnet = vn.get_network_by_profile_name(kwargs["NetworkProfile"], user)
-
-        if not vnet:
+        try:
+            vnet = VirtualNetwork.objects.get(
+                name=kwargs["NetworkProfile"],
+                account=user.account
+            )
+        except Exception as e:
             raise InvalidLaunchConfiguration("Provided NetworkProfile does not exist.")
 
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         
         cloudinit_iso_path = None
         # Cloud-init
-        if vnet.type == "BridgeToLan":
+        if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             logger.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
             if private_ip and not vnet.validate_ip(kwargs["PrivateIp"]):
@@ -181,57 +185,55 @@ class VmManager:
                 logger.debug("Writing cloudinit yaml: network.yaml")
                 filehandle.write(network_cloudinit_config)
         
-            # Like with Networking above, BridgeToLan uses ISOs to set cloudinit stuff.
-            # Other networking types should use the metadata API.
-            logger.debug("Determining if KeyName is present.")
-            pub_key = None
-            key_dict = None
-            if "KeyName" in kwargs and kwargs["KeyName"] is not None:
-                logger.debug(f"Checking KeyName: {kwargs['KeyName']}.")
-                try:
-                    keyObj:UserKeys = UserKeys().objects.get(
-                        account=user.account,
-                        name=kwargs["KeyName"]
-                    )
 
-                    pub_key = keyObj.public_key
-                    key_dict = {kwargs["KeyName"]: [pub_key]}
-                    logger.debug("Got public key from KeyName")
-                except ObjectDoesNotExist:
-                    raise ValueError("Specified SSH Key Name does not exist.")
-            
-            if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
-                try:
-                    keyObj = KeyStore().get(user, kwargs["ServiceKey"])
-                    svc_pub_key = keyObj.public_key
-                    key_dict[kwargs["ServiceKey"]] = [svc_pub_key]
-                    logger.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
-                except KeyDoesNotExist:
-                    raise ValueError("Error adding service key.")
-            
-            # Generate the cloudinit Userdata 
-            cloudinit_userdata = self._generate_cloudinit_userdata_config(
-                VmId=vm_id,
-                PublicKey=[pub_key],
-                UserDataScript=kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
-            )
-            cloudinit_yaml_file_path = f"{vmdir}/user-data"
-            logger.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
+        logger.debug("Determining if KeyName is present.")
+        pub_key = None
+        key_dict = None
+        if "KeyName" in kwargs and kwargs["KeyName"] is not None:
+            logger.debug(f"Checking KeyName: {kwargs['KeyName']}.")
+            try:
+                keyObj:UserKey = UserKey().objects.get(
+                    account=user.account,
+                    name=kwargs["KeyName"]
+                )
 
-            with open(cloudinit_yaml_file_path, "w") as filehandle:
-                logger.debug("Writing cloudinit userdata file: user-data")
-                filehandle.write(cloudinit_userdata)
-            
-            # Finally, the meta-data file
-            cloudinit_metadata = self._generate_cloudinit_metadata(vm_id, IpAddr=private_ip, PublicKey=key_dict)
-            cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
-            logger.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
-
-            with open(cloudinit_metadata_yaml_file_path, "w") as filehandle:
-                logger.debug("Writing cloudinit metadata file: meta-data")
-                filehandle.write(cloudinit_metadata)
-
+                pub_key = keyObj.public_key
+                key_dict = {kwargs["KeyName"]: [pub_key]}
+                logger.debug("Got public key from KeyName")
+            except ObjectDoesNotExist:
+                raise ValueError("Specified SSH Key Name does not exist.")
         
+        if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
+            try:
+                keyObj = KeyStore().get(user, kwargs["ServiceKey"])
+                svc_pub_key = keyObj.public_key
+                key_dict[kwargs["ServiceKey"]] = [svc_pub_key]
+                logger.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
+            except KeyDoesNotExist:
+                raise ValueError("Error adding service key.")
+            
+        # Generate the cloudinit Userdata 
+        cloudinit_userdata = self._generate_cloudinit_userdata_config(
+            VmId=vm.instance_id,
+            PublicKey=[pub_key],
+            UserDataScript=kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
+        )
+        cloudinit_yaml_file_path = f"{vmdir}/user-data"
+        logger.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
+
+        with open(cloudinit_yaml_file_path, "w") as filehandle:
+            logger.debug("Writing cloudinit userdata file: user-data")
+            filehandle.write(cloudinit_userdata)
+        
+        # Finally, the meta-data file
+        cloudinit_metadata = self._generate_cloudinit_metadata(vm.instance_id, IpAddr=private_ip, PublicKey=key_dict)
+        cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
+        logger.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
+
+        with open(cloudinit_metadata_yaml_file_path, "w") as filehandle:
+            logger.debug("Writing cloudinit metadata file: meta-data")
+            filehandle.write(cloudinit_metadata)
+
             # Validate and create the cloudinit iso
             cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path, cloudinit_metadata_yaml_file_path)
 
@@ -245,6 +247,7 @@ class VmManager:
             msg = "ImageId was not found in launch configuration. Cannot continue!"
             logger.error(msg)
             raise InvalidLaunchConfiguration(msg)
+        
 
         try:
             logger.debug(f"Grabbing image metadata from {kwargs['ImageId']}")
@@ -257,9 +260,9 @@ class VmManager:
         img_format = img.guest_image_metadata["format"]
 
         # Create a copy of the VM image
-        destination_vm_img = f"{vmdir}/{vm_id}.{img_format}"
+        destination_vm_img = f"{vmdir}/{vm.instance_id}.{img_format}"
         try:
-            logger.debug(f"Copying image: {img_path} TO directory {vmdir} as {vm_id}.{img_format}")
+            logger.debug(f"Copying image: {img_path} TO directory {vmdir} as {vm.instance_id}.{img_format}")
             shutil.copy2(img_path, destination_vm_img)
         except:
             raise LaunchError("Encountered an error on VM copy. Cannot continue.")
@@ -280,7 +283,7 @@ class VmManager:
         logger.debug(f"Generating VM config")
         try:
             xmldoc = self._generate_xml_template(
-                VmId=vm_id,
+                VmId=vm.instance_id,
                 XmlTemplate=xml_template,
                 vnet=vnet,
                 Cpu=instanceType.get_cpu(), 
@@ -311,41 +314,43 @@ class VmManager:
         self.currentConnection.defineXML(xmldoc)
         
         logger.debug("Setting autostart to 1")
-        domain = self.__get_virtlib_domain(vm_id)
+        domain = self.__get_virtlib_domain(vm.instance_id)
         domain.setAutostart(1)
         
         logger.info("Starting VM..")
-        self.startInstance(vm_id)
+        self.startInstance(vm.instance_id)
 
         # Add the information for this VM in the db
-        stmt = self.db.user_instances.insert().values(
-            account = user.account,
-            instance_id = vm_id,
-            host = "localhost",
-            instance_type = instanceType.itype,
-            instance_size = instanceType.isize,
-            account_user = user.user_id,
-            attached_interfaces = {
-                "config_at_launch": {
-                    "vnet_id": vnet.vnet_id,
-                    "type": vnet.type,
-                    "private_ip": kwargs["PrivateIp"] if "PrivateIp" in kwargs else "",
-                }
-            },
-            attached_storage = {},
-            key_name = kwargs["KeyName"] if "KeyName" in kwargs else "",
-            assoc_firewall_rules = {},
-            vm_image_metadata = {
-                "image_id": kwargs["ImageId"],
-                "image_name": img.name,
-            },
-            tags = kwargs["Tags"] if "Tags" in kwargs else {},
-        )
-        logger.debug(stmt)
-        result = self.db.connection.execute(stmt)
-        logger.debug(result)
-        print(f"Successfully created VM: {vm_id} : {vmdir}")
-        return vm_id
+        vm.account = user.account
+        vm.host = "localhost"
+        vm.instance_type = instanceType.itype
+        vm.instance_size = instanceType.isize
+        vm.account = user.account
+        vm.interfaces = {
+            "config_at_launch": {
+                "vnet_id": vnet.vnet_id,
+                "type": vnet.type,
+                "private_ip": kwargs["PrivateIp"] if "PrivateIp" in kwargs else "",
+            }
+        }
+        vm.storage = {}
+        vm.key_name = kwargs["KeyName"] if "KeyName" in kwargs else ""
+        vm.firewall_rules = {}
+        vm.image_metadata = {
+            "image_id": kwargs["ImageId"],
+            "image_name": img.name,
+        }
+        vm.tags = kwargs["Tags"] if "Tags" in kwargs else {}
+        
+        logger.debug(vm)
+        try:
+            vm.save()
+        except Exception as e:
+            logger.debug(e)
+            raise Exception
+
+        print(f"Successfully created VM: {vm.instance_id} : {vmdir}")
+        return vm.instance_id
     
     def _generate_cloudinit_network_config(self, vnet: VirtualNetwork, priv_ip_addr=None):
         """Generate Cloudinit network config yaml
@@ -537,7 +542,7 @@ class VmManager:
             'BRIDGE_INTERFACE': '',
         }
 
-        if vnet.type == "BridgeToLan":
+        if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
             # template
             replace['BRIDGE_INTERFACE'] = f"""  <interface type="bridge">
