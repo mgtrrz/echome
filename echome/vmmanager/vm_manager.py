@@ -61,7 +61,6 @@ class VmManager:
 
     def __init__(self):
         self.currentConnection = libvirt.open('qemu:///system')
-        #self.db = Database()
 
     def getConnection(self):
         return self.currentConnection
