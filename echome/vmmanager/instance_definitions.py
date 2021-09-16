@@ -29,7 +29,7 @@ class Instance:
                 "cpu": 8,
                 "memory_megabytes": 8192,
             },
-            "xml_template": "default_create_vm.xml"
+            "xml_template": "create_vm.xml"
         }
     }
 

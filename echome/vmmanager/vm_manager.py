@@ -24,6 +24,7 @@ from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from .models import VirtualMachine, UserKey, KeyDoesNotExist
 from .instance_definitions import Instance
+from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlRemovableMedia, KvmXmlDisk
 
 logger = logging.getLogger(__name__)
 
@@ -505,18 +506,15 @@ class VmManager:
         
         return VmId
     
-    # Required: VmId, XmlTemplate, vnet:VirtualNetwork, Cpu, Memory, VmImg
-    # Optional: CloudInitIso
-    def _generate_xml_template(self, VmId, XmlTemplate, vnet: VirtualNetwork, **kwargs):
+
+    def _generate_xml_template(self, vm_id: str, vnet: VirtualNetwork, **kwargs):
         """Generates the XML template for use with defining in libvirt.
         This function at the moment utilizes "template" XML documents in the `xml_templates`
         directory. Template() is then used to fill in variables in the XML documents to
         suit the virtual machine.
         In the future, we may consider using XML libraries to properly generate XML docs.
-        :param VmId: Virtual Machine Id
-        :type VmId: str
-        :param XmlTemplate: This is the name of the xml template to use from the `xml_templates` directory.
-        :type XmlTemplate: str
+        :param vm_id: Virtual Machine Id
+        :type vm_id: str
         :param vnet: Virtual Network object for determining if a bridge interface should be used.
         :type vnet: VirtualNetwork
         :key Cpu: Number of CPUs (threads) to set for this virtual machine
@@ -531,56 +529,45 @@ class VmManager:
         :return: XML document as a string
         :rtype: str
         """        
-        cloudinit_xml = ""
-        
-        # Generate Cloudinit disk device IF CloudInit is used.
+
+
+        enable_smbios = False
+        metadata_api_url = ""
+        network = []
+        removable_media = []
+
         if "CloudInitIso" in kwargs:
-            with open(f"{XML_TEMPLATES_DIR}/cloudinit_disk.xml", 'r') as filehandle:
-                cloudinit_xml = Template(filehandle.read())
-                replace = {
-                    'VM_USER_CLOUDINIT_IMG_PATH': kwargs["CloudInitIso"]
-                }
-                cloudinit_xml = cloudinit_xml.substitute(replace)
-
-        # Generate the rest of the VM XML
-        with open(f"{XML_TEMPLATES_DIR}/{XmlTemplate}", 'r') as filehandle:
-            src = Template(filehandle.read())
-
-        replace = {
-            'VM_NAME': VmId,
-            'VM_CPU_COUNT': kwargs["Cpu"], 
-            'VM_MEMORY': kwargs["Memory"],
-            'CLOUDINIT_DISK': cloudinit_xml,
-            'VM_USER_IMG_PATH': kwargs["VmImg"],
-            'SMBIOS_MODE': '',
-            'SMBIOS_BODY': '',
-            'BRIDGE_INTERFACE': '',
-        }
+            removable_media.append(KvmXmlRemovableMedia(kwargs["CloudInitIso"]))
 
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
             # template
-            replace['BRIDGE_INTERFACE'] = f"""  <interface type="bridge">
-<source bridge="{vnet.config['bridge_interface']}"/>
-</interface>"""
-        
+            network.append(KvmXmlNetworkInterface(
+                type = "bridge",
+                source = vnet.config['bridge_interface']
+            ))
         else:
             # If the new VM is not using the BridgeToLan network type, add smbios
             # information for it to use the metadata service.
             ech = ecHomeConfig.EcHome()
-            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{VmId}/"
+            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
             logger.debug(f"Generated Metadata API url: {metadata_api_url}")
-            with open(f"{XML_TEMPLATES_DIR}/smbios.xml", 'r') as filehandle:
-                smbios_body_src = Template(filehandle.read())
-
-            replace['SMBIOS_MODE'] = "<smbios mode='sysinfo'/>"
-            replace['SMBIOS_BODY'] = smbios_body_src.substitute({
-                'NOCLOUD_URL': metadata_api_url
-            })
+            enable_smbios = True
         
-        logger.debug("Replacing variables in XML..")
-        logger.debug(replace)
-        return src.substitute(replace)
+        xmldoc = KvmXmlObject(
+            name=vm_id,
+            memory=kwargs["Memory"],
+            cpu_count=kwargs["Cpu"],
+            hard_disks=[
+                KvmXmlDisk(kwargs["VmImg"])
+            ],
+            network_interfaces=network,
+            removable_media=removable_media,
+            enable_smbios=enable_smbios,
+            smbios_url=metadata_api_url
+        )
+        
+        return xmldoc.render_xml()
 
     
     # Get information about a instance/VM
