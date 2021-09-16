@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from api.api_view import View
 from .instance_definitions import Instance, InvalidInstanceType
-from .models import UserKeys
+from .models import UserKey
 from .vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 
 logger = logging.getLogger(__name__)

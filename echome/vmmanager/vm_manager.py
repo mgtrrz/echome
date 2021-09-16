@@ -40,7 +40,7 @@ KNOWN_CONTENT_TYPES = [
 ]
 
 
-VM_ROOT_DIR = ecHomeConfig.VirtualMachine().user_dir
+VM_ROOT_DIR = ecHomeConfig.VirtualMachines().user_dir
 XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
 
 # if at any point during the VM Creation process fails,

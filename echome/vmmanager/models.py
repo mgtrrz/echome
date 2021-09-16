@@ -20,6 +20,12 @@ class HostMachine(models.Model):
     metadata = models.JSONField(default=dict)
     tags = models.JSONField(default=dict)
 
+    def generate_id(self):
+        if self.host_id is None or self.host_id == "":
+            self.host_id = IdGenerator.generate("host")
+        else:
+            raise AttemptedOverrideOfImmutableIdException
+
     def __str__(self) -> str:
         return self.name
 
@@ -86,7 +92,7 @@ class UserKey(models.Model):
         # Check if the key with this KeyName already exists (unique
         # for an account)
         try:
-            try_key = UserKeys.objects.get(
+            try_key = UserKey.objects.get(
                 account=user.account,
                 name=key_name
             )
@@ -99,7 +105,7 @@ class UserKey(models.Model):
         # Check to make sure that we haven't already imported this 
         # key by checking its MD5
         try:
-            try_key = UserKeys.objects.get(
+            try_key = UserKey.objects.get(
                 account=user.account,
                 fingerprint=new_md5
             )
@@ -134,7 +140,7 @@ class VirtualMachine(models.Model):
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
-    host = models.ForeignKey(HostMachines, on_delete=models.CASCADE)
+    host = models.ForeignKey(HostMachine, on_delete=models.CASCADE)
     instance_type = models.CharField(max_length=40)
     instance_size = models.CharField(max_length=40)
     image_metadata = models.JSONField()
@@ -157,7 +163,7 @@ class InstanceDefinition(models.Model):
     instance_definition_id = models.CharField(max_length=20, unique=True, db_index=True)
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
-    host = models.ForeignKey(HostMachines, on_delete=models.CASCADE)
+    host = models.ForeignKey(HostMachine, on_delete=models.CASCADE)
     instance_type = models.CharField(max_length=40)
     instance_size = models.CharField(max_length=40)
     cpu = models.CharField(max_length=40)
