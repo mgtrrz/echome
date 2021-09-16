@@ -4,7 +4,7 @@ from django.db import models
 from identity.models import User
 from vmmanager.instance_definitions import Instance
 from vmmanager.vm_manager import VmManager
-from vmmanager.models import UserKeys
+from vmmanager.models import UserKey
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
@@ -35,12 +35,12 @@ class KubeCluster(models.Model):
         default=Status.BUILDING,
     )
 
-    primary = models.ForeignKey("vmmanager.VirtualMachines", \
+    primary = models.ForeignKey("vmmanager.VirtualMachine", \
         on_delete=models.SET_NULL, \
         to_field="instance_id", \
         related_name='primary_controller', \
         null=True)
-    associated_instances = models.ManyToManyField("vmmanager.VirtualMachines")
+    associated_instances = models.ManyToManyField("vmmanager.VirtualMachine")
 
     minimum_requirements = models.JSONField(default=dict)
     image_metadata = models.JSONField(default=dict)
