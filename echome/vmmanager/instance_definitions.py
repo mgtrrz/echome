@@ -34,7 +34,7 @@ class Instance:
     }
 
     instance_configs = {
-        "type": "standard",
+        "class": "standard",
         "sizes": [
             {
                 "name": "nano",
@@ -69,33 +69,37 @@ class Instance:
         ]
     }
 
-    def __init__(self, instance_type="", instance_size=""):
-        if not instance_type in self.instanceSizes:
-            logger.error(f"Provided instance type is not a valid option: {instance_type}")
-            raise InvalidInstanceType("Provided instance type is not a valid option.")
+    def __init__(self, instance_class, instance_size):
+        if not instance_class in self.instanceSizes:
+            logger.error(f"Provided instance type is not a valid option: {instance_class}")
+            raise InvalidInstanceType("Provided instance class is not a valid option.")
 
-        if not instance_size in self.instanceSizes[instance_type]:
-            logger.error(f"Provided instance size is not a valid option: {instance_type}.{instance_size}")
+        if not instance_size in self.instanceSizes[instance_class]:
+            logger.error(f"Provided instance size is not a valid option: {instance_class}.{instance_size}")
             raise InvalidInstanceType("Provided instance size is not a valid option.")
 
-        self.itype = instance_type
+        self._class = instance_class
+        self._size = instance_size
+
+        #deprecated
+        self.itype = instance_class
         self.isize = instance_size
 
     def __str__(self):
-        return f"{self.itype}.{self.isize}"
+        return f"{self._class}.{self._size}"
 
     def get_all_instance_configurations(self):
         return self.instanceSizes
 
 
     def get_cpu(self):
-        return self.instanceSizes[self.itype][self.isize]["cpu"]
+        return self.instanceSizes[self._class][self._size]["cpu"]
     
     def get_memory(self):
-        return self.instanceSizes[self.itype][self.isize]["memory_megabytes"]
+        return self.instanceSizes[self._class][self._size]["memory_megabytes"]
     
     def get_xml_template(self):
-        return self.instanceSizes[self.itype]["xml_template"]
+        return self.instanceSizes[self._class]["xml_template"]
 
 class InvalidInstanceType(Exception):
     pass
