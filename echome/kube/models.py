@@ -2,7 +2,7 @@ import logging
 import docker
 from django.db import models
 from identity.models import User
-from vmmanager.instance_definitions import Instance
+from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
 from vmmanager.models import UserKey
 from echome.id_gen import IdGenerator
@@ -90,7 +90,7 @@ class KubeCluster(models.Model):
         return True
 
 
-    def create_cluster(self, user:User, instance_size: Instance, \
+    def create_cluster(self, user:User, instance_size: InstanceDefinition, \
         ips:list, image_id:str, network_profile:str, kubernetes_version="v1.18.5", key_name=None, disk_size="50G", \
         image_user="ubuntu", image_ssh_port="22", tags={}):
 

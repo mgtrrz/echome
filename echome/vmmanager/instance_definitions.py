@@ -2,7 +2,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class Instance:
+# 'InstanceType' or definition refers to the entire string: 'standard.medium'.
+# 'InstanceClass' or 'class' refers to 'standard'
+# 'InstanceSize' or 'size' refers to 'medium'
+class InstanceDefinition:
     instanceSizes = {
         "standard": {
             "nano": {
@@ -33,42 +36,6 @@ class Instance:
         }
     }
 
-    instance_configs = {
-        "class": "standard",
-        "sizes": [
-            {
-                "name": "nano",
-                "cpu": 0.5,
-                "memory_megabytes": 512,
-            },
-            {
-                "name": "micro",
-                "cpu": 1,
-                "memory_megabytes": 1024,
-            },
-            {
-                "name": "small",
-                "cpu": 2,
-                "memory_megabytes": 2048,
-            },
-            {
-                "name": "medium",
-                "cpu": 2,
-                "memory_megabytes": 4096,
-            },
-            {
-                "name": "large",
-                "cpu": 4,
-                "memory_megabytes": 4096,
-            },
-            {
-                "name": "xlarge",
-                "cpu": 8,
-                "memory_megabytes": 8192,
-            },
-        ]
-    }
-
     def __init__(self, instance_class, instance_size):
         if not instance_class in self.instanceSizes:
             logger.error(f"Provided instance type is not a valid option: {instance_class}")
@@ -88,9 +55,14 @@ class Instance:
     def __str__(self):
         return f"{self._class}.{self._size}"
 
-    def get_all_instance_configurations(self):
+    def get_all_configurations(self):
         return self.instanceSizes
 
+    def get_class(self):
+        return self._class
+
+    def get_size(self): 
+        return self._size
 
     def get_cpu(self):
         return self.instanceSizes[self._class][self._size]["cpu"]

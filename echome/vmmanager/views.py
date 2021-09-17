@@ -5,7 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from api.api_view import View
-from .instance_definitions import Instance, InvalidInstanceType
+from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import UserKey
 from .vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 
@@ -30,15 +30,15 @@ class CreateVM(View):
     def post(self, request):
         req_params = [
             "ImageId", 
-            "InstanceSize", 
+            "InstanceType", 
             "NetworkProfile",
         ]
         if self.require_parameters(request, req_params):
             return self.missing_parameter_response()
 
-        iTypeSize = request.POST["InstanceSize"].split(".")
+        instance_class_size = request.POST["InstanceType"].split(".")
         try:
-            instanceDefinition = Instance(iTypeSize[0], iTypeSize[1])
+            instanceDefinition = InstanceDefinition(instance_class_size[0], instance_class_size[1])
         except InvalidInstanceType:
             return {"error": "Provided InstanceSize is not a valid type or size."}, 400
         

@@ -23,7 +23,7 @@ from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from .models import VirtualMachine, UserKey, KeyDoesNotExist
-from .instance_definitions import Instance
+from .instance_definitions import InstanceDefinition
 from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlRemovableMedia, KvmXmlDisk
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class VmManager:
             logging.debug("CLEAN_UP_ON_FAIL set to true. Cleaning up..")
             self.__delete_vm_path(user.account, vm_id)
     
-    def create_vm(self, user: User, instanceType:Instance, **kwargs):
+    def create_vm(self, user: User, instanceType:InstanceDefinition, **kwargs):
         """Create a virtual machine
         This function does not create the VM but instead passes all of the
         arguments to the internal function _create_virtual_machine(). If this 
@@ -137,7 +137,7 @@ class VmManager:
         pass
 
     # Set to replace __createInstance
-    def _create_virtual_machine(self, user: User, vm:VirtualMachine, instanceType:Instance, **kwargs):
+    def _create_virtual_machine(self, user: User, vm:VirtualMachine, instanceType:InstanceDefinition, **kwargs):
         """Actual method that creates a virtual machine.
         
         All of the parameters from create_vm() are passed here in addition to
@@ -507,7 +507,7 @@ class VmManager:
         return VmId
     
 
-    def _generate_xml_template(self, vm_id:str, vnet:VirtualNetwork, instance_type:Instance, image_path:str, cloudinit_iso_path:str = None):
+    def _generate_xml_template(self, vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, cloudinit_iso_path:str = None):
         """Generates the XML template for use with defining in libvirt.
 
         :param vm_id: Virtual Machine Id
