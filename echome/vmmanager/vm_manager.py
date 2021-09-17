@@ -565,7 +565,7 @@ class VmManager:
 
     
     # Get information about a instance/VM
-    def getInstanceMetadata(self, user_obj, vm_id):
+    def get_instance_metadata(self, user_obj, vm_id):
 
         select_stmt = select([self.db.user_instances]).where(
             and_(
@@ -615,49 +615,13 @@ class VmManager:
     
     # Returns an object with the configuration details of a defined VM. (dump xml)
     # Can optionally return the raw XML string
-    def getInstanceConfiguration(self, vm_id):
+    def get_instance_configuration(self, vm_id):
         domain = self.__get_virtlib_domain(vm_id)
         xmldoc = domain.XMLDesc()
         xmltodict.parse(xmldoc)
     
-    # Returns all instances belonging to the account/user
-    def getAllInstances(self, user_obj):
-        columns = [
-            self.db.user_instances.c.created,
-            self.db.user_instances.c.instance_id,
-            self.db.user_instances.c.instance_type,
-            self.db.user_instances.c.instance_size,
-            self.db.user_instances.c.vm_image_metadata,
-            self.db.user_instances.c.account_user,
-            self.db.user_instances.c.attached_interfaces,
-            self.db.user_instances.c.attached_storage,
-            self.db.user_instances.c.key_name,
-            self.db.user_instances.c.assoc_firewall_rules,
-            self.db.user_instances.c.tags
-        ]
-        select_stmt = select(columns).where(self.db.user_instances.c.account == user_obj.account)
-        rows = self.db.connection.execute(select_stmt).fetchall()
-        instances = []
-        if rows:
-            for row in rows:
-                instance = {}
-                i = 0
-                for col in columns:
-                    if col.name == "created":
-                        instance[col.name] = str(row[i])
-                    else:
-                        instance[col.name] = row[i]
-                    i += 1
 
-                state, state_int, _  = self.getVmState(instance["instance_id"])
-                instance["state"] = {
-                    "code": state_int,
-                    "state": state,
-                }
-                instances.append(instance)
-        return instances
-
-    def createVirtualMachineImage(self, user, vm_id):
+    def create_virtual_machine_image(self, user:User, vm_id:str):
 
         account_id = user.account
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
@@ -702,11 +666,9 @@ class VmManager:
             #TODO: Condition on error
             print("Return code not None")
 
-
-        
         return {"vmi_id": vmi_id}
 
-    def getVmState(self, vm_id):
+    def get_vm_state(self, vm_id:str):
         domain = self.__get_virtlib_domain(vm_id)
         if domain:
             state_int, reason = domain.state()
@@ -738,49 +700,36 @@ class VmManager:
         return state_str, state_int, str(reason)
 
         
-    def startInstance(self, vm_id):
+    def start_instance(self, vm_id):
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
-            return {
-                "success": False,
-                "meta_data": {},
-                "reason": f"VM {vm_id} does not exist",
-            }
+            return VirtualMachineDoesNotExist
 
         if vm.isActive():
             logger.info(f"VM '{vm_id}' already started")
+            return True
 
-        while not vm.isActive():
-            logger.info(f"Starting VM '{vm_id}'")
+        logger.info(f"Starting VM '{vm_id}'")
+        try:
             vm.create()
+        except Exception as e:
+            logger.debug(f"Unable to start Virtual Machine {vm_id}: {e}")
+            raise VirtualMachineConfigurationException
         
         logger.debug("Setting autostart to 1 for started instances")
         vm.setAutostart(1)
         
-        return {
-            "success": True,
-            "meta_data": {},
-            "reason": "",
-        }
+        return True
     
-    def stopInstance(self, vm_id):
+    def stop_instance(self, vm_id):
         logger.debug(f"Stopping vm: {vm_id}")
         vm = self.__get_virtlib_domain(vm_id)
         if not vm:
-            return {
-                "success": False,
-                "meta_data": {},
-                "reason": f"VM {vm_id} does not exist",
-            }
+            raise VirtualMachineDoesNotExist
 
         if not vm.isActive():
             logger.info(f"VM '{vm_id}' already stopped")
-            return 
-
-        if vm.isActive():
-            print(f"Stopping VM '{vm_id}'")
-        else:
-            print(f"VM '{vm_id}' is already stopped")
+            return True
         
         logger.debug("Setting autostart to 0 for stopped instances")
         vm.setAutostart(0)
@@ -802,11 +751,7 @@ class VmManager:
                 else:
                     raise(e)
 
-        return {
-            "success": True,
-            "meta_data": {},
-            "reason": "",
-        }
+        return True
 
     def get_instance_metadata_by_ip(self, ip):
         select_stmt = select(self.db.user_instances.c).where(
@@ -817,36 +762,21 @@ class VmManager:
 
 
     # Terminate the instance 
-    def terminateInstance(self, user_obj, vm_id):
+    def terminate_instance(self, user:User, vm_id:str):
         logger.debug(f"Terminating vm: {vm_id}")
-        account_id = user_obj.account
 
         vm = self.__get_virtlib_domain(vm_id)
-        if not vm:
 
-            # Check to see if it's in the database
-            select_stmt = select([self.db.user_instances]).where(
-                and_(
-                    self.db.user_instances.c.account == user_obj.account, 
-                    self.db.user_instances.c.instance_id == vm_id
-                )
+        try:
+            vm = VirtualMachine.objects.get(
+                account = user.account,
+                instance_id = vm_id
             )
-            rows = self.db.connection.execute(select_stmt).fetchall()
+        except Exception as e:
+            # Nothing found in DB
+            logger.debug(f"Asked to delete VM {vm_id} but does not exist in database.")
+            vm = None
 
-            if rows:
-                del_stmt = self.db.user_instances.delete().where(self.db.user_instances.c.instance_id == vm_id)
-                self.db.connection.execute(del_stmt)
-                return {
-                    "success": True,
-                    "meta_data": {},
-                    "reason": f"Cleaned up fragmaneted VM {vm_id}.",
-                }
-            else:
-                return {
-                    "success": False,
-                    "meta_data": {},
-                    "reason": f"VM {vm_id} does not exist",
-                }
         try:
             # Stop the instance
             self.stopInstance(vm_id)
@@ -854,24 +784,19 @@ class VmManager:
             vm.undefine()
         except libvirt.libvirtError as e:
             logger.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
-            return {
-                "success": False,
-                "meta_data": {},
-                "reason": f"Could not terminate instance {vm_id}: libvirtError {e}",
-            }
+            raise VirtualMachineTerminationException()
         
         # Delete folder/path
-        self.__delete_vm_path(account_id, vm_id)
+        self.__delete_vm_path(user.account, vm_id)
 
         # delete entry in db
-        del_stmt = self.db.user_instances.delete().where(self.db.user_instances.c.instance_id == vm_id)
-        self.db.connection.execute(del_stmt)
+        try:
+            if vm: 
+                vm.delete()
+        except Exception as e:
+            raise Exception(f"Unable to delete row from database. instance_id={vm_id}")
 
-        return {
-            "success": True,
-            "meta_data": {},
-            "reason": "",
-        }
+        return True
 
     # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
     def __get_virtlib_domain(self, vm_id):
@@ -979,6 +904,14 @@ class InstanceConfiguration():
     def __init__(self, vm_id, **kwargs):
         self.id = vm_id
 
+class VirtualMachineDoesNotExist(Exception):
+    pass
+
+class VirtualMachineTerminationException(Exception):
+    pass
+
+class VirtualMachineConfigurationException(Exception):
+    pass
 
 class InvalidLaunchConfiguration(Exception):
     pass

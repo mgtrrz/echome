@@ -1,12 +1,14 @@
 import logging
 from django.shortcuts import render
-from django.http.response import JsonResponse
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets
 from api.api_view import View
+from identity.models import User
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
-from .models import UserKey
+from .models import UserKey, VirtualMachine
+from .serializers import VirtualMachineSerializer
 from .vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,7 @@ class CreateVM(View):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return JsonResponse({"got": True})
+        return Response({"got": True})
 
     def post(self, request):
         req_params = [
@@ -72,4 +74,29 @@ class CreateVM(View):
             logger.error(e)
             return {"error": "There was an error when processing the request."}, 500
                 
-        return JsonResponse({"vm_id": vm_id})
+        return Response({"vm_id": vm_id})
+
+class DescribeVM(View):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        i = []
+        try:
+            vms = VirtualMachine.objects.filter(
+                account=request.user.account
+            )
+            for vm in vms:
+                j_obj = VirtualMachineSerializer(vm).data
+                state, state_int, _  = j_obj.getVmState(vm.instance_id)
+                j_obj["state"] = {
+                    "code": state_int,
+                    "state": state,
+                }
+                i.append(j_obj)
+
+        except Exception as e:
+            logger.debug(e)
+            raise Exception(e)
+
+
+        return Response(i)
