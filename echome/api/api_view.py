@@ -28,6 +28,12 @@ class View(APIView):
                 "parameters": self.missing_parameters
             }, status=status.HTTP_400_BAD_REQUEST)
     
+    def error_response(self, message:str, status:status):
+        msg = {
+            'error': True,
+            'details': message
+        }
+        return Response(msg, status=status)
 
     def unpack_tags(self, request: HttpRequest=None):
         """

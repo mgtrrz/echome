@@ -1,15 +1,16 @@
 import logging
 from django.shortcuts import render
 from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from api.api_view import View
 from identity.models import User
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import UserKey, VirtualMachine
 from .serializers import VirtualMachineSerializer
-from .vm_manager import VmManager, InvalidLaunchConfiguration, LaunchError
+from .vm_manager import *
 
 logger = logging.getLogger(__name__)
 
@@ -63,16 +64,28 @@ class CreateVM(View):
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)
-            return {"error": "InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine."}, 400
+            return self.error_response(
+                "InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine.",
+                status = status.HTTP_400_BAD_REQUEST
+            )
         except ValueError as e:
             logger.debug(e)
-            return {"error": "ValueError: A supplied value was invalid and could not successfully build the virtual machine."}, 400
+            return self.error_response(
+                "ValueError: A supplied value was invalid and could not successfully build the virtual machine.",
+                status = status.HTTP_400_BAD_REQUEST
+            )
         except LaunchError as e:
             logger.error(e)
-            return {"error": "There was an error when creating the instance."}, 500
+            return self.error_response(
+                "There was an error when creating the instance.",
+                status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         except Exception as e:
             logger.error(e)
-            return {"error": "There was an error when processing the request."}, 500
+            return self.error_response(
+                "There was an error when processing the request.",
+                status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
                 
         return Response({"vm_id": vm_id})
 
@@ -102,10 +115,17 @@ class DescribeVM(View):
                     "state": state,
                 }
                 i.append(j_obj)
-
+        except VirtualMachine.DoesNotExist as e:
+            logger.debug(e)
+            return self.error_response(
+                "Virtual Machine does not exist.",
+                status = status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             logger.debug(e)
-            raise Exception(e)
-
+            return self.error_response(
+                "Internal Server Error.",
+                status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response(i)
