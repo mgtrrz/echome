@@ -289,24 +289,23 @@ class VmManager:
         # Define XML template
         # If we're using a customXML (usually for debugging), specify it.
         # Otherwise, use the XML that's set in the InstanceType.
-        if "CustomXML" in kwargs:
-            logger.debug(f"Custom XML defined: {kwargs['CustomXML']}")
-            xml_template = kwargs['CustomXML']
-        else:
-            xml_template = instanceType.get_xml_template()
+        # if "CustomXML" in kwargs:
+        #     logger.debug(f"Custom XML defined: {kwargs['CustomXML']}")
+        #     xml_template = kwargs['CustomXML']
+        # else:
+        #     xml_template = instanceType.get_xml_template()
 
         # Generate VM
         logger.debug(f"Generating VM config")
         try:
             xmldoc = self._generate_xml_template(
-                VmId=vm.instance_id,
-                XmlTemplate=xml_template,
-                vnet=vnet,
-                Cpu=instanceType.get_cpu(), 
-                Memory=instanceType.get_memory(), 
-                VmImg=destination_vm_img,
-                CloudInitIso=cloudinit_iso_path
+                vm_id = vm.instance_id,
+                vnet = vnet,
+                instance_type=instanceType,
+                image_path=destination_vm_img,
+                cloudinit_iso_path=cloudinit_iso_path
             )
+
         except Exception as e:
             logger.error(f"Error when creating XML template. {e}")
             raise LaunchError("Error when creating XML template.")
@@ -329,6 +328,7 @@ class VmManager:
         logger.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
         
+        # Ensures our VMs start up when the host reboots
         logger.debug("Setting autostart to 1")
         domain = self.__get_virtlib_domain(vm.instance_id)
         domain.setAutostart(1)
@@ -507,37 +507,31 @@ class VmManager:
         return VmId
     
 
-    def _generate_xml_template(self, vm_id: str, vnet: VirtualNetwork, **kwargs):
+    def _generate_xml_template(self, vm_id:str, vnet:VirtualNetwork, instance_type:Instance, image_path:str, cloudinit_iso_path:str = None):
         """Generates the XML template for use with defining in libvirt.
-        This function at the moment utilizes "template" XML documents in the `xml_templates`
-        directory. Template() is then used to fill in variables in the XML documents to
-        suit the virtual machine.
-        In the future, we may consider using XML libraries to properly generate XML docs.
+
         :param vm_id: Virtual Machine Id
         :type vm_id: str
         :param vnet: Virtual Network object for determining if a bridge interface should be used.
         :type vnet: VirtualNetwork
-        :key Cpu: Number of CPUs (threads) to set for this virtual machine
-        :type Cpu: str
-        :key Memory: Memory value for the virtual machine. Values would be anything that libvirt accepts, 512M, 4G, etc.
-        :type Memory: str
-        :key VmImg: Path to the root virtual disk for the virtual machine.
-        :type VmImg: str
-        :key CloudInitIso: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
+        :key instance_type: Instance type for this VM
+        :type instance_type: Instance
+        :key image_path: Path to the root virtual disk for the virtual machine.
+        :type image_path: str
+        :key cloudinit_iso_path: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
             If attached, the XML document will add a virtual disk with a mount to the cloudinit iso. 
-        :type CloudInitIso: str
+        :type cloudinit_iso_path: str
         :return: XML document as a string
         :rtype: str
         """        
-
 
         enable_smbios = False
         metadata_api_url = ""
         network = []
         removable_media = []
 
-        if "CloudInitIso" in kwargs:
-            removable_media.append(KvmXmlRemovableMedia(kwargs["CloudInitIso"]))
+        if cloudinit_iso_path:
+            removable_media.append(KvmXmlRemovableMedia(cloudinit_iso_path))
 
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
@@ -556,10 +550,10 @@ class VmManager:
         
         xmldoc = KvmXmlObject(
             name=vm_id,
-            memory=kwargs["Memory"],
-            cpu_count=kwargs["Cpu"],
+            memory=instance_type.get_memory(),
+            cpu_count=instance_type.get_cpu(),
             hard_disks=[
-                KvmXmlDisk(kwargs["VmImg"])
+                KvmXmlDisk(image_path)
             ],
             network_interfaces=network,
             removable_media=removable_media,

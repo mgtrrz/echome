@@ -28,8 +28,10 @@ services:
     volumes:
       - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
       - /etc/echome:/etc/echome
+      - /mnt:/mnt
     devices:
       - /dev/kvm
+    privileged: true
   vault:
     image: "vault:1.8.2"
     ports:
