@@ -79,15 +79,24 @@ class CreateVM(View):
 class DescribeVM(View):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request, vm_id:str):
         i = []
+
         try:
-            vms = VirtualMachine.objects.filter(
-                account=request.user.account
-            )
+            if vm_id == "all":
+                vms = VirtualMachine.objects.filter(
+                    account=request.user.account
+                )
+            else:
+                vms = []
+                vms.append(VirtualMachine.objects.get(
+                    account=request.user.account,
+                    instance_id=vm_id
+                ))
+            
             for vm in vms:
                 j_obj = VirtualMachineSerializer(vm).data
-                state, state_int, _  = j_obj.getVmState(vm.instance_id)
+                state, state_int, _  = VmManager().get_vm_state(vm.instance_id)
                 j_obj["state"] = {
                     "code": state_int,
                     "state": state,

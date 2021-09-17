@@ -19,6 +19,7 @@ services:
     build: .
     environment:
       - DATABASE_URL=postgres://echome:echome@db:5432/echome
+      - LOG_LEVEL=DEBUG
     ports:
       - 18000:8000
     depends_on:
