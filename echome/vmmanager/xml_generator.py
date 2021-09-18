@@ -1,7 +1,13 @@
 import xmltodict
+import logging
 from typing import List
 from dataclasses import dataclass, field
+from network.models import VirtualNetwork
+from echome.config import ecHomeConfig
+from .models import HostMachine, VirtualMachine
+from .instance_definitions import InstanceDefinition
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class KvmXmlDisk():
@@ -34,6 +40,7 @@ class KvmXmlObject():
     name: str
     memory: int
     cpu_count: int
+    host: HostMachine
 
     hard_disks: List[KvmXmlDisk]
 
@@ -56,9 +63,6 @@ class KvmXmlObject():
 
     def __str__(self) -> str:
         return self.name
-    
-    def get_name(self):
-        return {"name": self.name}
 
     # Return the devices to attach to the VM
     def _render_devices(self):
@@ -132,6 +136,9 @@ class KvmXmlObject():
             }
         }
     
+    def _render_cpu_details(self, host:HostMachine):
+        pass
+    
     # Enable features for the virtual machine
     def _render_features(self):
         default_features = ['acpi', 'apic']
@@ -199,20 +206,59 @@ class KvmXmlObject():
 
         return xmltodict.unparse(obj, full_document=False, pretty=True, short_empty_elements=True)
 
-# myobj = KvmXmlObject(
-#     name="testing!",
-#     memory=4096,
-#     cpu_count=2,
-#     hard_disks=[
-#         KvmXmlDisk("/test/hello/something.qcow2")
-#     ],
-#     network_interfaces=[KvmXmlNetworkInterface(
-#         type="bridge",
-#         source="br0"
-#     )],
-#     removable_media=[
-#         KvmXmlRemovableMedia("/cdrom")
-#     ],
-#     enable_smbios=True
-# )
-# print(myobj.render_xml())
+class XmlGenerator():
+    def generate_template(self, vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, cloudinit_iso_path:str = None):
+        """Generates the XML template for use with defining in libvirt.
+
+        :param vm_id: Virtual Machine Id
+        :type vm_id: str
+        :param vnet: Virtual Network object for determining if a bridge interface should be used.
+        :type vnet: VirtualNetwork
+        :key instance_type: Instance type for this VM
+        :type instance_type: Instance
+        :key image_path: Path to the root virtual disk for the virtual machine.
+        :type image_path: str
+        :key cloudinit_iso_path: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
+            If attached, the XML document will add a virtual disk with a mount to the cloudinit iso. 
+        :type cloudinit_iso_path: str
+        :return: XML document as a string
+        :rtype: str
+        """        
+
+        enable_smbios = False
+        metadata_api_url = ""
+        network = []
+        removable_media = []
+
+        if cloudinit_iso_path:
+            removable_media.append(KvmXmlRemovableMedia(cloudinit_iso_path))
+
+        if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
+            # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
+            # template
+            network.append(KvmXmlNetworkInterface(
+                type = "bridge",
+                source = vnet.config['bridge_interface']
+            ))
+        else:
+            # If the new VM is not using the BridgeToLan network type, add smbios
+            # information for it to use the metadata service.
+            ech = ecHomeConfig.EcHome()
+            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
+            logger.debug(f"Generated Metadata API url: {metadata_api_url}")
+            enable_smbios = True
+        
+        xmldoc = KvmXmlObject(
+            name=vm_id,
+            memory=instance_type.get_memory(),
+            cpu_count=instance_type.get_cpu(),
+            hard_disks=[
+                KvmXmlDisk(image_path)
+            ],
+            network_interfaces=network,
+            removable_media=removable_media,
+            enable_smbios=enable_smbios,
+            smbios_url=metadata_api_url
+        )
+        
+        return xmldoc.render_xml()

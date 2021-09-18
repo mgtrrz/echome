@@ -54,23 +54,15 @@ class BaseImageModel(models.Model):
         self.generate_id()
         
         # Check to see if an image at the path already exists
-        try:
-            if self.image_type == "guest":
-                results = GuestImage.objects.get(
-                    image_path=path
-                )
-            elif self.image_type == "user":
-                results = UserImage.objects.get(
-                    image_path=path
-                )
-            else:
-                raise ValueError
-        except ObjectDoesNotExist:
-            pass
-        except ValueError:
+        if self.image_type == "guest":
+            cl = GuestImage
+        elif self.image_type == "user":
+            cl = UserImage
+        else:
             logger.exception("Image type is something other than guest or user?")
             raise
-        else:
+        
+        if cl.objects.filter(image_path=path).exists():
             logger.error(f"Image already exists in database. img_path={path}")
             raise InvalidImageAlreadyExists(f"Image already exists in database. img_path={path}")
 

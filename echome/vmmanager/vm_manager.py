@@ -13,7 +13,6 @@ import yaml
 import xmltodict
 # import platform
 # import psutil
-from django.core.exceptions import ObjectDoesNotExist
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.id_gen import IdGenerator
@@ -200,7 +199,7 @@ class VmManager:
                 pub_key = keyObj.public_key
                 key_dict = {kwargs["KeyName"]: [pub_key]}
                 logger.debug("Got public key from KeyName")
-            except ObjectDoesNotExist:
+            except UserKey.DoesNotExist:
                 raise ValueError("Specified SSH Key Name does not exist.")
         
         if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
