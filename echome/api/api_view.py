@@ -1,9 +1,8 @@
-from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from django.http import HttpRequest
 
-class View(APIView):
+class HelperView():
     missing_parameters: list = list()
 
     def require_parameters(self, request: HttpRequest, required: list):

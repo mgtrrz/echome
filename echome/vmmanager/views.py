@@ -1,11 +1,11 @@
 import logging
 from django.shortcuts import render
-from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from rest_framework import viewsets, status
-from api.api_view import View
+from api.api_view import HelperView
 from identity.models import User
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import UserKey, VirtualMachine
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
 # \&NetworkInterfaceGatewayIp=172.16.9.1 \
 # \&KeyName=echome
-class CreateVM(View):
+class CreateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -94,7 +94,7 @@ class CreateVM(View):
                 
         return Response({"vm_id": vm_id})
 
-class DescribeVM(View):
+class DescribeVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, vm_id:str):
@@ -134,3 +134,12 @@ class DescribeVM(View):
             )
 
         return Response(i)
+
+class TerminateVM(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"got": True})
+
+    def post(self, request):
+        pass
