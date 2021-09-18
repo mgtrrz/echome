@@ -33,6 +33,10 @@ services:
     devices:
       - /dev/kvm
     privileged: true
+  utils:
+    build: ./utils-app
+    ports: 
+      - 18500:8000
   vault:
     image: "vault:1.8.2"
     ports:
