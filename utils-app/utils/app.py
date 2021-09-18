@@ -6,7 +6,11 @@ app = Flask(__name__)
 def front_page():
     return {}
 
-@app.route("/update-notion")
+@app.route("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.route("/qemu-img")
 def update_notion():
     return update_notion()
 

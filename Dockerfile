@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y tzdata
 RUN apt install python3 python3-libvirt python3-dev python3-pip libpq-dev pkg-config -y
+RUN apt install qemu-utils cloud-init libguestfs-tools -y
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -19,7 +20,7 @@ RUN pip install -r requirements.txt
 WORKDIR /app
 
 # Copy project
-COPY . /app/
+COPY ./echome /app/
 
 EXPOSE 8000
 

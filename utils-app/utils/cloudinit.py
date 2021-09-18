@@ -4,9 +4,9 @@ from commander import Commander
 
 logger = logging.getLogger(__name__)
 
-class QemuImg(Commander):
+class CloudInit(Commander):
     """
-    Create a QemuImg object to pass commands to qemu-img.
+    
     """
 
     base_command = '/usr/bin/qemu-img'

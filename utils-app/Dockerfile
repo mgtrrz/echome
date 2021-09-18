@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y tzdata
-RUN apt install python3 python3-pip qemu-utils -y
+RUN apt install python3 python3-pip qemu-utils cloud-init libguestfs-tools -y
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
