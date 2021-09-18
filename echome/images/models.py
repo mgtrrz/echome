@@ -34,18 +34,18 @@ class BaseImageModel(models.Model):
 
     def generate_id(self):
         if self.image_id is None or self.image_id == "":
-            if self.img_type == "guest":
-                id = IdGenerator.generate(type="gmi")
-            elif self.img_type == "user":
-                id = IdGenerator.generate(type="vmi")
+            if self.image_type == "guest":
+                id = "gmi"
+            elif self.image_type == "user":
+                id = "vmi"
             else:
                 raise Exception("Unknown image type provided")
-
             self.image_id = IdGenerator.generate(id)
+            logger.debug(f"Generated ID: '{self.image_id}'")
         else:
             raise AttemptedOverrideOfImmutableIdException
 
-    def register_image(self, path:str, name:str, description:str, user:User=None, host="localhost", tags=dict):
+    def register_image(self, path:str, name:str, description:str, user:User=None, host="localhost", tags=None):
         # Check to see if a file exists at the provided path
         if not os.path.exists(path):
             logger.error(f"File does not exist at specified file path: {path}")
@@ -55,11 +55,21 @@ class BaseImageModel(models.Model):
         
         # Check to see if an image at the path already exists
         try:
-            results = self.objects.get(
-                image_path=path
-            )
+            if self.image_type == "guest":
+                results = GuestImage.objects.get(
+                    image_path=path
+                )
+            elif self.image_type == "user":
+                results = UserImage.objects.get(
+                    image_path=path
+                )
+            else:
+                raise ValueError
         except ObjectDoesNotExist:
             pass
+        except ValueError:
+            logger.exception("Image type is something other than guest or user?")
+            raise
         else:
             logger.error(f"Image already exists in database. img_path={path}")
             raise InvalidImageAlreadyExists(f"Image already exists in database. img_path={path}")
@@ -70,7 +80,6 @@ class BaseImageModel(models.Model):
         print(obj["format"])
 
         img_metadata = {}
-        img_metadata["user"] = user.user_id
         img_metadata["format"] = obj["format"]
         img_metadata["actual-size"] = obj["actual-size"]
         img_metadata["virtual-size"] = obj["virtual-size"]
@@ -83,8 +92,9 @@ class BaseImageModel(models.Model):
         self.description = description
         #self.minimum_requirements = dict
         self.image_metadata = img_metadata
-        self.tags = tags
-        self.save
+        if tags:
+            self.tags
+        self.save()
         return self.image_id
 
     def __str__(self) -> str:

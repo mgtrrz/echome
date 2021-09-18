@@ -22,7 +22,7 @@ from echome.commander import QemuImg
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
-from .models import VirtualMachine, UserKey, KeyDoesNotExist
+from .models import HostMachine, VirtualMachine, UserKey, KeyDoesNotExist
 from .instance_definitions import InstanceDefinition
 from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlRemovableMedia, KvmXmlDisk
 
@@ -334,17 +334,18 @@ class VmManager:
         domain.setAutostart(1)
         
         logger.info("Starting VM..")
-        self.startInstance(vm.instance_id)
+        self.start_instance(vm.instance_id)
 
         # Add the information for this VM in the db
         vm.account = user.account
-        vm.host = "localhost"
+        # TODO: Properly assign this
+        vm.host = HostMachine.objects.get(name="echome")
         vm.instance_type = instanceType.itype
         vm.instance_size = instanceType.isize
         vm.account = user.account
         vm.interfaces = {
             "config_at_launch": {
-                "vnet_id": vnet.vnet_id,
+                "vnet_id": vnet.network_id,
                 "type": vnet.type,
                 "private_ip": kwargs["PrivateIp"] if "PrivateIp" in kwargs else "",
             }
