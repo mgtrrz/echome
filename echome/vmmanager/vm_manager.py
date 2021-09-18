@@ -17,13 +17,13 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
-from echome.commander import QemuImg
+from echome.commander import QemuImg, CloudInit, CloudLocalds
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from .models import HostMachine, VirtualMachine, UserKey, KeyDoesNotExist
 from .instance_definitions import InstanceDefinition
-from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlRemovableMedia, KvmXmlDisk
+from .xml_generator import XmlGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +297,7 @@ class VmManager:
         # Generate VM
         logger.debug(f"Generating VM config")
         try:
-            xmldoc = self._generate_xml_template(
+            xmldoc = XmlGenerator.generate_template(
                 vm_id = vm.instance_id,
                 vnet = vnet,
                 instance_type=instanceType,
@@ -506,63 +506,6 @@ class VmManager:
         
         return VmId
     
-
-    def _generate_xml_template(self, vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, cloudinit_iso_path:str = None):
-        """Generates the XML template for use with defining in libvirt.
-
-        :param vm_id: Virtual Machine Id
-        :type vm_id: str
-        :param vnet: Virtual Network object for determining if a bridge interface should be used.
-        :type vnet: VirtualNetwork
-        :key instance_type: Instance type for this VM
-        :type instance_type: Instance
-        :key image_path: Path to the root virtual disk for the virtual machine.
-        :type image_path: str
-        :key cloudinit_iso_path: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
-            If attached, the XML document will add a virtual disk with a mount to the cloudinit iso. 
-        :type cloudinit_iso_path: str
-        :return: XML document as a string
-        :rtype: str
-        """        
-
-        enable_smbios = False
-        metadata_api_url = ""
-        network = []
-        removable_media = []
-
-        if cloudinit_iso_path:
-            removable_media.append(KvmXmlRemovableMedia(cloudinit_iso_path))
-
-        if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
-            # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
-            # template
-            network.append(KvmXmlNetworkInterface(
-                type = "bridge",
-                source = vnet.config['bridge_interface']
-            ))
-        else:
-            # If the new VM is not using the BridgeToLan network type, add smbios
-            # information for it to use the metadata service.
-            ech = ecHomeConfig.EcHome()
-            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
-            logger.debug(f"Generated Metadata API url: {metadata_api_url}")
-            enable_smbios = True
-        
-        xmldoc = KvmXmlObject(
-            name=vm_id,
-            memory=instance_type.get_memory(),
-            cpu_count=instance_type.get_cpu(),
-            hard_disks=[
-                KvmXmlDisk(image_path)
-            ],
-            network_interfaces=network,
-            removable_media=removable_media,
-            enable_smbios=enable_smbios,
-            smbios_url=metadata_api_url
-        )
-        
-        return xmldoc.render_xml()
-
     
     # Get information about a instance/VM
     def get_instance_metadata(self, user_obj, vm_id):
@@ -812,40 +755,31 @@ class VmManager:
 
         # Validate the yaml file
         logger.debug("Validating Cloudinit config yaml.")        
-        output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_yaml_file_path])
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
+        if not CloudInit().validate_schema(cloudinit_yaml_file_path):
+            logger.exception("Failed validating Cloudinit config yaml")
+            raise Exception
 
         if cloudinit_network_yaml_file_path:
             logger.debug("Validating Cloudinit Network config yaml.")
-            output = self.__run_command(['cloud-init', 'devel', 'schema', '--config-file', cloudinit_network_yaml_file_path])
-            if output["return_code"] is not None:
-                # There was an issue with the resize
-                #TODO: Condition on error
-                print("Return code not None")
-
+            if not CloudInit().validate_schema(cloudinit_network_yaml_file_path):
+                logger.exception("Failed validating Cloudinit Network config yaml")
+                raise Exception
 
         # Create cloud_init disk image
         cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
 
-        args = ['cloud-localds', '-v', cloudinit_iso_path, cloudinit_yaml_file_path]
+        create_image_success = CloudLocalds().create_image(
+            user_data_file=cloudinit_yaml_file_path,
+            output=cloudinit_iso_path,
+            meta_data_file=cloudinit_metadata_file_path,
+            network_config_file=cloudinit_network_yaml_file_path
+        )
 
-        if cloudinit_metadata_file_path:
-            args.append(cloudinit_metadata_file_path)
-
-        if cloudinit_network_yaml_file_path:
-            args.append(f"--network-config={cloudinit_network_yaml_file_path}")
-
-        output = self.__run_command(args)
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
+        if not create_image_success:
+            logger.exception("Was not able to create the cloud-init image!")
+            raise Exception
 
         logger.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
-
         return cloudinit_iso_path
 
     def __generate_mac_addr(self):
