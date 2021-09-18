@@ -1,8 +1,0 @@
-  <sysinfo type="smbios">
-    <system>
-      <entry name='manufacturer'>ecHome</entry>
-      <entry name='product'>Virt-Manager</entry>
-      <entry name='version'>0.9.4</entry>
-      <entry name='serial'>ds=nocloud-net;s=$NOCLOUD_URL</entry>
-    </system>
-  </sysinfo>
