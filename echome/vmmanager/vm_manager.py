@@ -121,14 +121,14 @@ class VmManager:
         except InvalidLaunchConfiguration as e:
             logger.error(f"Launch Configuration error: {e}")
             self._clean_up(user, new_instance.instance_id)
-            raise InvalidLaunchConfiguration(e)
+            raise
         except LaunchError as e:
-            logger.error(f"Launch error: {e}")
+            logger.exception(f"Launch error: {e}")
             self._clean_up(user, new_instance.instance_id)
-            raise LaunchError(e)
+            raise
         except Exception as e:
-            logger.error(f"Encountered other error: {e}")
-            raise Exception(e) from e
+            logger.exception(f"Encountered other error: {e}")
+            raise
         
         return result
     
@@ -162,7 +162,7 @@ class VmManager:
                 name=kwargs["NetworkProfile"],
                 account=user.account
             )
-        except Exception as e:
+        except VirtualNetwork.DoesNotExist:
             raise InvalidLaunchConfiguration("Provided NetworkProfile does not exist.")
 
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None

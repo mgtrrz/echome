@@ -36,18 +36,23 @@ class CreateVM(View):
             "InstanceType", 
             "NetworkProfile",
         ]
+        logger.debug(request)
         if self.require_parameters(request, req_params):
             return self.missing_parameter_response()
 
-        instance_class_size = request.POST["InstanceType"].split(".")
         try:
+            instance_class_size = request.POST["InstanceType"].split(".")
             instanceDefinition = InstanceDefinition(instance_class_size[0], instance_class_size[1])
-        except InvalidInstanceType:
-            return {"error": "Provided InstanceSize is not a valid type or size."}, 400
+        except Exception as e:
+            logger.debug(e)
+            return self.error_response(
+                "Provided InstanceSize is not a valid type or size.",
+                status.HTTP_400_BAD_REQUEST
+            )
         
-        tags = self.unpack_tags(request.args)
+        tags = self.unpack_tags(request)
 
-        disk_size = request.args["DiskSize"] if "DiskSize" in request.args else "10G"
+        disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else "10G"
         
         vm = VmManager()
 
@@ -57,9 +62,9 @@ class CreateVM(View):
                 instanceType=instanceDefinition, 
                 Tags=tags,
                 KeyName=request.POST["KeyName"] if "KeyName" in request.POST else None,
-                NetworkProfile=request.args["NetworkProfile"],
-                PrivateIp=request.args["PrivateIp"] if "PrivateIp" in request.args else "",
-                ImageId=request.args["ImageId"],
+                NetworkProfile=request.POST["NetworkProfile"],
+                PrivateIp=request.POST["PrivateIp"] if "PrivateIp" in request.POST else "",
+                ImageId=request.POST["ImageId"],
                 DiskSize=disk_size    
             )
         except InvalidLaunchConfiguration as e:
@@ -75,13 +80,13 @@ class CreateVM(View):
                 status = status.HTTP_400_BAD_REQUEST
             )
         except LaunchError as e:
-            logger.error(e)
+            logger.exception(e)
             return self.error_response(
                 "There was an error when creating the instance.",
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
             return self.error_response(
                 "There was an error when processing the request.",
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR

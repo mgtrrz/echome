@@ -151,7 +151,7 @@ class VirtualMachine(models.Model):
     tags = models.JSONField(default=dict)
 
     def generate_id(self):
-        if self.instance_id is None or self.instane_id == "":
+        if self.instance_id is None or self.instance_id == "":
             self.instance_id = IdGenerator.generate("vm")
         else:
             raise AttemptedOverrideOfImmutableIdException
