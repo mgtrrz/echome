@@ -141,5 +141,15 @@ class TerminateVM(HelperView, APIView):
     def get(self, request):
         return Response({"got": True})
 
-    def post(self, request):
-        pass
+    def post(self, request, vm_id:str):
+        try:
+            VmManager().terminate_instance(request.user, vm_id)
+        except Exception as e:
+            logger.exception(e)
+            return self.error_response(
+                "Internal Server Error.",
+                status = status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        return Response({'action': 'terminate', 'success': True})
+        

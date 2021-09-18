@@ -136,7 +136,7 @@ class KvmXmlObject():
             }
         }
     
-    def _render_cpu_details(self, host:HostMachine):
+    def _render_cpu_details(self, host:HostMachine = None):
         return {
             '@mode': 'host-passthrough',
             '@match': 'exact',
@@ -157,7 +157,7 @@ class KvmXmlObject():
         return obj
 
     # Render the complete XML document 
-    def render_xml(self, host:HostMachine):
+    def render_xml(self):
         obj = {
             'domain': {
                 '@type': 'kvm',
@@ -178,7 +178,7 @@ class KvmXmlObject():
                     }
                 },
                 'features': self._render_features(),
-                'cpu': self._render_cpu_details(host),
+                'cpu': self._render_cpu_details(self.host),
                 'clock': {
                     '@offset': self.clock_offset,
                     'timer': [
@@ -208,7 +208,7 @@ class KvmXmlObject():
 
 class XmlGenerator():
     @staticmethod
-    def generate_template(vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, cloudinit_iso_path:str = None):
+    def generate_template(vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, host:HostMachine, cloudinit_iso_path:str = None):
         """Generates the XML template for use with defining in libvirt.
 
         :param vm_id: Virtual Machine Id
@@ -253,6 +253,7 @@ class XmlGenerator():
             name=vm_id,
             memory=instance_type.get_memory(),
             cpu_count=instance_type.get_cpu(),
+            host=host,
             hard_disks=[
                 KvmXmlDisk(image_path)
             ],

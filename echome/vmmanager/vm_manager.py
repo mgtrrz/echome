@@ -148,6 +148,16 @@ class VmManager:
         # Creating the directory for the virtual machine
         vmdir = self.__generate_vm_path(user.account, vm.instance_id)
 
+        # Determine host to run this VM on:
+        try:
+            hosts = HostMachine.objects.all()
+        except Exception as e:
+            logger.exception(e)
+            raise 
+            
+        # Use the first for now
+        host = hosts[0]
+
         # Networking
         # For VMs launched with BridgeToLan, we'll need to create a cloudinit
         # network file as we're unable to set a private IP address at build time.
@@ -191,7 +201,7 @@ class VmManager:
         if "KeyName" in kwargs and kwargs["KeyName"] is not None:
             logger.debug(f"Checking KeyName: {kwargs['KeyName']}.")
             try:
-                keyObj:UserKey = UserKey().objects.get(
+                keyObj:UserKey = UserKey.objects.get(
                     account=user.account,
                     name=kwargs["KeyName"]
                 )
@@ -302,7 +312,8 @@ class VmManager:
                 vnet = vnet,
                 instance_type=instanceType,
                 image_path=destination_vm_img,
-                cloudinit_iso_path=cloudinit_iso_path
+                host=host,
+                cloudinit_iso_path=cloudinit_iso_path,
             )
 
         except Exception as e:
@@ -573,8 +584,7 @@ class VmManager:
         logger.debug(f"Creating VMI from {vm_id}")
         # Instance needs to be turned off to create an image
         logger.debug(f"Stopping {vm_id}")
-        self.stopInstance(vm_id)
-
+        self.stop_instance(vm_id)
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
         # Create it if doesn't exist
@@ -708,23 +718,23 @@ class VmManager:
     def terminate_instance(self, user:User, vm_id:str):
         logger.debug(f"Terminating vm: {vm_id}")
 
-        vm = self.__get_virtlib_domain(vm_id)
+        vm_domain = self.__get_virtlib_domain(vm_id)
 
         try:
-            vm = VirtualMachine.objects.get(
+            vm_db = VirtualMachine.objects.get(
                 account = user.account,
                 instance_id = vm_id
             )
         except Exception as e:
             # Nothing found in DB
             logger.debug(f"Asked to delete VM {vm_id} but does not exist in database.")
-            vm = None
+            vm_db = None
 
         try:
             # Stop the instance
-            self.stopInstance(vm_id)
+            self.stop_instance(vm_id)
             # Undefine it to remove it from virt
-            vm.undefine()
+            vm_domain.undefine()
         except libvirt.libvirtError as e:
             logger.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
             raise VirtualMachineTerminationException()
@@ -734,8 +744,8 @@ class VmManager:
 
         # delete entry in db
         try:
-            if vm: 
-                vm.delete()
+            if vm_db: 
+                vm_db.delete()
         except Exception as e:
             raise Exception(f"Unable to delete row from database. instance_id={vm_id}")
 
@@ -758,12 +768,6 @@ class VmManager:
         if not CloudInit().validate_schema(cloudinit_yaml_file_path):
             logger.exception("Failed validating Cloudinit config yaml")
             raise Exception
-
-        if cloudinit_network_yaml_file_path:
-            logger.debug("Validating Cloudinit Network config yaml.")
-            if not CloudInit().validate_schema(cloudinit_network_yaml_file_path):
-                logger.exception("Failed validating Cloudinit Network config yaml")
-                raise Exception
 
         # Create cloud_init disk image
         cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
