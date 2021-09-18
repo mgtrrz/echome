@@ -1,8 +1,8 @@
 from django.core import exceptions
 import sshpubkeys
 import logging
+import cpuinfo
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
@@ -25,6 +25,14 @@ class HostMachine(models.Model):
             self.host_id = IdGenerator.generate("host")
         else:
             raise AttemptedOverrideOfImmutableIdException
+
+    def get_cpu_model(self):
+        if self.pk is None:
+            logger.error("Attempted to get cpu info for HostMachine that does not have a row in database.")
+            raise Exception
+        
+        return 
+
 
     def __str__(self) -> str:
         return self.name
@@ -91,27 +99,13 @@ class UserKey(models.Model):
 
         # Check if the key with this KeyName already exists (unique
         # for an account)
-        try:
-            try_key = UserKey.objects.get(
-                account=user.account,
-                name=key_name
-            )
-        except ObjectDoesNotExist:
-            pass
-        else:
+        if UserKey.objects.filter(account=user.account, name=key_name).exists():
             logger.error(f"Key with that name already exists. key_name={key_name}")
             raise KeyNameAlreadyExists(f"Key with that name already exists.")
         
         # Check to make sure that we haven't already imported this 
         # key by checking its MD5
-        try:
-            try_key = UserKey.objects.get(
-                account=user.account,
-                fingerprint=new_md5
-            )
-        except ObjectDoesNotExist:
-            pass
-        else:
+        if UserKey.objects.filter(account=user.account, fingerprint=new_md5).exists():
             logger.error(f"Key with that fingerprint already exists. key_name={key_name}")
             raise KeyNameAlreadyExists(f"Key with that fingerprint already exists.")
 

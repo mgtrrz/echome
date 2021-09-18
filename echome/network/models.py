@@ -1,7 +1,6 @@
 import logging
 import ipaddress
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist
 from identity.models import User
 from echome.id_gen import IdGenerator
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
@@ -73,17 +72,7 @@ class VirtualNetwork(models.Model):
 
         # Check to see if a network with that name does not already exist
         logger.debug("Checking if network with the name already exists..")
-        try:
-            VirtualNetwork.objects.get(
-            account=User.account,
-            name=name
-        )
-        except Exception as e:
-            logger.debug("Normal Exception")
-            logger.debug(e)
-        except ObjectDoesNotExist:
-            pass
-        else:
+        if VirtualNetwork.objects.filter(account=User.account, name=name).exists():
             raise InvalidNetworkName("Network configuration with that name already exists.")
 
         # Validate the information provided is correct (Actual IP addresses)
