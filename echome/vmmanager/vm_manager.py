@@ -1,6 +1,5 @@
 import libvirt
 import sys
-from string import Template
 import pathlib
 import logging
 import subprocess
@@ -8,11 +7,9 @@ import random
 import shutil
 import time
 import json
-# import datetime
 import yaml
 import xmltodict
-# import platform
-# import psutil
+import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.id_gen import IdGenerator
@@ -303,6 +300,7 @@ class VmManager:
         logger.debug(f"Final image: {destination_vm_img}")
 
         # VNC?
+        metadata = {}
         addtl_options = {}
         if "EnableVnc" in kwargs and kwargs["EnableVnc"]:
             logger.debug("Enabling VNC")
@@ -315,6 +313,12 @@ class VmManager:
             # Generate a random password
             vnc_passwd = User().generate_secret(16)
             addtl_options["vnc_passwd"] = vnc_passwd
+            # TODO: Store in Vault or a proper key store
+            metadata = {
+                'vnc': {
+                    'password': str(base64.b64encode(bytes(vnc_passwd, 'utf-8')), 'utf-8')
+                }
+            }
             
 
         # Generate VM
@@ -375,6 +379,7 @@ class VmManager:
             }
         }
         vm.storage = {}
+        vm.metadata = metadata
         vm.key_name = kwargs["KeyName"] if "KeyName" in kwargs else ""
         vm.firewall_rules = {}
         vm.image_metadata = {
