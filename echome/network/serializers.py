@@ -5,4 +5,4 @@ class NetworkSerializer(serializers.ModelSerializer):
     # specify model and fields
     class Meta:
         model = VirtualNetwork
-        exclude = ['id', 'firewall_rules', 'deactivated']
+        exclude = ['id', 'deactivated', 'account']

@@ -67,46 +67,48 @@ class VirtualNetwork(models.Model):
     # DnsServers: ["1.1.1.1", "1.0.0.1"]
     # Bridge: "br0"
     # Tags: {"Environment": "Home"}
-    def create(self, name:str, user: User, type:Type, **kwargs):
+    def create(self, name:str, user:User, type:Type,
+            network:str, prefix:str, gateway:str, dns_servers:list,
+            bridge:str = None, tags:list = None):
         logger.debug("Creating new network")
+
+        self.generate_id()
 
         # Check to see if a network with that name does not already exist
         logger.debug("Checking if network with the name already exists..")
-        if VirtualNetwork.objects.filter(account=User.account, name=name).exists():
+        if VirtualNetwork.objects.filter(account=user.account, name=name).exists():
             raise InvalidNetworkName("Network configuration with that name already exists.")
 
         # Validate the information provided is correct (Actual IP addresses)
         logger.debug("Validating provided network information..")
         try:
-            network_cidr = f'{kwargs["Network"]}/{kwargs["Prefix"]}'
+            network_cidr = f'{network}/{prefix}'
             logger.debug(f"Created network cidr with provided information {network_cidr}")
 
-            if ipaddress.ip_address(kwargs["Gateway"]) not in ipaddress.ip_network(network_cidr).hosts():
-                raise InvalidNetworkConfiguration("Cannot verify network configuration with provided information")
+            if ipaddress.ip_address(gateway) not in ipaddress.ip_network(network_cidr).hosts():
+                raise InvalidNetworkConfiguration("Supplied gateway address not in provided network")
             
-            for dns_server in kwargs["DnsServers"]:
+            for dns_server in dns_servers:
                 ipaddress.ip_address(dns_server)
 
         except ValueError as e:
             raise InvalidNetworkConfiguration("Cannot verify network configuration with provided information. Is the IP address space correct?")
 
-        vnet_id = IdGenerator.generate()
-        logger.debug(f"Creating new virtual network with Id: {vnet_id}")
+        logger.debug(f"Creating new virtual network with Id: {self.network_id}")
         
         config = {
-            "network": kwargs["Network"],
-            "prefix": kwargs["Prefix"],
-            "gateway": kwargs["Gateway"],
-            "dns_servers": kwargs["DnsServers"],
-            "bridge_interface": kwargs["Bridge"],
+            "network": network,
+            "prefix": prefix,
+            "gateway": gateway,
+            "dns_servers": dns_servers,
+            "bridge_interface": bridge,
         }
 
-        self.network_id = vnet_id
         self.account = user.account
         self.name = name
         self.type = type
         self.config = config
-        self.tags = kwargs["Tags"] if "tags" in kwargs else {}
+        self.tags = tags
         
         self.save()
         return self.network_id

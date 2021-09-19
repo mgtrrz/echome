@@ -1,6 +1,10 @@
+import logging
+from django.http.request import QueryDict
 from rest_framework import status
 from rest_framework.response import Response
 from django.http import HttpRequest
+
+logger = logging.getLogger(__name__)
 
 class HelperView():
     missing_parameters: list = list()
@@ -12,6 +16,9 @@ class HelperView():
         variable and return the `missing_parameters` list which may be True (if it
         contains items) or False (if empty)
         """
+        logger.debug("View supplied required parameters:")
+        logger.debug(required)
+        logger.debug(request.POST)
         for req in required:
             if req not in request.POST:
                 self.missing_parameters.append(req)
@@ -59,11 +66,12 @@ class HelperView():
         return Response(msg, status=status.HTTP_200_OK)
 
     def unpack_tags(self, request:HttpRequest=None):
+        logger.debug("Unpacking tags")
         """
         Convert parameter tags (e.g. Tag.1.Key=Name, Tag.1.Value=MyVm, Tag.2.Key=Env, etc.)
         to a dictionary e.g. {"Name": "MyVm", "Env": "stage"}
         """
-        dict_tags = dict()
+        dict_tags = {}
         there_are_tags = True
         x = 1
         while there_are_tags:
@@ -80,4 +88,11 @@ class HelperView():
                 continue
             x += 1
         
+        logger.debug(dict_tags)
         return dict_tags
+    
+    def unpack_comma_separated_list(self, key:str, request:QueryDict):
+        logger.debug("Unpacking comma separated list")
+        items = str.split(request.get(key), ",")
+        logger.debug(items)
+        return items
