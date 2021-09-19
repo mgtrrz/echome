@@ -1,6 +1,4 @@
 import logging
-from django.shortcuts import render
-from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -123,7 +121,7 @@ class DescribeVM(HelperView, APIView):
         except Exception as e:
             return self.internal_server_error_response()
 
-        return Response(i)
+        return self.success_response(i)
 
 class TerminateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
