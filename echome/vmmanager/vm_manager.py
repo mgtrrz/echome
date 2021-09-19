@@ -198,6 +198,7 @@ class VmManager:
 
         elif vnet.type == VirtualNetwork.Type.NAT:
             logger.debug("New virtual machine is using vnet type NAT")
+            network_yaml_file_path = None
 
         # Adding SSH key
         logger.debug("Determining if KeyName is present.")
@@ -301,15 +302,20 @@ class VmManager:
 
         logger.debug(f"Final image: {destination_vm_img}")
 
+        # VNC?
+        addtl_options = {}
+        if "EnableVnc" in kwargs and kwargs["EnableVnc"]:
+            logger.debug("Enabling VNC")
+            addtl_options["enable_vnc"] = True
 
-        # Define XML template
-        # If we're using a customXML (usually for debugging), specify it.
-        # Otherwise, use the XML that's set in the InstanceType.
-        # if "CustomXML" in kwargs:
-        #     logger.debug(f"Custom XML defined: {kwargs['CustomXML']}")
-        #     xml_template = kwargs['CustomXML']
-        # else:
-        #     xml_template = instanceType.get_xml_template()
+            if "VncPort" in kwargs and kwargs["VncPort"]:
+                logger.debug(f"VNC Port also specified: {kwargs['VncPort']}")
+                addtl_options["vnc_port"] = kwargs["VncPort"]
+
+            # Generate a random password
+            vnc_passwd = User().generate_secret(16)
+            addtl_options["vnc_passwd"] = vnc_passwd
+            
 
         # Generate VM
         logger.debug(f"Generating VM config")
@@ -321,6 +327,7 @@ class VmManager:
                 image_path=destination_vm_img,
                 host=host,
                 cloudinit_iso_path=cloudinit_iso_path,
+                **addtl_options
             )
 
         except Exception as e:

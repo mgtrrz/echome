@@ -137,6 +137,7 @@ class VirtualMachine(models.Model):
     host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id")
     instance_type = models.CharField(max_length=40)
     instance_size = models.CharField(max_length=40)
+    metadata = models.JSONField(default=dict)
     image_metadata = models.JSONField()
     interfaces = models.JSONField()
     storage = models.JSONField()

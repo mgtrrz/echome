@@ -40,9 +40,6 @@ stop: ## Stop the app
 createsuperuser: ## Create a new Django admin superuser
 	${DOCKER_COMPOSE_EXEC} python3 manage.py createsuperuser
 
-manageshell: ## Launch a Django shell
-	${DOCKER_COMPOSE_EXEC} python3 manage.py shell
-
 manage: ## Pass a manage command to Django cmd="do something"
 	${DOCKER_COMPOSE_EXEC} python3 manage.py $(cmd)
 

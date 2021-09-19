@@ -63,7 +63,9 @@ class CreateVM(HelperView, APIView):
                 NetworkProfile=request.POST["NetworkProfile"],
                 PrivateIp=request.POST["PrivateIp"] if "PrivateIp" in request.POST else "",
                 ImageId=request.POST["ImageId"],
-                DiskSize=disk_size    
+                DiskSize=disk_size,
+                EnableVnc=True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
+                VncPort=request.POST["VncPort"] if "VncPort" in request.POST else None,
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)
@@ -153,7 +155,8 @@ class ModifyVM(HelperView, APIView):
             return self.missing_parameter_response()
 
         action = request.POST['Action']
-
+        logger.debug("Action:")
+        logger.debug(action)
         if action == 'stop':
             try:
                 VmManager().stop_instance(vm_id)
@@ -175,6 +178,10 @@ class ModifyVM(HelperView, APIView):
                 )
             except Exception:
                 return self.internal_server_error_response()
-        
-            return self.success_response()
+        else:
+            return self.error_response(
+                    "Unknown action",
+                    status = status.HTTP_400_BAD_REQUEST
+                )
+        return self.success_response()
         

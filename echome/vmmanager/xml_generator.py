@@ -50,6 +50,7 @@ class KvmXmlObject():
 
     enable_vnc: bool = False
     vnc_port: str = "auto"
+    vnc_passwd: str = ""
 
     os_arch: str = "x86_64"
     os_type: str = "hvm" # hvm or xen. hvm needed for windows, 
@@ -128,6 +129,7 @@ class KvmXmlObject():
                 '@autoport': 'yes' if self.vnc_port == 'auto' else 'no',
                 '@listen': '0.0.0.0',
                 '@sharePolicy': 'allow-exclusive',
+                '@passwd': self.vnc_passwd,
                 'listen': {
                     '@type': 'address',
                     '@address': '0.0.0.0',
@@ -238,7 +240,10 @@ class KvmXmlObject():
 
 class XmlGenerator():
     @staticmethod
-    def generate_template(vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, image_path:str, host:HostMachine, cloudinit_iso_path:str = None):
+    def generate_template(
+            vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, 
+            image_path:str, host:HostMachine, cloudinit_iso_path:str = None,
+            enable_vnc:bool = False, vnc_port:str = "auto", vnc_passwd:str = ""):
         """Generates the XML template for use with defining in libvirt.
 
         :param vm_id: Virtual Machine Id
@@ -264,6 +269,12 @@ class XmlGenerator():
         if cloudinit_iso_path:
             removable_media.append(KvmXmlRemovableMedia(cloudinit_iso_path))
 
+        # Also enable metadata smbios:
+        # ech = ecHomeConfig.EcHome()
+        # metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
+        # logger.debug(f"Generated Metadata API url: {metadata_api_url}")
+        # enable_smbios = True
+
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
             # template
@@ -272,13 +283,12 @@ class XmlGenerator():
                 source = vnet.config['bridge_interface']
             ))
         else:
-            # If the new VM is not using the BridgeToLan network type, add smbios
-            # information for it to use the metadata service.
-            ech = ecHomeConfig.EcHome()
-            metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
-            logger.debug(f"Generated Metadata API url: {metadata_api_url}")
-            enable_smbios = True
-        
+            network.append(KvmXmlNetworkInterface(
+                type = "nat",
+                source = vnet.name
+            ))
+
+ 
         xmldoc = KvmXmlObject(
             name=vm_id,
             memory=instance_type.get_memory(),
@@ -290,7 +300,10 @@ class XmlGenerator():
             network_interfaces=network,
             removable_media=removable_media,
             enable_smbios=enable_smbios,
-            smbios_url=metadata_api_url
+            smbios_url=metadata_api_url,
+            enable_vnc=enable_vnc,
+            vnc_port=vnc_port,
+            vnc_passwd=vnc_passwd
         )
         
         return xmldoc.render_xml()
