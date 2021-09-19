@@ -243,10 +243,11 @@ class VmManager:
             logger.debug("Writing cloudinit metadata file: meta-data")
             filehandle.write(cloudinit_metadata)
 
-            # Validate and create the cloudinit iso
-            cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path, cloudinit_metadata_yaml_file_path)
 
-        
+        # Validate and create the cloudinit iso
+        cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path, cloudinit_metadata_yaml_file_path)
+
+    
         # Machine Image
         # Determining the image to use for this VM
         # Is this a guest image or a user-created virtual machine image?
