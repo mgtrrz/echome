@@ -40,18 +40,18 @@ class HelperView():
     def not_found_response(self, message:str = None):
         return Response({
             'success': False,
-            'details': message if not None else "Resources does not exist.",
+            'details': message if message is not None else "Resource does not exist",
         }, status=status.HTTP_404_NOT_FOUND)
 
     def success_response(self, extra_info:dict = {}, message:str = None):
         msg = {
             'success': True,
-            'details': message if not None else "",
+            'details': message if message is not None else "",
         }
         if extra_info:
             msg['results'] = extra_info
 
-        Response(msg, status=status.HTTP_200_OK)
+        return Response(msg, status=status.HTTP_200_OK)
 
     def unpack_tags(self, request: HttpRequest=None):
         """

@@ -37,7 +37,7 @@ class VirtualNetwork(models.Model):
     # Checks to see if the IP provided for a VM is valid for this network
     def validate_ip(self, ip:str):
         network_addr = f'{self.config["network"]}/{self.config["prefix"]}'
-        logger.debug(f"Checking network address: {network_addr} for network {self.profile_name}")
+        logger.debug(f"Checking network address: {network_addr} for network {self.name}")
         network = ipaddress.ip_network(f'{self.config["network"]}/{self.config["prefix"]}')
         hosts = network.hosts()
 

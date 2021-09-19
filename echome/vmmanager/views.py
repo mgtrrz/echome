@@ -140,7 +140,7 @@ class TerminateVM(HelperView, APIView):
 
     def post(self, request, vm_id:str):
         try:
-            VmManager().terminate_instance(request.user, vm_id)
+            VmManager().terminate_instance(vm_id, request.user)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
         except Exception as e:

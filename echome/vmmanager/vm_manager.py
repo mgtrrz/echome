@@ -68,11 +68,11 @@ class VmManager:
     def closeConnection(self):
         self.currentConnection.close()
     
-    def _clean_up(self, user: User, vm_id):
+    def _clean_up(self, user:User, vm_id:str):
         """Cleans up a virtual machine directory if CLEAN_UP_ON_FAIL is true"""
         if CLEAN_UP_ON_FAIL:
             logging.debug("CLEAN_UP_ON_FAIL set to true. Cleaning up..")
-            self.__delete_vm_path(user.account, vm_id)
+            self.__delete_vm_path(vm_id, user)
     
     def create_vm(self, user: User, instanceType:InstanceDefinition, **kwargs):
         """Create a virtual machine
@@ -715,31 +715,42 @@ class VmManager:
 
 
     # Terminate the instance 
-    def terminate_instance(self, user:User, vm_id:str):
+    def terminate_instance(self, vm_id:str, user:User = None, force:bool = False):
         logger.debug(f"Terminating vm: {vm_id}")
+        if force:
+            logger.warn("FORCE SET TO TRUE!")
 
         vm_domain = self.__get_virtlib_domain(vm_id)
 
         try:
-            vm_db = VirtualMachine.objects.get(
-                instance_id = vm_id,
-                account = user.account
-            )
+            if user:
+                vm_db = VirtualMachine.objects.get(
+                    instance_id = vm_id,
+                    account = user.account
+                )
+            else:
+                vm_db = VirtualMachine.objects.get(
+                    instance_id = vm_id
+                )
         except Exception as e:
-            # Nothing found in DB for this account
-            raise VirtualMachineDoesNotExist
+            if not force:
+                # Nothing found in DB for this account
+                raise VirtualMachineDoesNotExist
 
         try:
             # Stop the instance
             self.stop_instance(vm_id)
             # Undefine it to remove it from virt
             vm_domain.undefine()
+        except VirtualMachineDoesNotExist:
+            pass
         except libvirt.libvirtError as e:
             logger.error(f"Could not terminate instance {vm_id}: libvirtError {e}")
             raise VirtualMachineTerminationException()
         
         # Delete folder/path
-        self.__delete_vm_path(user.account, vm_id)
+        if user:
+            self.__delete_vm_path(vm_id, user)
 
         # delete entry in db
         try:
@@ -805,9 +816,9 @@ class VmManager:
             raise
 
     # Delete the path for the files
-    def __delete_vm_path(self, account_id, vm_id):
+    def __delete_vm_path(self, vm_id:str, user:User):
         # let's not delete all of the vm's in a user's folder
-        if not vm_id or vm_id == "":
+        if not vm_id or vm_id.strip() == "":
             logger.debug("vm_id empty when calling delete_vm_path. Exiting!")
             return
         
@@ -816,7 +827,7 @@ class VmManager:
         if vm:
             vm.undefine()
 
-        path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
+        path = f"{VM_ROOT_DIR}/{user.account}/{vm_id}"
         logger.debug(f"Deleting VM Path: {path}")
 
         try:
