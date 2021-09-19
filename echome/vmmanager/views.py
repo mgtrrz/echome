@@ -87,10 +87,7 @@ class CreateVM(HelperView, APIView):
             )
         except Exception as e:
             logger.exception(e)
-            return self.error_response(
-                "There was an error when processing the request.",
-                status = status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return self.internal_server_error_response()
                 
         return self.success_response({"virtual_machine_id": vm_id})
 
@@ -124,11 +121,7 @@ class DescribeVM(HelperView, APIView):
             logger.debug(e)
             return self.not_found_response()
         except Exception as e:
-            logger.debug(e)
-            return self.error_response(
-                "Internal Server Error.",
-                status = status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return self.internal_server_error_response()
 
         return Response(i)
 
@@ -143,12 +136,34 @@ class TerminateVM(HelperView, APIView):
             VmManager().terminate_instance(vm_id, request.user)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
-        except Exception as e:
-            logger.exception(e)
-            return self.error_response(
-                "Internal Server Error.",
-                status = status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        except Exception:
+            return self.internal_server_error_response()
+        
+        return self.success_response()
+
+class ModifyVM(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"got": True})
+
+    def post(self, request, vm_id:str):
+        req_params = [
+            "Action",
+        ]
+        if self.require_parameters(request, req_params):
+            return self.missing_parameter_response()
+
+        action = request.POST['Action']
+
+        if action == 'stop':
+            try:
+                VmManager().stop_instance(vm_id)
+            except VirtualMachineDoesNotExist:
+                return self.not_found_response()
+            except Exception:
+                return 
+            return jsonify(vm.stopInstance(vm_id))
         
         return self.success_response()
         

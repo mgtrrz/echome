@@ -18,7 +18,7 @@ class HelperView():
         
         return self.missing_parameters
     
-    def missing_parameter_response(self):
+    def missing_parameter_response(self) -> Response:
         """
         Return a rest_framework response with a list of the missing parameters
         """
@@ -29,21 +29,26 @@ class HelperView():
         }, status=status.HTTP_400_BAD_REQUEST)
     
 
-    def error_response(self, message:str, status:status):
+    def error_response(self, message:str, status:status) -> Response:
         msg = {
             'success': False,
             'details': message
         }
         return Response(msg, status=status)
 
+    def internal_server_error_response(self)  -> Response:
+        return Response({
+            'success': False,
+            'details': 'Internal Server Error. See logs for details.'
+        }, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def not_found_response(self, message:str = None):
+    def not_found_response(self, message:str = None) -> Response:
         return Response({
             'success': False,
             'details': message if message is not None else "Resource does not exist",
         }, status=status.HTTP_404_NOT_FOUND)
 
-    def success_response(self, extra_info:dict = {}, message:str = None):
+    def success_response(self, extra_info:dict = {}, message:str = None) -> Response:
         msg = {
             'success': True,
             'details': message if message is not None else "",
@@ -53,7 +58,7 @@ class HelperView():
 
         return Response(msg, status=status.HTTP_200_OK)
 
-    def unpack_tags(self, request: HttpRequest=None):
+    def unpack_tags(self, request:HttpRequest=None):
         """
         Convert parameter tags (e.g. Tag.1.Key=Name, Tag.1.Value=MyVm, Tag.2.Key=Env, etc.)
         to a dictionary e.g. {"Name": "MyVm", "Env": "stage"}
