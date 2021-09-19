@@ -23,16 +23,35 @@ class HelperView():
         Return a rest_framework response with a list of the missing parameters
         """
         return Response({
-                "message": "Missing the following required parameters",
-                "parameters": self.missing_parameters
-            }, status=status.HTTP_400_BAD_REQUEST)
+            'success': False,
+            'details': "Missing the following required parameters",
+            "parameters": self.missing_parameters
+        }, status=status.HTTP_400_BAD_REQUEST)
     
+
     def error_response(self, message:str, status:status):
         msg = {
-            'error': True,
+            'success': False,
             'details': message
         }
         return Response(msg, status=status)
+
+
+    def not_found_response(self, message:str = None):
+        return Response({
+            'success': False,
+            'details': message if not None else "Resources does not exist.",
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    def success_response(self, extra_info:dict = {}, message:str = None):
+        msg = {
+            'success': True,
+            'details': message if not None else "",
+        }
+        if extra_info:
+            msg['results'] = extra_info
+
+        Response(msg, status=status.HTTP_200_OK)
 
     def unpack_tags(self, request: HttpRequest=None):
         """

@@ -92,7 +92,7 @@ class CreateVM(HelperView, APIView):
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
                 
-        return Response({"vm_id": vm_id})
+        return self.success_response({"virtual_machine_id": vm_id})
 
 class DescribeVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
@@ -122,10 +122,7 @@ class DescribeVM(HelperView, APIView):
                 i.append(j_obj)
         except VirtualMachine.DoesNotExist as e:
             logger.debug(e)
-            return self.error_response(
-                "Virtual Machine does not exist.",
-                status = status.HTTP_404_NOT_FOUND
-            )
+            return self.not_found_response()
         except Exception as e:
             logger.debug(e)
             return self.error_response(
@@ -144,6 +141,8 @@ class TerminateVM(HelperView, APIView):
     def post(self, request, vm_id:str):
         try:
             VmManager().terminate_instance(request.user, vm_id)
+        except VirtualMachineDoesNotExist:
+            return self.not_found_response()
         except Exception as e:
             logger.exception(e)
             return self.error_response(
@@ -151,5 +150,5 @@ class TerminateVM(HelperView, APIView):
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        return Response({'action': 'terminate', 'success': True})
+        return self.success_response()
         
