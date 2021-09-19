@@ -17,7 +17,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
-from echome.commander import QemuImg, CloudInit, CloudLocalds
+from commander.qemuimg import QemuImg
+from commander.cloudinit import CloudInit
+from commander.cloudlocalds import CloudLocalds
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork

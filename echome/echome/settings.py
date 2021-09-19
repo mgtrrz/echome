@@ -36,6 +36,7 @@ ALLOWED_HOSTS = ['*']
 INSTALLED_APPS = [
     'django_extensions',
     'api.apps.ApiConfig',
+    'commander.apps.CommanderConfig',
     'identity.apps.IdentityConfig',
     'images.apps.ImagesConfig',
     'kube.apps.KubeConfig',

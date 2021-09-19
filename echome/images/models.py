@@ -4,7 +4,7 @@ from django.db import models
 from django.core.exceptions import ObjectDoesNotExist
 from identity.models import User
 from echome.id_gen import IdGenerator
-from echome.commander import QemuImg
+from commander.qemuimg import QemuImg
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 
 logger = logging.getLogger(__name__)
