@@ -722,13 +722,12 @@ class VmManager:
 
         try:
             vm_db = VirtualMachine.objects.get(
-                account = user.account,
-                instance_id = vm_id
+                instance_id = vm_id,
+                account = user.account
             )
         except Exception as e:
-            # Nothing found in DB
-            logger.debug(f"Asked to delete VM {vm_id} but does not exist in database.")
-            vm_db = None
+            # Nothing found in DB for this account
+            raise VirtualMachineDoesNotExist
 
         try:
             # Stop the instance
