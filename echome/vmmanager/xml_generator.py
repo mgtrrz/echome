@@ -48,6 +48,9 @@ class KvmXmlObject():
 
     removable_media: List[KvmXmlRemovableMedia] = field(default_factory=lambda: [])
 
+    enable_vnc: bool = False
+    vnc_port: str = "auto"
+
     os_arch: str = "x86_64"
     os_type: str = "hvm" # hvm or xen. hvm needed for windows, 
     # Linux likes utc, Windows has to have 'localtime'
@@ -72,10 +75,11 @@ class KvmXmlObject():
                 '@type': 'pty'
             }
         }
+
+        # Hard Disk or removal drive devices
         obj['disk'] = []
 
         devices = self.hard_disks + self.removable_media
-
         for dev in devices:
             d = {
                 '@type': 'file',
@@ -98,6 +102,7 @@ class KvmXmlObject():
             
             obj['disk'].append(d)
 
+        # Network devices
         for net_dev in self.network_interfaces:
             if net_dev.type == "bridge":
                 n = {
@@ -106,7 +111,32 @@ class KvmXmlObject():
                         '@bridge': net_dev.source
                     }
                 }
+            elif net_dev.type == "nat":
+                n = {
+                    '@type': 'network',
+                    'source': {
+                        '@network': net_dev.source
+                    }
+                }
             obj['interface'] = n
+        
+        
+        # VNC (If enabled)
+        if self.enable_vnc:
+            obj['graphics'] = {
+                '@type': 'vnc',
+                '@autoport': 'yes' if self.vnc_port == 'auto' else 'no',
+                '@listen': '0.0.0.0',
+                '@sharePolicy': 'allow-exclusive',
+                'listen': {
+                    '@type': 'address',
+                    '@address': '0.0.0.0',
+                }
+            }
+
+            if self.vnc_port != 'auto':
+                obj['graphics']['@port'] = self.vnc_port
+
 
         return obj
 

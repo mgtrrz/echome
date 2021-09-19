@@ -195,8 +195,11 @@ class VmManager:
             with open(network_yaml_file_path, "w") as filehandle:
                 logger.debug("Writing cloudinit yaml: network.yaml")
                 filehandle.write(network_cloudinit_config)
-        
 
+        elif vnet.type == VirtualNetwork.Type.NAT:
+            logger.debug("New virtual machine is using vnet type NAT")
+
+        # Adding SSH key
         logger.debug("Determining if KeyName is present.")
         pub_key = None
         key_dict = None
@@ -214,6 +217,7 @@ class VmManager:
             except UserKey.DoesNotExist:
                 raise ValueError("Specified SSH Key Name does not exist.")
         
+        # Optional SSH service key (for echome services)
         if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
             try:
                 keyObj = KeyStore().get(user, kwargs["ServiceKey"])

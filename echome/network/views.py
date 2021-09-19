@@ -28,6 +28,7 @@ class CreateNetwork(HelperView, APIView):
         if request.POST["Type"] == "BridgeToLan":
             type = VirtualNetwork.Type.BRIDGE_TO_LAN
         else:
+            type = VirtualNetwork.Type.NAT
             return self.error_response(
                 message="Other network types not currently supported",
                 status=status.HTTP_400_BAD_REQUEST
