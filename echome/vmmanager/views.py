@@ -162,8 +162,21 @@ class ModifyVM(HelperView, APIView):
             except VirtualMachineDoesNotExist:
                 return self.not_found_response()
             except Exception:
-                return 
-            return jsonify(vm.stopInstance(vm_id))
+                return self.internal_server_error_response()
         
-        return self.success_response()
+            return self.success_response()
+        elif action == 'start':
+            try:
+                VmManager().start_instance(vm_id)
+            except VirtualMachineDoesNotExist:
+                return self.not_found_response()
+            except VirtualMachineConfigurationException:
+                return self.error_response(
+                    "Could not start VM due to configuration issue. See logs for more details.",
+                    status = status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            except Exception:
+                return self.internal_server_error_response()
+        
+            return self.success_response()
         

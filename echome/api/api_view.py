@@ -78,6 +78,6 @@ class HelperView():
             else:
                 there_are_tags = False
                 continue
-            x = x + 1
+            x += 1
         
         return dict_tags
