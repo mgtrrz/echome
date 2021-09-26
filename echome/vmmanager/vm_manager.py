@@ -1,27 +1,21 @@
 import libvirt
-import sys
 import pathlib
 import logging
 import subprocess
 import random
 import shutil
 import time
-import json
-import yaml
 import xmltodict
 import base64
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
-from commander.cloudinit import CloudInit
-from commander.cloudlocalds import CloudLocalds
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from .models import HostMachine, VirtualMachine, UserKey, KeyDoesNotExist
 from .instance_definitions import InstanceDefinition
+from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
 from .xml_generator import XmlGenerator
 
 logger = logging.getLogger(__name__)
@@ -157,6 +151,8 @@ class VmManager:
         # Use the first for now
         host = hosts[0]
 
+        cloudinit = CloudInit(base_dir=vmdir)
+
         # Networking
         # For VMs launched with BridgeToLan, we'll need to create a cloudinit
         # network file as we're unable to set a private IP address at build time.
@@ -176,7 +172,7 @@ class VmManager:
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         
         cloudinit_iso_path = None
-        # Cloud-init
+        # Cloud-init for Bridge type networking
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             logger.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
@@ -184,18 +180,8 @@ class VmManager:
                 raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
             
             # Generate the Cloudinit Networking config
-            network_cloudinit_config = self._generate_cloudinit_network_config(vnet, private_ip)
-            network_yaml_file_path = f"{vmdir}/network.yaml"
-            logger.debug(f"Network cloudinit file path: {network_yaml_file_path}")
-
-            # create the file
-            with open(network_yaml_file_path, "w") as filehandle:
-                logger.debug("Writing cloudinit yaml: network.yaml")
-                filehandle.write(network_cloudinit_config)
-
-        elif vnet.type == VirtualNetwork.Type.NAT:
-            logger.debug("New virtual machine is using vnet type NAT")
-            network_yaml_file_path = None
+            logger.debug("CloudInit: Creating network config")
+            cloudinit.generate_network_config(vnet, private_ip)
 
         # Adding SSH key
         logger.debug("Determining if KeyName is present.")
@@ -224,33 +210,24 @@ class VmManager:
                 logger.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
             except KeyDoesNotExist:
                 raise ValueError("Error adding service key.")
-            
+        
         # Generate the cloudinit Userdata 
-        cloudinit_userdata = self._generate_cloudinit_userdata_config(
-            VmId=vm.instance_id,
-            PublicKey=[pub_key],
-            UserDataScript=kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
+        cloudinit.generate_userdata_config(
+            vm_id = vm.instance_id,
+            public_keys = [pub_key],
+            user_data_script = kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
         )
-        cloudinit_yaml_file_path = f"{vmdir}/user-data"
-        logger.debug(f"Standard cloudinit file path: {cloudinit_yaml_file_path}")
-
-        with open(cloudinit_yaml_file_path, "w") as filehandle:
-            logger.debug("Writing cloudinit userdata file: user-data")
-            filehandle.write(cloudinit_userdata)
         
         # Finally, the meta-data file
-        cloudinit_metadata = self._generate_cloudinit_metadata(vm.instance_id, IpAddr=private_ip, PublicKey=key_dict)
-        cloudinit_metadata_yaml_file_path = f"{vmdir}/meta-data"
-        logger.debug(f"Metadata cloudinit file path: {cloudinit_metadata_yaml_file_path}")
-
-        with open(cloudinit_metadata_yaml_file_path, "w") as filehandle:
-            logger.debug("Writing cloudinit metadata file: meta-data")
-            filehandle.write(cloudinit_metadata)
-
+        cloudinit.generate_metadata(vm.instance_id, ip_addr=private_ip, public_key=key_dict)
 
         # Validate and create the cloudinit iso
-        cloudinit_iso_path = self.__create_cloudinit_iso(vmdir, cloudinit_yaml_file_path, network_yaml_file_path, cloudinit_metadata_yaml_file_path)
-
+        try:
+            cloudinit_iso_path = cloudinit.create_iso()
+        except CloudInitFailedValidation:
+            raise
+        except CloudInitIsoCreationError:
+            raise
     
         # Machine Image
         # Determining the image to use for this VM
@@ -320,7 +297,6 @@ class VmManager:
                 }
             }
             
-
         # Generate VM
         logger.debug(f"Generating VM config")
         try:
@@ -351,8 +327,7 @@ class VmManager:
         except Exception as e:
             logger.error(f"Encountered error when running qemu resize. {e}")
             raise LaunchError("Encountered error when running qemu resize.")
-
-        
+  
         logger.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
         
@@ -397,136 +372,8 @@ class VmManager:
 
         print(f"Successfully created VM: {vm.instance_id} : {vmdir}")
         return vm.instance_id
-    
-    def _generate_cloudinit_network_config(self, vnet: VirtualNetwork, priv_ip_addr=None):
-        """Generate Cloudinit network config yaml
-        Generates a network cloudinit config. This is meant to be used for BridgeToLan VMs
-        where network information isn't set at VM build time but must instead be determined/
-        set during boot with a Cloudinit script. VMs that use other network types should be
-        able to set network configuration either through XML definition, virsh network
-        interfaces, or possibly set through the metadata api.
-        :param vnet: VirtualNetwork object where the virtual machine will be launched in. The vnet
-            object will fill in details such as the gateway and DNS servers.
-        :type vnet: VirtualNetwork
-        :param priv_ip_addr: Private IP address, defaults to None. If an IP address is not provided
-            dhcp4 will be set to True. The Private IP address is not tested if it's valid for this
-            network, please perform the check before calling this function.
-        :type priv_ip_addr: str, optional
-        :return: Cloudinit yaml 
-        :rtype: str
-        """
-
-        # Right now, this only works for bridge interfaces
-        # When we get NAT working, we'll check for it here too
-        if vnet.type != VirtualNetwork.Type.BRIDGE_TO_LAN:
-            # Other network types should use the metadata API
-            logger.debug("Tried to create cloudinit network config for non-BridgeToLan VM")
-            return
-
-        if priv_ip_addr:
-            private_ip = f"{priv_ip_addr}/{vnet.config['prefix']}"
-            interface = {
-                "dhcp4": False,
-                "dhcp6": False,
-                "addresses": [
-                    private_ip
-                ],
-                "gateway4": vnet.config['gateway'],
-                "nameservers": {
-                    "addresses": vnet.config['dns_servers']
-                }
-            }
-        else:
-            interface = {
-                "dhcp4": True,
-                "dhcp6": False,
-            }
-
-        network_config = {
-            "version": 2,
-            "ethernets": {
-                "ens2": interface
-            }
-        }
-
-        return yaml.dump(network_config, default_flow_style=False, indent=2, sort_keys=False)
-    
-    def _generate_cloudinit_userdata_config(self, VmId, PublicKey:list=None, UserDataScript=None):
-        """Generate Cloudinit Userdata config yaml
-        Generates a basic cloudinit config with hostname and public key entries. The only
-        required parameter is the virtual machine Id (VmId). Hostname and PublicKey can
-        be left blank.
-        :param VmId: Virtual Machine Id. Used to fill the hostname if Hostname is not provided.
-        :type VmId: str
-        :param PublicKey: Public key to attach to the virtual machine. If not used, no SSH key will
-            be provided.
-        :type PublicKey: str
-        :param UserDataScript: User-data shell script to boot the instance with. Defaults to none.
-        :type UserDataScript: str
-        :return: YAML cloudinit config
-        :rtype: str
-        """        
-
-        # If hostname is not supplied, use the vm ID
-        config_json = {
-            "chpasswd": { "expire": False },
-            "ssh_pwauth": False,
-        }
-
-        ssh_keys_json = {
-            "ssh_authorized_keys": PublicKey if PublicKey is not None else []
-        }
-
-        # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
-        # I'm unsure if cloudinit would actually just be happy receiving all YAML input.
-        configfile = "#cloud-config\n"
-        config_yaml = yaml.dump(config_json, default_flow_style=None, sort_keys=False)
-        ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
-
-        yaml_config = configfile + config_yaml + ssh_keys_yaml
-
-        if UserDataScript:
-            logger.debug("UserData script is included in request, making multipart file..")
-            sub_messages = []
-            format = 'x-shellscript'
-            sub_message = MIMEText(UserDataScript, format, sys.getdefaultencoding())
-            sub_message.add_header('Content-Disposition', 'attachment; filename="shellscript.sh"')
-            content_type = sub_message.get_content_type().lower()
-            if content_type not in KNOWN_CONTENT_TYPES:
-                logger.warning(f"WARNING: content type {content_type} may be incorrect!")
-            sub_messages.append(sub_message)
 
 
-            format = 'cloud-config'
-            sub_message = MIMEText(yaml_config, format, sys.getdefaultencoding())
-            sub_message.add_header('Content-Disposition', 'attachment; filename="userdata.yaml"')
-            content_type = sub_message.get_content_type().lower()
-            if content_type not in KNOWN_CONTENT_TYPES:
-                logger.warning(f"WARNING: content type {content_type} may be incorrect!")
-            sub_messages.append(sub_message)
-
-
-            combined_message = MIMEMultipart()
-            for msg in sub_messages:
-                combined_message.attach(msg)
-            logger.debug(combined_message)
-            return str(combined_message)
-
-        return yaml_config
-    
-    def _generate_cloudinit_metadata(self, VmId, IpAddr=None, Hostname=None, PublicKey:dict=None):
-        echmd = ecHomeConfig.EcHomeMetadata()
-        md = {
-            "instance-id": VmId,
-            "local-hostname": Hostname if Hostname else self._gen_hostname(VmId, IpAddr),
-            "cloud-name": "ecHome",
-            "availability-zone": echmd.availability_zone,
-            "region": echmd.region,
-            "public-keys": PublicKey if PublicKey else {}
-        }
-
-        return json.dumps(md, indent=4)
-    
     def _gen_hostname(self, VmId, IpAddr=None):
         if IpAddr:
             prefix = "ip"
@@ -725,13 +572,6 @@ class VmManager:
 
         return True
 
-    def get_instance_metadata_by_ip(self, ip):
-        select_stmt = select(self.db.user_instances.c).where(
-            self.db.user_instances.c.attached_interfaces["config_at_launch", "private_ip"].astext == ip
-        )
-        rows = self.db.connection.execute(select_stmt).fetchall()
-        return rows[0]
-
 
     # Terminate the instance 
     def terminate_instance(self, vm_id:str, user:User = None, force:bool = False):
@@ -789,31 +629,6 @@ class VmManager:
             if (e.get_error_code() == 42):
                 return False
 
-    # Generate an ISO from the cloudinit YAML files
-    def __create_cloudinit_iso(self, vmdir, cloudinit_yaml_file_path, cloudinit_network_yaml_file_path=None, cloudinit_metadata_file_path=None):
-
-        # Validate the yaml file
-        logger.debug("Validating Cloudinit config yaml.")        
-        if not CloudInit().validate_schema(cloudinit_yaml_file_path):
-            logger.exception("Failed validating Cloudinit config yaml")
-            raise Exception
-
-        # Create cloud_init disk image
-        cloudinit_iso_path = f"{vmdir}/cloudinit.iso"
-
-        create_image_success = CloudLocalds().create_image(
-            user_data_file=cloudinit_yaml_file_path,
-            output=cloudinit_iso_path,
-            meta_data_file=cloudinit_metadata_file_path,
-            network_config_file=cloudinit_network_yaml_file_path
-        )
-
-        if not create_image_success:
-            logger.exception("Was not able to create the cloud-init image!")
-            raise Exception
-
-        logger.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
-        return cloudinit_iso_path
 
     def __generate_mac_addr(self):
         mac = [ 0x00, 0x16, 0x3e,
