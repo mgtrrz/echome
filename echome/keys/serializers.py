@@ -5,4 +5,4 @@ class UserKeySerializer(serializers.ModelSerializer):
     # specify model and fields
     class Meta:
         model = UserKey
-        exclude = ['id', 'account', 'service_key', 'service_owner']
+        exclude = ['id', 'account', 'service_key', 'service_owner', 'public_key']

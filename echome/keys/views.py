@@ -84,11 +84,11 @@ class CreateKeys(HelperView, APIView):
 class DescribeKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, key_id:str):
+    def get(self, request, key_name:str):
         i = []
 
         try:
-            if key_id == "all":
+            if key_name == "all":
                 keys = UserKey.objects.filter(
                     account=request.user.account
                 )
@@ -96,20 +96,22 @@ class DescribeKeys(HelperView, APIView):
                 keys = []
                 keys.append(UserKey.objects.get(
                     account=request.user.account,
-                    instance_id=key_id
+                    name=key_name
                 ))
             
             for key in keys:
                 k_obj = UserKeySerializer(key).data
                 i.append(k_obj)
 
-        except KeyDoesNotExist as e:
+        except UserKey.DoesNotExist as e:
             logger.debug(e)
             return self.not_found_response()
         except Exception as e:
+            logger.debug(e)
             return self.internal_server_error_response()
 
         return self.success_response(i)
+
 
 class DeleteKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
