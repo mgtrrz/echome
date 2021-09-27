@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'commander.apps.CommanderConfig',
     'identity.apps.IdentityConfig',
     'images.apps.ImagesConfig',
+    'keys.apps.KeysConfig',
     'kube.apps.KubeConfig',
     'network.apps.NetworkConfig',
     'vault.apps.VaultConfig',

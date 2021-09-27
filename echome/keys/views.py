@@ -2,26 +2,16 @@ import logging
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import viewsets, status
 from api.api_view import HelperView
-from .instance_definitions import InstanceDefinition, InvalidInstanceType
-from .models import VirtualMachine
-from .serializers import VirtualMachineSerializer
-from .manager import VmManager
+from .models import UserKey
+from .manager import UserKeyManager
+from .serializers import UserKeySerializer
+from .exceptions import *
 
 logger = logging.getLogger(__name__)
 
-####################
-# Namespace: vm 
-# vm/
-# /vm/create
-# Example command:
-# curl <URL>/v1/vm/create\?ImageId=gmi-fc1c9a62 \
-# \&InstanceSize=standard.small \
-# \&NetworkInterfacePrivateIp=172.16.9.10\/24 \
-# \&NetworkInterfaceGatewayIp=172.16.9.1 \
-# \&KeyName=echome
-class CreateVM(HelperView, APIView):
+class CreateKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -90,33 +80,30 @@ class CreateVM(HelperView, APIView):
                 
         return self.success_response({"virtual_machine_id": vm_id})
 
-class DescribeVM(HelperView, APIView):
+
+class DescribeKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, vm_id:str):
+    def get(self, request, key_id:str):
         i = []
 
         try:
-            if vm_id == "all":
-                vms = VirtualMachine.objects.filter(
+            if key_id == "all":
+                keys = UserKey.objects.filter(
                     account=request.user.account
                 )
             else:
-                vms = []
-                vms.append(VirtualMachine.objects.get(
+                keys = []
+                keys.append(UserKey.objects.get(
                     account=request.user.account,
-                    instance_id=vm_id
+                    instance_id=key_id
                 ))
             
-            for vm in vms:
-                j_obj = VirtualMachineSerializer(vm).data
-                state, state_int, _  = VmManager().get_vm_state(vm.instance_id)
-                j_obj["state"] = {
-                    "code": state_int,
-                    "state": state,
-                }
-                i.append(j_obj)
-        except VirtualMachine.DoesNotExist as e:
+            for key in keys:
+                k_obj = UserKeySerializer(key).data
+                i.append(k_obj)
+
+        except KeyDoesNotExist as e:
             logger.debug(e)
             return self.not_found_response()
         except Exception as e:
@@ -124,7 +111,7 @@ class DescribeVM(HelperView, APIView):
 
         return self.success_response(i)
 
-class TerminateVM(HelperView, APIView):
+class DeleteKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -140,7 +127,7 @@ class TerminateVM(HelperView, APIView):
         
         return self.success_response()
 
-class ModifyVM(HelperView, APIView):
+class ModifyKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

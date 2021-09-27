@@ -13,10 +13,13 @@ from commander.qemuimg import QemuImg
 from identity.models import User
 from images.models import GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
-from .models import HostMachine, VirtualMachine, UserKey, KeyDoesNotExist
+from keys.models import UserKey
+from keys.exceptions import KeyDoesNotExist
+from .models import VirtualMachine, HostMachine
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
 from .xml_generator import XmlGenerator
+from .exceptions import *
 
 logger = logging.getLogger(__name__)
 
@@ -685,18 +688,3 @@ class VmManager:
 class InstanceConfiguration():
     def __init__(self, vm_id, **kwargs):
         self.id = vm_id
-
-class VirtualMachineDoesNotExist(Exception):
-    pass
-
-class VirtualMachineTerminationException(Exception):
-    pass
-
-class VirtualMachineConfigurationException(Exception):
-    pass
-
-class InvalidLaunchConfiguration(Exception):
-    pass
-
-class LaunchError(Exception):
-    pass

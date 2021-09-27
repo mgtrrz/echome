@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import viewsets, status
 from api.api_view import HelperView
-from identity.models import User
 from .models import VirtualNetwork, InvalidNetworkConfiguration, InvalidNetworkName
 from .serializers import NetworkSerializer
 

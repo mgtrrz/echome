@@ -4,7 +4,7 @@ from typing import List
 from dataclasses import dataclass, field
 from network.models import VirtualNetwork
 from echome.config import ecHomeConfig
-from .models import HostMachine, VirtualMachine
+from .models import HostMachine
 from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
