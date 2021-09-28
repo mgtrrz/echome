@@ -7,7 +7,6 @@ from django.http import HttpRequest
 logger = logging.getLogger(__name__)
 
 class HelperView():
-    missing_parameters: list = list()
 
     def require_parameters(self, request: HttpRequest, required: list):
         """
@@ -19,20 +18,21 @@ class HelperView():
         logger.debug("View supplied required parameters:")
         logger.debug(required)
         logger.debug(request.POST)
+        missing_params = []
         for req in required:
             if req not in request.POST:
-                self.missing_parameters.append(req)
+                missing_params.append(req)
         
-        return self.missing_parameters
+        return missing_params
     
-    def missing_parameter_response(self) -> Response:
+    def missing_parameter_response(self, params:list) -> Response:
         """
         Return a rest_framework response with a list of the missing parameters
         """
         return Response({
             'success': False,
             'details': "Missing the following required parameters",
-            "parameters": self.missing_parameters
+            "parameters": params
         }, status=status.HTTP_400_BAD_REQUEST)
     
 

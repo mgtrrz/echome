@@ -14,72 +14,30 @@ logger = logging.getLogger(__name__)
 class CreateKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"got": True})
-
     def post(self, request):
-        req_params = [
-            "ImageId", 
-            "InstanceType", 
-            "NetworkProfile",
-        ]
-        logger.debug(request)
-        if self.require_parameters(request, req_params):
-            return self.missing_parameter_response()
-
-        try:
-            instance_class_size = request.POST["InstanceType"].split(".")
-            instanceDefinition = InstanceDefinition(instance_class_size[0], instance_class_size[1])
-        except Exception as e:
-            logger.debug(e)
-            return self.error_response(
-                "Provided InstanceSize is not a valid type or size.",
-                status.HTTP_400_BAD_REQUEST
-            )
+        params = self.require_parameters(request, [
+            "Action",
+            "KeyName",
+        ])
+        if params:
+            return self.missing_parameter_response(params)
         
-        tags = self.unpack_tags(request)
+        if request.POST["Action"] == "new":
+            try:
+                new_key, private_key = UserKeyManager().generate_sshkey(request.user, request.POST["KeyName"])
+            except KeyNameAlreadyExists:
+                return self.error_response(
+                    "Key (KeyName) with that name already exists.",
+                    status = status.HTTP_400_BAD_REQUEST
+                )
+            
+            obj = UserKeySerializer(new_key).data
+            obj["private_key"] = private_key
+            return self.success_response(obj)
 
-        disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else "10G"
-        
-        vm = VmManager()
-
-        try:
-            vm_id = vm.create_vm(
-                user=request.user, 
-                instanceType=instanceDefinition, 
-                Tags=tags,
-                KeyName=request.POST["KeyName"] if "KeyName" in request.POST else None,
-                NetworkProfile=request.POST["NetworkProfile"],
-                PrivateIp=request.POST["PrivateIp"] if "PrivateIp" in request.POST else "",
-                ImageId=request.POST["ImageId"],
-                DiskSize=disk_size,
-                EnableVnc=True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
-                VncPort=request.POST["VncPort"] if "VncPort" in request.POST else None,
-            )
-        except InvalidLaunchConfiguration as e:
-            logger.debug(e)
-            return self.error_response(
-                "InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine.",
-                status = status.HTTP_400_BAD_REQUEST
-            )
-        except ValueError as e:
-            logger.debug(e)
-            return self.error_response(
-                "ValueError: A supplied value was invalid and could not successfully build the virtual machine.",
-                status = status.HTTP_400_BAD_REQUEST
-            )
-        except LaunchError as e:
-            logger.exception(e)
-            return self.error_response(
-                "There was an error when creating the instance.",
-                status = status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        except Exception as e:
-            logger.exception(e)
-            return self.internal_server_error_response()
-                
-        return self.success_response({"virtual_machine_id": vm_id})
-
+                    
+        elif request.POST["Action"] == "import":
+            pass
 
 class DescribeKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
@@ -128,6 +86,7 @@ class DeleteKeys(HelperView, APIView):
             return self.internal_server_error_response()
         
         return self.success_response()
+
 
 class ModifyKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]

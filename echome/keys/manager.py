@@ -36,7 +36,7 @@ class UserKeyManager:
         self.service_key = service_key
 
         try:
-            key_obj = self.store(user, key_name, public_key)
+            key_obj = self.store_key(user, key_name, public_key)
         except KeyNameAlreadyExists:
             raise
         except PublicKeyAlreadyExists:
