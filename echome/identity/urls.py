@@ -5,11 +5,11 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 from . import views
-from .views import ExampleView
+from .views import *
 
 app_name = 'identity'
 urlpatterns = [
-    path('', ExampleView.as_view(), name='index'),
+    path('users/describe/<str:user_id>', DescribeUsers.as_view()),
     path('token', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify', TokenVerifyView.as_view(), name='token_verify'),
