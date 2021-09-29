@@ -11,7 +11,7 @@ from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
 from identity.models import User
-from images.models import GuestImage, UserImage, InvalidImageId
+from images.models import BaseImageModel, GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from keys.models import UserKey
 from keys.exceptions import KeyDoesNotExist
@@ -133,16 +133,34 @@ class VmManager:
 
     # Set to replace __createInstance
     def _create_virtual_machine(self, user: User, vm:VirtualMachine, instanceType:InstanceDefinition, **kwargs):
-        """Actual method that creates a virtual machine.
-        
-        All of the parameters from create_vm() are passed here in addition to
-        vm_id, used to uniquely identify the new VM.
-        """        
-
+        """Actual method that creates a virtual machine."""
         logger.debug(kwargs)
 
         # Creating the directory for the virtual machine
         vmdir = self.__generate_vm_path(user.account, vm.instance_id)
+
+        # We need an image id to create our VM!
+        if "ImageId" not in kwargs:
+            msg = "ImageId was not found in launch configuration. Cannot continue!"
+            logger.error(msg)
+            raise InvalidLaunchConfiguration(msg)
+        
+        # Get the image from the image id:
+        try:
+            image = self.get_image_from_id(kwargs["ImageId"], user)
+        except InvalidLaunchConfiguration:
+            raise
+        
+        # Then copy our image to the destination directory
+        image_iso_path = self.copy_image(image, vm, vmdir)
+
+        # resize our disk
+        logger.debug(f"Resizing image size to {kwargs['DiskSize']}")
+        try:
+            QemuImg().resize(image_iso_path, kwargs["DiskSize"])
+        except Exception as e:
+            logger.error(f"Encountered error when running qemu resize. {e}")
+            raise LaunchError("Encountered error when running qemu resize.")
 
         # Determine host to run this VM on:
         try:
@@ -154,6 +172,7 @@ class VmManager:
         # Use the first for now
         host = hosts[0]
 
+        # initialize our CloudInit object
         cloudinit = CloudInit(base_dir=vmdir)
 
         # Networking
@@ -174,7 +193,6 @@ class VmManager:
 
         private_ip = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         
-        cloudinit_iso_path = None
         # Cloud-init for Bridge type networking
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             logger.debug("New virtual machine is using vnet type BridgeToLan")
@@ -204,17 +222,8 @@ class VmManager:
             except UserKey.DoesNotExist:
                 raise ValueError("Specified SSH Key Name does not exist.")
         
-        # Optional SSH service key (for echome services)
-        if "ServiceKey" in kwargs and kwargs["ServiceKey"] is not None:
-            try:
-                keyObj = KeyStore().get(user, kwargs["ServiceKey"])
-                svc_pub_key = keyObj.public_key
-                key_dict[kwargs["ServiceKey"]] = [svc_pub_key]
-                logger.debug(f"Adding public key from ServiceKey {kwargs['ServiceKey']}")
-            except KeyDoesNotExist:
-                raise ValueError("Error adding service key.")
-        
-        # Generate the cloudinit Userdata 
+        # Generate the cloudinit Userdata
+        # This includes the public keys and user data scripts if any exist.
         cloudinit.generate_userdata_config(
             vm_id = vm.instance_id,
             public_keys = [pub_key],
@@ -222,6 +231,7 @@ class VmManager:
         )
         
         # Finally, the meta-data file
+        # Which provides some generic information about our environment.
         cloudinit.generate_metadata(vm.instance_id, ip_addr=private_ip, public_key=key_dict)
 
         # Validate and create the cloudinit iso
@@ -232,87 +242,24 @@ class VmManager:
         except CloudInitIsoCreationError:
             raise
     
-        # Machine Image
-        # Determining the image to use for this VM
-        # Is this a guest image or a user-created virtual machine image?
-        logger.debug("Determining image metadata..")
-
-        if "ImageId" not in kwargs:
-            msg = "ImageId was not found in launch configuration. Cannot continue!"
-            logger.error(msg)
-            raise InvalidLaunchConfiguration(msg)
-        
-        # check if it's a user image
-        image = None
-        try:
-            image = UserImage.objects.get(
-                account=user.account,
-                image_id=kwargs['ImageId'],
-                deactivated=False
-            )
-        except Exception as e:
-            logger.debug(e)
-            
-        try:
-            image = GuestImage.objects.get(
-                image_id=kwargs['ImageId'],
-                deactivated=False
-            )
-        except Exception as e:
-            logger.debug(e)
-        
-        if image == None:
-            msg = "ImageId does not exist."
-            logger.error(msg)
-            raise InvalidLaunchConfiguration(msg)
-        
-        img_path = image.image_path
-        img_format = image.image_metadata["format"]
-
-        # Create a copy of the VM image
-        destination_vm_img = f"{vmdir}/{vm.instance_id}.{img_format}"
-        try:
-            logger.debug(f"Copying image: {img_path} TO directory {vmdir} as {vm.instance_id}.{img_format}")
-            shutil.copy2(img_path, destination_vm_img)
-        except:
-            raise LaunchError("Encountered an error on VM copy. Cannot continue.")
-
-        logger.debug(f"Final image: {destination_vm_img}")
-
         # VNC?
         metadata = {}
         addtl_options = {}
         if "EnableVnc" in kwargs and kwargs["EnableVnc"]:
-            logger.debug("Enabling VNC")
-            addtl_options["enable_vnc"] = True
-
-            if "VncPort" in kwargs and kwargs["VncPort"]:
-                logger.debug(f"VNC Port also specified: {kwargs['VncPort']}")
-                addtl_options["vnc_port"] = kwargs["VncPort"]
-
-            # Generate a random password
-            vnc_passwd = User().generate_secret(16)
-            addtl_options["vnc_passwd"] = vnc_passwd
-            # TODO: Store in Vault or a proper key store
-            metadata = {
-                'vnc': {
-                    'password': str(base64.b64encode(bytes(vnc_passwd, 'utf-8')), 'utf-8')
-                }
-            }
+            addtl_options, metadata = self.configure_vnc(kwargs["VncPort"] if "VncPort" in kwargs else None)
             
-        # Generate VM
+        # Generate VM XML Doc
         logger.debug(f"Generating VM config")
         try:
             xmldoc = XmlGenerator.generate_template(
                 vm_id = vm.instance_id,
                 vnet = vnet,
                 instance_type=instanceType,
-                image_path=destination_vm_img,
+                image_path=image_iso_path,
                 host=host,
                 cloudinit_iso_path=cloudinit_iso_path,
                 **addtl_options
             )
-
         except Exception as e:
             logger.error(f"Error when creating XML template. {e}")
             raise LaunchError("Error when creating XML template.")
@@ -322,22 +269,13 @@ class VmManager:
             logger.debug("Writing virtual machine XML document: vm.xml")
             filehandle.write(xmldoc)
 
-        # Disk resize
-        qimg = QemuImg()
-        logger.debug(f"Resizing image size to {kwargs['DiskSize']}")
-        try:
-            qimg.resize(destination_vm_img, kwargs["DiskSize"])
-        except Exception as e:
-            logger.error(f"Encountered error when running qemu resize. {e}")
-            raise LaunchError("Encountered error when running qemu resize.")
   
         logger.debug("Attempting to define XML with virsh..")
         self.currentConnection.defineXML(xmldoc)
         
         # Ensures our VMs start up when the host reboots
         logger.debug("Setting autostart to 1")
-        domain = self.__get_virtlib_domain(vm.instance_id)
-        domain.setAutostart(1)
+        self.__get_libvirt_domain(vm.instance_id).setAutostart(1)
         
         logger.info("Starting VM..")
         self.start_instance(vm.instance_id)
@@ -353,7 +291,7 @@ class VmManager:
             "config_at_launch": {
                 "vnet_id": vnet.network_id,
                 "type": vnet.type,
-                "private_ip": kwargs["PrivateIp"] if "PrivateIp" in kwargs else "",
+                "private_ip": private_ip if private_ip else "",
             }
         }
         vm.storage = {}
@@ -373,8 +311,79 @@ class VmManager:
             logger.debug(e)
             raise Exception
 
-        print(f"Successfully created VM: {vm.instance_id} : {vmdir}")
+        logger.debug(f"Successfully created VM: {vm.instance_id} : {vmdir}")
         return vm.instance_id
+
+
+    def configure_vnc(self, vnc_port:str = None):
+        """This will provide a VNC configuration if a VM requests it"""
+        logger.debug("Enabling VNC")
+        vnc_options = {}
+        vnc_options["enable_vnc"] = True
+
+        if vnc_port:
+            logger.debug(f"VNC Port also specified: {vnc_port}")
+            vnc_options["vnc_port"] = vnc_port
+
+        # Generate a random password
+        vnc_passwd = User().generate_secret(16)
+        vnc_options["vnc_passwd"] = vnc_passwd
+
+        # TODO: Store in Vault or a proper key store
+        metadata = {
+            'vnc': {
+                'password': str(base64.b64encode(bytes(vnc_passwd, 'utf-8')), 'utf-8')
+            }
+        }
+
+        return vnc_options, metadata
+
+
+    def get_image_from_id(self, image_id:str, user:User):
+        logger.debug("Determining image metadata..")
+        
+        # check if it's a user image
+        image = None
+        try:
+            image = UserImage.objects.get(
+                account=user.account,
+                image_id=image_id,
+                deactivated=False
+            )
+        except UserImage.DoesNotExist:
+            logger.debug(f"Did not find User defined image with ID: {image_id}")
+            
+        try:
+            image = GuestImage.objects.get(
+                image_id=image_id,
+                deactivated=False
+            )
+        except GuestImage.DoesNotExist:
+            logger.debug(f"Did not find Guest defined image with ID: {image_id}")
+        
+        if image == None:
+            msg = "Provided ImageId does not exist."
+            logger.error(msg)
+            raise InvalidLaunchConfiguration(msg)
+        
+        return image
+    
+
+    def copy_image(self, image:BaseImageModel, vm:VirtualMachine, destination_dir:str) -> str:
+        """Copy a guest or user image to the path"""
+        img_path = image.image_path
+        img_format = image.image_metadata["format"]
+
+        # Create a copy of the VM image
+        destination_vm_img = f"{destination_dir}/{vm.instance_id}.{img_format}"
+        try:
+            logger.debug(f"Copying image: {img_path} TO directory {destination_dir} as {vm.instance_id}.{img_format}")
+            shutil.copy2(img_path, destination_vm_img)
+        except:
+            raise LaunchError("Encountered an error on VM copy. Cannot continue.")
+
+        logger.debug(f"Final image: {destination_vm_img}")
+        return destination_vm_img
 
 
     def _gen_hostname(self, VmId, IpAddr=None):
@@ -387,65 +396,14 @@ class VmManager:
         return VmId
     
     
-    # Get information about a instance/VM
-    def get_instance_metadata(self, user_obj, vm_id):
-
-        select_stmt = select([self.db.user_instances]).where(
-            and_(
-                self.db.user_instances.c.account == user_obj.account, 
-                self.db.user_instances.c.instance_id == vm_id
-            )
-        )
-        rows = self.db.connection.execute(select_stmt).fetchall()
-        instances = []
-        if rows:
-            result = rows[0]
-            data = {}
-            i = 0
-            for col in self.db.user_instances.columns:
-                if col.name == "created":
-                    data[col.name] = str(result[i])
-                else:
-                    data[col.name] = result[i]
-                i += 1
-            # Get instance state
-            state, state_int, _  = self.getVmState(vm_id)
-            data["state"] = {
-                "code": state_int,
-                "state": state,
-            }
-            instances.append(data)
-
-        return instances
-    
-    def get_anonymous_vm_metadata(self, vm_id=None, ip_addr=None):
-        if ip_addr:
-            select_stmt = select(self.db.user_instances.c).where(
-                self.db.user_instances.c.attached_interfaces["config_at_launch", "private_ip"].astext == ip_addr
-            )
-        elif vm_id:
-            select_stmt = select(self.db.user_instances.c).where(
-                self.db.user_instances.c.instance_id == vm_id
-            )
-        else:
-            return None
-        logger.debug(select_stmt)
-        rows = self.db.connection.execute(select_stmt).fetchall()
-        if rows:
-            return rows[0]
-        else:
-            return None
-    
-    # Returns an object with the configuration details of a defined VM. (dump xml)
-    # Can optionally return the raw XML string
     def get_instance_configuration(self, vm_id):
-        domain = self.__get_virtlib_domain(vm_id)
+        """Returns an object with the configuration details of a defined VM. (dump xml)"""
+        domain = self.__get_libvirt_domain(vm_id)
         xmldoc = domain.XMLDesc()
         xmltodict.parse(xmldoc)
     
 
     def create_virtual_machine_image(self, user:User, vm_id:str):
-
         account_id = user.account
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
         vmi_id = IdGenerator.generate("vmi")
@@ -491,8 +449,8 @@ class VmManager:
         return {"vmi_id": vmi_id}
 
     def get_vm_state(self, vm_id:str):
-        domain = self.__get_virtlib_domain(vm_id)
-        if domain:
+        domain = self.__get_libvirt_domain(vm_id)
+        if not domain:
             state_int, reason = domain.state()
 
             if state_int == libvirt.VIR_DOMAIN_NOSTATE:
@@ -523,7 +481,8 @@ class VmManager:
 
         
     def start_instance(self, vm_id):
-        vm = self.__get_virtlib_domain(vm_id)
+        """Start an instance (and set autostart to 1 for host reboots)"""
+        vm = self.__get_libvirt_domain(vm_id)
         if not vm:
             return VirtualMachineDoesNotExist
 
@@ -544,8 +503,9 @@ class VmManager:
         return True
     
     def stop_instance(self, vm_id):
+        """Stop an instance"""
         logger.debug(f"Stopping vm: {vm_id}")
-        vm = self.__get_virtlib_domain(vm_id)
+        vm = self.__get_libvirt_domain(vm_id)
         if not vm:
             raise VirtualMachineDoesNotExist
 
@@ -576,13 +536,13 @@ class VmManager:
         return True
 
 
-    # Terminate the instance 
     def terminate_instance(self, vm_id:str, user:User = None, force:bool = False):
+        """Terminate the instance"""
         logger.debug(f"Terminating vm: {vm_id}")
         if force:
             logger.warn("FORCE SET TO TRUE!")
 
-        vm_domain = self.__get_virtlib_domain(vm_id)
+        vm_domain = self.__get_libvirt_domain(vm_id)
 
         try:
             if user:
@@ -623,8 +583,9 @@ class VmManager:
 
         return True
 
-    # Returns currentConnection object if the VM exists. Returns False if vm does not exist.
-    def __get_virtlib_domain(self, vm_id):
+
+    def __get_libvirt_domain(self, vm_id):
+        """Returns currentConnection object if the VM exists. Returns False if vm does not exist."""
         try:
             return self.currentConnection.lookupByName(vm_id)
         except libvirt.libvirtError as e:
@@ -633,15 +594,8 @@ class VmManager:
                 return False
 
 
-    def __generate_mac_addr(self):
-        mac = [ 0x00, 0x16, 0x3e,
-            random.randint(0x00, 0x7f),
-            random.randint(0x00, 0xff),
-            random.randint(0x00, 0xff) ]
-        return ':'.join(map(lambda x: "%02x" % x, mac))
-
-    # Create a path for the files to be created in
     def __generate_vm_path(self, account_id, vm_id):
+        """Create a path for the virtual machine files to be created in"""
         vm_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}"
         logger.debug(f"Generated VM Path: {vm_path}. Creating..")
         try:
@@ -652,15 +606,16 @@ class VmManager:
             logger.error("Encountered an error when attempting to generate VM path. Cannot continue.")
             raise
 
-    # Delete the path for the files
+
     def __delete_vm_path(self, vm_id:str, user:User):
+        """Delete the path for the files"""
         # let's not delete all of the vm's in a user's folder
         if not vm_id or vm_id.strip() == "":
             logger.debug("vm_id empty when calling delete_vm_path. Exiting!")
             return
         
         # If it got created in virsh but still failed, undefine it
-        vm = self.__get_virtlib_domain(vm_id)
+        vm = self.__get_libvirt_domain(vm_id)
         if vm:
             vm.undefine()
 
