@@ -7,7 +7,7 @@ from api.api_view import HelperView
 from .models import UserKey
 from .manager import UserKeyManager
 from .serializers import UserKeySerializer
-from .exceptions import *
+from .exceptions import KeyDoesNotExist, KeyNameAlreadyExists, PublicKeyAlreadyExists
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,24 @@ class CreateKeys(HelperView, APIView):
             obj = UserKeySerializer(new_key).data
             obj["private_key"] = private_key
             return self.success_response(obj)
-
-                    
+     
         elif request.POST["Action"] == "import":
-            pass
+            try:
+                new_key = UserKeyManager().store_key(request.user, request.POST["KeyName"], request.POST["PublicKey"])
+            except KeyNameAlreadyExists:
+                return self.error_response(
+                    "Key (KeyName) with that name already exists.",
+                    status = status.HTTP_400_BAD_REQUEST
+                )
+            except PublicKeyAlreadyExists:
+                return self.error_response(
+                    "Key (PublicKey) with that value already exists.",
+                    status = status.HTTP_400_BAD_REQUEST
+                )
+            
+            obj = UserKeySerializer(new_key).data
+            return self.success_response(obj)
+
 
 class DescribeKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
@@ -74,13 +88,15 @@ class DescribeKeys(HelperView, APIView):
 class DeleteKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"got": True})
-
-    def post(self, request, vm_id:str):
+    def post(self, request, key_name:str):
         try:
-            VmManager().terminate_instance(vm_id, request.user)
-        except VirtualMachineDoesNotExist:
+            key:UserKey = UserKey.objects.get(
+                account=request.user.account,
+                name=key_name
+            )
+
+            key.delete()
+        except UserKey.DoesNotExist:
             return self.not_found_response()
         except Exception:
             return self.internal_server_error_response()
@@ -90,45 +106,3 @@ class DeleteKeys(HelperView, APIView):
 
 class ModifyKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        return Response({"got": True})
-
-    def post(self, request, vm_id:str):
-        req_params = [
-            "Action",
-        ]
-        if self.require_parameters(request, req_params):
-            return self.missing_parameter_response()
-
-        action = request.POST['Action']
-        logger.debug("Action:")
-        logger.debug(action)
-        if action == 'stop':
-            try:
-                VmManager().stop_instance(vm_id)
-            except VirtualMachineDoesNotExist:
-                return self.not_found_response()
-            except Exception:
-                return self.internal_server_error_response()
-        
-            return self.success_response()
-        elif action == 'start':
-            try:
-                VmManager().start_instance(vm_id)
-            except VirtualMachineDoesNotExist:
-                return self.not_found_response()
-            except VirtualMachineConfigurationException:
-                return self.error_response(
-                    "Could not start VM due to configuration issue. See logs for more details.",
-                    status = status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            except Exception:
-                return self.internal_server_error_response()
-        else:
-            return self.error_response(
-                    "Unknown action",
-                    status = status.HTTP_400_BAD_REQUEST
-                )
-        return self.success_response()
-        
