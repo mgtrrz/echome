@@ -2,8 +2,8 @@ import logging
 import docker
 from identity.models import User
 from vmmanager.instance_definitions import InstanceDefinition
-from vmmanager.vm_manager import VmManager
-from vmmanager.models import UserKey
+from vmmanager.manager import VmManager
+from keys.manager import UserKeyManager
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from vault.vault import Vault

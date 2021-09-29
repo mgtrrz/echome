@@ -3,7 +3,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import viewsets, status
 from api.api_view import HelperView
-from .models import VirtualNetwork, InvalidNetworkConfiguration, InvalidNetworkName
+from .models import VirtualNetwork
+from .exceptions import InvalidNetworkConfiguration, InvalidNetworkName
 from .serializers import NetworkSerializer
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ class CreateNetwork(HelperView, APIView):
     
         return self.success_response({'virtual_network': new_network_id})
 
+
 class DescribeNetwork(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -99,6 +101,7 @@ class TerminateNetwork(HelperView, APIView):
 
     def post(self, request, net_id:str):
         pass
+
 
 class ModifyNetwork(HelperView, APIView):
     permission_classes = [IsAuthenticated]
