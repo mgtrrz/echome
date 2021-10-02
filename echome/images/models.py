@@ -25,12 +25,27 @@ class BaseImageModel(models.Model):
     #host = models.ForeignKey("vmmanager.HostMachines", on_delete=models.CASCADE, to_field="host_id")
 
     minimum_requirements = models.JSONField(default=dict)
-    image_metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict)
     deactivated = models.BooleanField(default=False)
     tags = models.JSONField(default=dict)
 
+    class OperatingSystem(models.TextChoices):
+        WINDOWS = 'WIN', 'Windows'
+        LINUX = 'LNX', 'Linux'
+        OTHER = 'OTH', 'Other'
+
+    os = models.CharField(
+        max_length=3,
+        choices=OperatingSystem.choices,
+        default=OperatingSystem.LINUX,
+    )
+
     class Meta:
         abstract = True
+    
+    @property
+    def format(self):
+        return self.metadata["format"]
 
     def generate_id(self):
         if self.image_id is None or self.image_id == "":
@@ -83,7 +98,7 @@ class BaseImageModel(models.Model):
         self.name = name
         self.description = description
         #self.minimum_requirements = dict
-        self.image_metadata = img_metadata
+        self.metadata = img_metadata
         if tags:
             self.tags
         self.save()

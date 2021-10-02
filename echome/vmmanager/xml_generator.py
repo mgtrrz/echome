@@ -2,10 +2,7 @@ import xmltodict
 import logging
 from typing import List
 from dataclasses import dataclass, field
-from network.models import VirtualNetwork
-from echome.config import ecHomeConfig
 from .models import HostMachine
-from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +14,8 @@ class KvmXmlDisk():
     type: str = "qcow2"
     target_dev: str = "vda"
     bus: str = "virtio"
+    os_type:str = "Linux"
+
 
 @dataclass
 class KvmXmlRemovableMedia():
@@ -36,27 +35,36 @@ class KvmXmlNetworkInterface():
 
 
 @dataclass
+class KvmXmlVncConfiguration():
+    enable: bool = False
+    vnc_port: str = "auto"
+    vnc_password: str = ""
+
+
 class KvmXmlObject():
     name: str
     memory: int
     cpu_count: int
-    host: HostMachine
 
     hard_disks: List[KvmXmlDisk]
 
     network_interfaces: List[KvmXmlNetworkInterface] 
 
+    # If set to True (default), we'll check the properties of the 
+    # image that's set to the 1st hard disk provided
+    adjust_to_os_requirements: bool = True
+
     removable_media: List[KvmXmlRemovableMedia] = field(default_factory=lambda: [])
 
-    enable_vnc: bool = False
-    vnc_port: str = "auto"
-    vnc_passwd: str = ""
+    vnc_configuration: KvmXmlVncConfiguration = field(default_factory=lambda: KvmXmlVncConfiguration())
 
     os_arch: str = "x86_64"
-    os_type: str = "hvm" # hvm or xen. hvm needed for windows, 
+    os_type: str = "xen" # hvm or xen. hvm needed for windows, 
     # Linux likes utc, Windows has to have 'localtime'
     # https://libvirt.org/formatdomain.html#time-keeping
     clock_offset: str = "utc"
+
+    host: HostMachine = field(default_factory=lambda: [])
 
     additional_features: list = field(default_factory=lambda: [])
     enable_smbios: bool = False
@@ -168,15 +176,15 @@ class KvmXmlObject():
             }
         }
     
-    def _render_cpu_details(self, host:HostMachine = None):
+    def _render_cpu_details(self):
         return {
             '@mode': 'host-passthrough',
             '@match': 'exact',
-            #'model': 'EPYC'
         }
     
-    # Enable features for the virtual machine
+
     def _render_features(self):
+        """Enable features for the virtual machine"""
         default_features = ['acpi', 'apic']
         obj = {}
 
@@ -188,8 +196,22 @@ class KvmXmlObject():
                 obj[f] = {}
         return obj
 
-    # Render the complete XML document 
-    def render_xml(self):
+
+    def change_os_requirements(self):
+        if not self.hard_disks:
+            return
+        
+        if self.hard_disks[0].os_type == "Windows":
+            self.os_type = "hvm"
+            self.clock_offset = "localtime"
+
+
+    def render_xml(self) -> str:
+        """Render the complete XML document """
+
+        if self.adjust_to_os_requirements:
+            self.change_os_requirements()
+
         obj = {
             'domain': {
                 '@type': 'kvm',
@@ -236,74 +258,11 @@ class KvmXmlObject():
             obj['domain']['os']['smbios'] = {'@mode': 'sysinfo'}
             obj['domain']['sysinfo'] = self._render_smbios()
 
-        return xmltodict.unparse(obj, full_document=False, pretty=True, short_empty_elements=True)
+        return xmltodict.unparse(obj, full_document=False, pretty=True, short_empty_elements=True, indent=" ")
 
-class XmlGenerator():
-    @staticmethod
-    def generate_template(
-            vm_id:str, vnet:VirtualNetwork, instance_type:InstanceDefinition, 
-            image_path:str, host:HostMachine, cloudinit_iso_path:str = None,
-            enable_vnc:bool = False, vnc_port:str = "auto", vnc_passwd:str = ""):
-        """Generates the XML template for use with defining in libvirt.
 
-        :param vm_id: Virtual Machine Id
-        :type vm_id: str
-        :param vnet: Virtual Network object for determining if a bridge interface should be used.
-        :type vnet: VirtualNetwork
-        :key instance_type: Instance type for this VM
-        :type instance_type: Instance
-        :key image_path: Path to the root virtual disk for the virtual machine.
-        :type image_path: str
-        :key cloudinit_iso_path: Path to the location of the cloudinit iso for this virtual machine, defaults to None. 
-            If attached, the XML document will add a virtual disk with a mount to the cloudinit iso. 
-        :type cloudinit_iso_path: str
-        :return: XML document as a string
-        :rtype: str
-        """        
-
-        enable_smbios = False
-        metadata_api_url = ""
-        network = []
-        removable_media = []
-
-        if cloudinit_iso_path:
-            removable_media.append(KvmXmlRemovableMedia(cloudinit_iso_path))
-
-        # Also enable metadata smbios:
-        # ech = ecHomeConfig.EcHome()
-        # metadata_api_url = f"{ech.metadata_api_url}:{ech.metadata_api_port}/{vm_id}/"
-        # logger.debug(f"Generated Metadata API url: {metadata_api_url}")
-        # enable_smbios = True
-
-        if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
-            # If it is BridgeToLan, we need to add the appropriate bridge interface into the XML
-            # template
-            network.append(KvmXmlNetworkInterface(
-                type = "bridge",
-                source = vnet.config['bridge_interface']
-            ))
-        else:
-            network.append(KvmXmlNetworkInterface(
-                type = "nat",
-                source = vnet.name
-            ))
-
- 
-        xmldoc = KvmXmlObject(
-            name=vm_id,
-            memory=instance_type.get_memory(),
-            cpu_count=instance_type.get_cpu(),
-            host=host,
-            hard_disks=[
-                KvmXmlDisk(image_path)
-            ],
-            network_interfaces=network,
-            removable_media=removable_media,
-            enable_smbios=enable_smbios,
-            smbios_url=metadata_api_url,
-            enable_vnc=enable_vnc,
-            vnc_port=vnc_port,
-            vnc_passwd=vnc_passwd
-        )
-        
-        return xmldoc.render_xml()
+class VirtualMachineXmlObject:
+    virtual_disk_xml_def: List[KvmXmlDisk] = []
+    virtual_network_xml_def: KvmXmlNetworkInterface = None
+    vnc_xml_def: KvmXmlVncConfiguration = None
+    removable_media_xml_def: List[KvmXmlRemovableMedia] = []

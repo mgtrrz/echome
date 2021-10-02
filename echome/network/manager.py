@@ -7,8 +7,12 @@ from .exceptions import InvalidNetworkConfiguration, InvalidNetworkName, Invalid
 logger = logging.getLogger(__name__)
 
 class VirtualNetworkManager:
-    # Checks to see if the IP provided for a VM is valid for this network
+
+    def __init__(self, vnet_db:VirtualNetwork = None) -> None:
+        self.vnet_db = vnet_db
+
     def validate_ip(self, ip:str):
+        """Checks to see if the IP provided for a VM is valid for this network"""
         network_addr = f'{self.config["network"]}/{self.config["prefix"]}'
         logger.debug(f"Checking network address: {network_addr} for network {self.name}")
         network = ipaddress.ip_network(f'{self.config["network"]}/{self.config["prefix"]}')
@@ -25,8 +29,8 @@ class VirtualNetworkManager:
         logging.debug(f"{ip} valid for network {network_addr}")
         return True
 
-    # Checks to see if this is a valid IP address 
     def valid_ip_format(self, ip:str):
+        """Checks to see if this is a valid IP address """
         try:
             ip_object = ipaddress.ip_address(ip)
         except ValueError:

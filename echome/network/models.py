@@ -1,7 +1,5 @@
 import logging
-import ipaddress
 from django.db import models
-from identity.models import User
 from echome.id_gen import IdGenerator
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 
