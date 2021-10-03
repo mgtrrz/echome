@@ -6,6 +6,7 @@ import shutil
 import time
 import xmltodict
 import base64
+import os
 from typing import List
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
@@ -13,28 +14,14 @@ from commander.qemuimg import QemuImg
 from identity.models import User
 from images.models import BaseImageModel, GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
-from network.manager import VirtualNetworkManager
 from keys.models import UserKey
-from keys.exceptions import KeyDoesNotExist
 from .models import VirtualMachine, HostMachine
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
 from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlDisk, KvmXmlRemovableMedia, KvmXmlVncConfiguration, VirtualMachineXmlObject
-from .exceptions import *
+from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationException, VirtualMachineTerminationException
 
 logger = logging.getLogger(__name__)
-
-KNOWN_CONTENT_TYPES = [
-    'text/x-include-once-url',
-    'text/x-include-url',
-    'text/cloud-config-archive',
-    'text/upstart-job',
-    'text/cloud-config',
-    'text/part-handler',
-    'text/x-shellscript',
-    'text/cloud-boothook',
-]
-
 
 VM_ROOT_DIR = ecHomeConfig.VirtualMachines().user_dir
 XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
@@ -43,7 +30,7 @@ XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
 # clean up after itself. Useful to disable for debugging,
 # But keep this to True to avoid having a lot of directories
 # and files wasting space for non-functioning VMs
-CLEAN_UP_ON_FAIL = True
+CLEAN_UP_ON_FAIL = os.getenv("VM_CLEAN_UP_ON_FAIL", 'true').lower() == 'true'
 
 # Flow for VM Creation
 # 1. Generate a VM Id
@@ -280,7 +267,7 @@ class VmManager:
         if not image:
             msg = "Provided ImageId does not exist."
             logger.error(msg)
-            raise InvalidLaunchConfiguration(msg)
+            raise InvalidImageId(msg)
         
         return image
     
