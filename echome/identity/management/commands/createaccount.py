@@ -36,6 +36,7 @@ class Command(BaseCommand):
             self.stdout.write(e)
             self.stderr.write('Error: There was an error when attempting to create the account.')
     
+
     def get_input_data(self, field, message, default=None):
         """
         Override this method if you want to customize data inputs or
@@ -52,6 +53,7 @@ class Command(BaseCommand):
 
         return val
 
+
     def _get_input_message(self, field, default=None):
         return '%s%s%s: ' % (
             capfirst(field.verbose_name),
@@ -61,6 +63,7 @@ class Command(BaseCommand):
                 field.m2m_target_field_name() if field.many_to_many else field.remote_field.field_name,
             ) if field.remote_field else '',
         )
+
 
     def _validate_acctname(self, acctname, verbose_field_name):
         """Validate username. If invalid, return a string error message."""

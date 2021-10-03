@@ -25,6 +25,7 @@ class HelperView():
         
         return missing_params
     
+
     def missing_parameter_response(self, params:list) -> Response:
         """
         Return a rest_framework response with a list of the missing parameters
@@ -43,17 +44,20 @@ class HelperView():
         }
         return Response(msg, status=status)
 
+
     def internal_server_error_response(self)  -> Response:
         return Response({
             'success': False,
             'details': 'Internal Server Error. See logs for details.'
         }, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
     def not_found_response(self, message:str = None) -> Response:
         return Response({
             'success': False,
             'details': message if message is not None else "Resource does not exist",
         }, status=status.HTTP_404_NOT_FOUND)
+
 
     def success_response(self, extra_info:dict = {}, message:str = None) -> Response:
         msg = {
@@ -64,6 +68,7 @@ class HelperView():
             msg['results'] = extra_info
 
         return Response(msg, status=status.HTTP_200_OK)
+
 
     def unpack_tags(self, request:HttpRequest=None):
         logger.debug("Unpacking tags")
@@ -90,6 +95,7 @@ class HelperView():
         
         logger.debug(dict_tags)
         return dict_tags
+    
     
     def unpack_comma_separated_list(self, key:str, request:QueryDict):
         logger.debug("Unpacking comma separated list")

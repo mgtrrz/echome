@@ -1,5 +1,4 @@
 import logging
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import status
@@ -25,18 +24,14 @@ logger = logging.getLogger(__name__)
 class CreateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"got": True})
-
     def post(self, request):
         req_params = [
             "ImageId", 
             "InstanceType", 
             "NetworkProfile",
         ]
-        logger.debug(request)
-        if self.require_parameters(request, req_params):
-            return self.missing_parameter_response()
+        if missing_params := self.require_parameters(request, req_params):
+            return self.missing_parameter_response(missing_params)
 
         try:
             instance_class_size = request.POST["InstanceType"].split(".")
@@ -128,9 +123,6 @@ class DescribeVM(HelperView, APIView):
 class TerminateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"got": True})
-
     def post(self, request, vm_id:str):
         try:
             VmManager().terminate_instance(vm_id, request.user)
@@ -144,15 +136,12 @@ class TerminateVM(HelperView, APIView):
 class ModifyVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"got": True})
-
     def post(self, request, vm_id:str):
         req_params = [
             "Action",
         ]
-        if self.require_parameters(request, req_params):
-            return self.missing_parameter_response()
+        if missing_params := self.require_parameters(request, req_params):
+            return self.missing_parameter_response(missing_params)
 
         action = request.POST['Action']
         logger.debug("Action:")

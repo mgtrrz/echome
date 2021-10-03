@@ -1,15 +1,13 @@
+import string
+import logging
+import secrets
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from echome.id_gen import IdGenerator
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
-import string
-import secrets
+from .exceptions import AccountNotFoundError, UserTypeNotSetException
 
-class UserTypeNotSetException(Exception):
-    pass
-
-class AccountNotFound(Exception):
-    pass
+logger = logging.getLogger(__name__)
 
 class Account(models.Model):
     # Unique identifier for this account.
@@ -20,21 +18,24 @@ class Account(models.Model):
     secret = models.TextField(null=True)
     tags = models.JSONField(default=dict)
 
+
     def __str__(self) -> str:
         return self.account_id
     
+
     def generate_id(self):
         if self.account_id is None or self.account_id == "":
             self.account_id = IdGenerator.generate("acct")
         else:
             raise AttemptedOverrideOfImmutableIdException
 
+
 class UserManager(BaseUserManager):
 
     def create_user(self, username, password=None, account=None):
         acct = Account.objects.get(account_id=account)
         if not acct:
-            raise AccountNotFound
+            raise AccountNotFoundError
 
         user = self.model()
         user.set_password(password)
@@ -44,6 +45,7 @@ class UserManager(BaseUserManager):
         user.save()
 
         return user
+
 
     def create_superuser(self, username, password, account):
         if password is None:
@@ -55,6 +57,7 @@ class UserManager(BaseUserManager):
         user.save()
 
         return user
+
 
 class User(AbstractUser):
 
@@ -128,11 +131,13 @@ class User(AbstractUser):
         
         return self.user_id
     
+
     def generate_secret(self, length=40):
         alphabet = string.ascii_letters + string.digits
         pw = ''.join(secrets.choice(alphabet) for i in range(length))
         self.set_password(pw)
         return pw
+
 
     def __str__(self) -> str:
         return self.user_id

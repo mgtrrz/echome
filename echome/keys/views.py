@@ -1,8 +1,7 @@
 import logging
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework import viewsets, status
+from rest_framework import status
 from api.api_view import HelperView
 from .models import UserKey
 from .manager import UserKeyManager
@@ -15,12 +14,12 @@ class CreateKeys(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        params = self.require_parameters(request, [
+        required_params = [
             "Action",
             "KeyName",
-        ])
-        if params:
-            return self.missing_parameter_response(params)
+        ]
+        if missing_params := self.require_parameters(request, required_params):
+            return self.missing_parameter_response(missing_params)
         
         if request.POST["Action"] == "new":
             try:
