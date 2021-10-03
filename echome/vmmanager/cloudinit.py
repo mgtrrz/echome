@@ -6,6 +6,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.config import ecHomeConfig
 from commander.cloudlocalds import CloudLocalds
+from commander.cloudinit import CloudInit as CloudInitCommand
 from network.models import VirtualNetwork
 
 logger = logging.getLogger(__name__)
@@ -165,7 +166,7 @@ class CloudInit:
         echmd = ecHomeConfig.EcHomeMetadata()
         md = {
             "instance-id": vm_id,
-            "local-hostname": hostname if hostname else self._gen_hostname(vm_id, ip_addr),
+            "local-hostname": hostname if hostname else self._generate_hostname(vm_id, ip_addr),
             "cloud-name": "ecHome",
             "availability-zone": echmd.availability_zone,
             "region": echmd.region,
@@ -198,15 +199,6 @@ class CloudInit:
             str: A complete file path to the location of the ISO file.
         """
 
-        # Validate the yaml file
-        logger.debug("Validating Cloudinit config yaml.")        
-        if not CloudInit().validate_schema(userdata_yaml_file_path):
-            logger.exception("Failed validating Cloudinit config yaml")
-            raise CloudInitFailedValidation
-
-        # Create cloud_init disk image
-        cloudinit_iso_path = f"{self.base_dir}/cloudinit.iso"
-
         if userdata_yaml_file_path:
             userdata_file = userdata_yaml_file_path
         else:
@@ -225,7 +217,16 @@ class CloudInit:
             metadata_file = f"{self.base_dir}/{METADATA_CONFIG_FILE_NAME}"
         else:
             metadata_file = None
+        
+        # Validate the yaml file
+        logger.debug("Validating Cloudinit config yaml.")        
+        if not CloudInitCommand().validate_schema(userdata_file):
+            logger.exception("Failed validating Cloudinit config yaml")
+            raise CloudInitFailedValidation
 
+        # This is the final path for the cloud_init disk image to be mounted
+        # onto the VMs
+        cloudinit_iso_path = f"{self.base_dir}/cloudinit.iso"
 
         create_image_success = CloudLocalds().create_image(
             user_data_file=userdata_file,
@@ -241,11 +242,30 @@ class CloudInit:
         logger.debug(f"Created cloudinit iso: {cloudinit_iso_path}")
         return cloudinit_iso_path
     
+
     def _write_file(self, file_name:str, contents:str):
-        with open(file_name, "w") as filehandle:
-            logger.debug(f"Writing contents to file: {file_name}")
-            filehandle.write(contents)
+        if self.base_dir is None or self.base_dir == "":
+            raise CloudInitError("Base directory was empty. Cannot write Cloudinit files!")
         
+        complete_path = f"{self.base_dir}/{file_name}"
+        with open(complete_path, "w") as filehandle:
+            logger.debug(f"Writing contents to file: {complete_path}")
+            filehandle.write(contents)
+    
+
+    def _generate_hostname(self, vm_id:str, ip_address:str = None, prefix:str = "ip"):
+        """Generate a hostname for a VM. If provided an IP address, will generate a hostname
+        with the IP address, e.g. `ip-192-168-4-15`. Otherwise, it will just return the ID of the VM."""
+        if ip_address:
+            ip_str = "-".join(ip_address.split('.'))
+            res = f"{prefix}-{ip_str}"
+            return res
+        
+        return vm_id
+
+
+class CloudInitError(Exception):
+    pass
 
 class CloudInitFailedValidation(Exception):
     pass

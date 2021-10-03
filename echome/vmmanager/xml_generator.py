@@ -40,7 +40,7 @@ class KvmXmlVncConfiguration():
     vnc_port: str = "auto"
     vnc_password: str = ""
 
-
+@dataclass
 class KvmXmlObject():
     name: str
     memory: int
@@ -59,7 +59,7 @@ class KvmXmlObject():
     vnc_configuration: KvmXmlVncConfiguration = field(default_factory=lambda: KvmXmlVncConfiguration())
 
     os_arch: str = "x86_64"
-    os_type: str = "xen" # hvm or xen. hvm needed for windows, 
+    os_type: str = "hvm" # explore using xen?
     # Linux likes utc, Windows has to have 'localtime'
     # https://libvirt.org/formatdomain.html#time-keeping
     clock_offset: str = "utc"
@@ -131,13 +131,13 @@ class KvmXmlObject():
         
         
         # VNC (If enabled)
-        if self.enable_vnc:
+        if self.vnc_configuration.enable:
             obj['graphics'] = {
                 '@type': 'vnc',
-                '@autoport': 'yes' if self.vnc_port == 'auto' else 'no',
+                '@autoport': 'yes' if self.vnc_configuration.vnc_port == 'auto' else 'no',
                 '@listen': '0.0.0.0',
                 '@sharePolicy': 'allow-exclusive',
-                '@passwd': self.vnc_passwd,
+                '@passwd': self.vnc_configuration.vnc_password,
                 'listen': {
                     '@type': 'address',
                     '@address': '0.0.0.0',
@@ -145,7 +145,7 @@ class KvmXmlObject():
             }
 
             if self.vnc_port != 'auto':
-                obj['graphics']['@port'] = self.vnc_port
+                obj['graphics']['@port'] = self.vnc_configuration.vnc_port
 
 
         return obj
@@ -202,7 +202,6 @@ class KvmXmlObject():
             return
         
         if self.hard_disks[0].os_type == "Windows":
-            self.os_type = "hvm"
             self.clock_offset = "localtime"
 
 
@@ -232,7 +231,7 @@ class KvmXmlObject():
                     }
                 },
                 'features': self._render_features(),
-                'cpu': self._render_cpu_details(self.host),
+                'cpu': self._render_cpu_details(),
                 'clock': {
                     '@offset': self.clock_offset,
                     'timer': [

@@ -8,6 +8,7 @@ from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine
 from .serializers import VirtualMachineSerializer
 from .manager import VmManager
+from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationException
 
 logger = logging.getLogger(__name__)
 

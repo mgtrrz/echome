@@ -11,23 +11,26 @@ class VirtualNetworkManager:
     def __init__(self, vnet_db:VirtualNetwork = None) -> None:
         self.vnet_db = vnet_db
 
-    def validate_ip(self, ip:str):
+
+    def validate_ip(self, vnet_db:VirtualNetwork, ip:str):
         """Checks to see if the IP provided for a VM is valid for this network"""
-        network_addr = f'{self.config["network"]}/{self.config["prefix"]}'
-        logger.debug(f"Checking network address: {network_addr} for network {self.name}")
-        network = ipaddress.ip_network(f'{self.config["network"]}/{self.config["prefix"]}')
+
+        network_addr = f'{vnet_db.config["network"]}/{vnet_db.config["prefix"]}'
+        logger.debug(f"Checking network address: {network_addr} for network {vnet_db.name}")
+        network = ipaddress.ip_network(f'{vnet_db.config["network"]}/{vnet_db.config["prefix"]}')
         hosts = network.hosts()
 
         ip_obj = self.valid_ip_format(ip)
         if ip_obj is False:
-            raise ValueError("Provided Ip address is not valid.")
+            raise ValueError("Provided IP address is not valid.")
 
         if ip_obj not in hosts:
             logger.debug(f"{ip} is not a valid address for network {network_addr}")
             return False
 
-        logging.debug(f"{ip} valid for network {network_addr}")
+        logger.debug(f"{ip} valid for network {network_addr}")
         return True
+
 
     def valid_ip_format(self, ip:str):
         """Checks to see if this is a valid IP address """
@@ -38,7 +41,9 @@ class VirtualNetworkManager:
         
         return ip_object
     
-    def validate_network(self, network:str, prefix:str, gateway:str, dns_servers:list):
+
+    def validate_network(self, network:str, prefix:str, gateway:str, dns_servers:list) -> bool:
+        """Validates aspects of the network including IP addresses."""
         logger.debug("Validating provided network information..")
         try:
             network_cidr = f'{network}/{prefix}'
@@ -51,7 +56,7 @@ class VirtualNetworkManager:
                 ipaddress.ip_address(dns_server)
             
             return True
-        except ValueError as e:
+        except ValueError:
             return False
     
     # Network: "192.168.15.0"
@@ -96,6 +101,7 @@ class VirtualNetworkManager:
         
         vnet.save()
         return vnet.network_id
+
 
     def create_nat_network(self):
         pass
