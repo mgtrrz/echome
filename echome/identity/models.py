@@ -137,6 +137,13 @@ class User(AbstractUser):
         pw = ''.join(secrets.choice(alphabet) for i in range(length))
         self.set_password(pw)
         return pw
+    
+
+    def get_top_level_user(self):
+        if self.type == User.Type.ACCESS_KEY:
+            return self.parent
+        else:
+            return self
 
 
     def __str__(self) -> str:
