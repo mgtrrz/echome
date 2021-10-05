@@ -25,7 +25,6 @@ from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineD
 logger = logging.getLogger(__name__)
 
 VM_ROOT_DIR = ecHomeConfig.VirtualMachines().user_dir
-XML_TEMPLATES_DIR = f"{ecHomeConfig.EcHome().base_dir}/xml_templates"
 
 # if at any point during the VM Creation process fails,
 # clean up after itself. Useful to disable for debugging,
@@ -214,6 +213,7 @@ class VmManager:
             raise Exception
 
         logger.debug(f"Successfully created VM: {self.vm_db.instance_id} : {self.vm_dir}")
+        del self.vm_xml_object
         return self.vm_db.instance_id
 
 
@@ -446,7 +446,7 @@ class VmManager:
         logger.debug(f"Stopping {vm_id}")
         self.stop_instance(vm_id)
 
-        user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/user_vmi"
+        user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/account_vmi"
         # Create it if doesn't exist
         pathlib.Path(user_vmi_dir).mkdir(parents=True, exist_ok=True)
         current_image_full_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}"
@@ -579,33 +579,36 @@ class VmManager:
         return True
 
 
-    def terminate_instance(self, force:bool = False):
+    def try_get_database_object(self, vm_id:str, user:User):
+        try:
+            return VirtualMachine.objects.get(
+                instance_id=vm_id,
+                account=user.account
+            )
+        except VirtualMachine.DoesNotExist:
+            raise
+
+    def terminate_instance(self, vm_id:str, user:User, force:bool = False):
         """Terminate the instance"""
-        logger.debug(f"Terminating vm: {self.vm_db.instance_id}")
+        logger.debug(f"Terminating vm: {vm_id}")
         if force:
             logger.warn("FORCE SET TO TRUE!")
 
-        vm_domain = self.__get_libvirt_domain(self.vm_db.instance_id)
+        vm_db = self.try_get_database_object(vm_id, user)
 
-        try:
-            # Stop the instance
-            self.stop_instance(self.vm_db.instance_id)
-            # Undefine it to remove it from virt
-            vm_domain.undefine()
-        except VirtualMachineDoesNotExist:
-            pass
-        except libvirt.libvirtError as e:
-            logger.error(f"Could not terminate instance {self.vm_db.instance_id}: libvirtError {e}")
-            raise VirtualMachineTerminationException()
+        vm_domain = self.__get_libvirt_domain(vm_db.instance_id)
+
+        # Stop the instance and undefine (remove) from Virsh
+        self.stop_instance(vm_db.instance_id)
+        self.__undefine_domain(vm_db.instance_id)
         
         # Delete folder/path
-        if self.user:
-            self.__delete_vm_path()
+        self.__delete_vm_path(vm_db.instance_id, user)
 
         # delete entry in db
         try:
-            if self.vm_db: 
-                self.vm_db.delete()
+            if vm_db: 
+                vm_db.delete()
         except Exception as e:
             raise Exception(f"Unable to delete row from database. instance_id={self.vm_db.instance_id}")
 
@@ -635,19 +638,14 @@ class VmManager:
             raise
 
 
-    def __delete_vm_path(self):
+    def __delete_vm_path(self, vm_id:str, user:User):
         """Delete the path for the files"""
         # let's not delete all of the vm's in a user's folder
-        if not self.vm_db.instance_id or self.vm_db.instance_id.strip() == "":
-            logger.debug("vm_id empty when calling delete_vm_path. Exiting!")
+        if vm_id is None or vm_id.strip() == "":
+            logger.warning("vm_id empty when calling delete_vm_path. Exiting!")
             return
-        
-        # If it got created in virsh but still failed, undefine it
-        vm = self.__get_libvirt_domain(self.vm_db.instance_id)
-        if vm:
-            vm.undefine()
 
-        path = f"{VM_ROOT_DIR}/{self.user.account}/{self.vm_db.instance_id}"
+        path = f"{VM_ROOT_DIR}/{user.account}/{vm_id}"
         logger.debug(f"Deleting VM Path: {path}")
 
         try:
@@ -655,6 +653,11 @@ class VmManager:
         except:
             logger.error("Encountered an error when atempting to delete VM path.")
 
+
+    def __undefine_domain(self, vm_id:str):
+        vm = self.__get_libvirt_domain(vm_id)
+        if vm:
+            vm.undefine()
 
     def __run_command(self, cmd: list):
         logger.debug("Running command: ")

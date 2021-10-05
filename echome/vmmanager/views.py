@@ -86,6 +86,7 @@ class CreateVM(HelperView, APIView):
                 
         return self.success_response({"virtual_machine_id": vm_id})
 
+
 class DescribeVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -120,6 +121,7 @@ class DescribeVM(HelperView, APIView):
 
         return self.success_response(i)
 
+
 class TerminateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
@@ -128,10 +130,12 @@ class TerminateVM(HelperView, APIView):
             VmManager().terminate_instance(vm_id, request.user)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
-        except Exception:
+        except Exception as e:
+            logger.exception(e)
             return self.internal_server_error_response()
         
         return self.success_response()
+
 
 class ModifyVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
