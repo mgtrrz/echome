@@ -120,7 +120,11 @@ class VmManager:
             raise
         except Exception as e:
             logger.exception(f"Encountered other error: {e}")
+            self._clean_up(user, self.vm_db.instance_id)
             raise
+        finally:
+            # Clean up after ourselves objects
+            self._del_objects()
         
         return result
 
@@ -213,7 +217,6 @@ class VmManager:
             raise Exception
 
         logger.debug(f"Successfully created VM: {self.vm_db.instance_id} : {self.vm_dir}")
-        del self.vm_xml_object
         return self.vm_db.instance_id
 
 
@@ -319,7 +322,8 @@ class VmManager:
         return {
             "image_id": image_id,
             "image_name": image.name,
-            "disk_size": disk_size
+            "disk_size": disk_size,
+            "disk_path": image_iso_path
         }
 
 
@@ -436,10 +440,13 @@ class VmManager:
         xmltodict.parse(xmldoc)
     
 
-    def create_virtual_machine_image(self, user:User, vm_id:str):
+    def create_virtual_machine_image(self, vm_id:str, user:User):
+        """Create a virtual machine image to create new virtual machines from"""
         account_id = user.account
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
-        vmi_id = IdGenerator.generate("vmi")
+
+        new_vmi = UserImage()
+        new_vmi.generate_id()
 
         logger.debug(f"Creating VMI from {vm_id}")
         # Instance needs to be turned off to create an image
@@ -659,6 +666,14 @@ class VmManager:
         if vm:
             vm.undefine()
 
+
+    def _del_objects(self):
+        logger.debug("Deleting objects")
+        del self.vm_xml_object
+        del self.cloudinit
+        del self.vm_db
+
+
     def __run_command(self, cmd: list):
         logger.debug("Running command: ")
         logger.debug(cmd)
@@ -672,6 +687,7 @@ class VmManager:
             "output": output,
         }
 
+    
 class InstanceConfiguration():
     def __init__(self, vm_id, **kwargs):
         self.id = vm_id

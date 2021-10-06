@@ -1,7 +1,6 @@
 import os
 import logging
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist
 from identity.models import User
 from echome.id_gen import IdGenerator
 from commander.qemuimg import QemuImg
@@ -106,6 +105,7 @@ class BaseImageModel(models.Model):
 
     def __str__(self) -> str:
         return self.image_id
+
 
 class GuestImage(BaseImageModel):
     image_type = "guest"
