@@ -141,15 +141,12 @@ class ModifyVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, vm_id:str):
-        req_params = [
-            "Action",
-        ]
-        if missing_params := self.require_parameters(request, req_params):
+        if missing_params := self.require_parameters(request, ["Action"]):
             return self.missing_parameter_response(missing_params)
 
-        action = request.POST['Action']
-        logger.debug("Action:")
-        logger.debug(action)
+        action = request.POST['Action'].lower()
+        logger.debug(f"Action: {action}")
+
         if action == 'stop':
             try:
                 VmManager().stop_instance(vm_id)
@@ -169,12 +166,30 @@ class ModifyVM(HelperView, APIView):
                     "Could not start VM due to configuration issue. See logs for more details.",
                     status = status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-            except Exception:
+            except Exception as e:
+                logger.exception(e)
                 return self.internal_server_error_response()
+        elif action == 'create-image':
+            req_params = ["Name", "Description"]
+            if missing_params := self.require_parameters(request, req_params):
+                return self.missing_parameter_response(missing_params)
+            try:
+                result = VmManager().create_virtual_machine_image(
+                    vm_id, 
+                    request.user,
+                    request.POST["Name"],
+                    request.POST["Description"],
+                    self.unpack_tags(request)
+                )
+            except Exception as e:
+                logger.exception(e)
+                return self.internal_server_error_response()
+            return self.success_response(result)
         else:
             return self.error_response(
                     "Unknown action",
                     status = status.HTTP_400_BAD_REQUEST
                 )
         return self.success_response()
+    
         

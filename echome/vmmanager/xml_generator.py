@@ -47,7 +47,6 @@ class KvmXmlObject():
     cpu_count: int
 
     hard_disks: List[KvmXmlDisk]
-
     network_interfaces: List[KvmXmlNetworkInterface] 
 
     # If set to True (default), we'll check the properties of the 

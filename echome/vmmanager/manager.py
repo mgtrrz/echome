@@ -8,6 +8,8 @@ import xmltodict
 import base64
 import os
 from typing import List
+
+from yaml.tokens import DocumentStartToken
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
@@ -61,10 +63,11 @@ class VmManager:
     
     def create_vm(self, user: User, instanceType:InstanceDefinition, **kwargs):
         """Create a virtual machine
-        This function does not create the VM but instead passes all of the
-        arguments to the internal function _create_virtual_machine(). If this 
-        process fails, the function will clean up after itself. Set CLEAN_UP_ON_FAIL
-        to False to alter this behavior to keep files for debugging purposes.
+        This function does not create the VM but instead passes all of the arguments to the internal
+        function _create_virtual_machine(). If this process fails, the function will clean up after
+        itself. Set the environment var VM_CLEAN_UP_ON_FAIL to False to alter this behavior to keep
+        files for debugging purposes.
+
         :param user: User object for identifying which account the VM is created for.
         :type user: User
         :param instanceType: Instance type for the virtual machine to use.
@@ -243,7 +246,7 @@ class VmManager:
         return metadata
 
 
-    def get_image_from_id(self, image_id:str) -> BaseImageModel:
+    def get_image_from_id(self, image_id:str, user:User) -> BaseImageModel:
         """Returns an image object from an image_id string"""
         logger.debug("Determining image metadata..")
         
@@ -251,7 +254,7 @@ class VmManager:
         image = None
         try:
             image:UserImage = UserImage.objects.get(
-                account=self.user.account,
+                account=user.account,
                 image_id=image_id,
                 deactivated=False
             )
@@ -369,12 +372,10 @@ class VmManager:
             )
         
         self.vm_xml_object.virtual_network_xml_def = xml_network_def
-        return {
-            "config_at_launch": {
-                "vnet_id": vnet.network_id,
-                "type": vnet.type,
-                "private_ip": private_ip if private_ip else "",
-            }
+        return  {
+            "vnet_id": vnet.network_id,
+            "type": vnet.type,
+            "private_ip": private_ip if private_ip else "",
         }
 
 
@@ -440,27 +441,44 @@ class VmManager:
         xmltodict.parse(xmldoc)
     
 
-    def create_virtual_machine_image(self, vm_id:str, user:User):
+    def get_vm_db_from_id(self, vm_id:str):
+        try:
+            return VirtualMachine.objects.get(instance_id=vm_id)
+        except VirtualMachine.DoesNotExist:
+            raise VirtualMachineDoesNotExist
+
+
+    def create_virtual_machine_image(self, vm_id:str, user:User, name:str, desc:str, tags:dict = {}):
         """Create a virtual machine image to create new virtual machines from"""
         account_id = user.account
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
 
-        new_vmi = UserImage()
+        vm_db = self.get_vm_db_from_id(vm_id)
+        image_id = self.get_image_from_id(vm_db.image_metadata['image_id'], user)
+
+        new_vmi = UserImage(
+            account=user.account,
+            name=name,
+            description=desc,
+            tags=tags,
+            os=image_id.os,
+        )
         new_vmi.generate_id()
 
         logger.debug(f"Creating VMI from {vm_id}")
-        # Instance needs to be turned off to create an image
-        logger.debug(f"Stopping {vm_id}")
         self.stop_instance(vm_id)
 
         user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/account_vmi"
         # Create it if doesn't exist
         pathlib.Path(user_vmi_dir).mkdir(parents=True, exist_ok=True)
         current_image_full_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}"
-        new_image_full_path = f"{user_vmi_dir}/{vmi_id}.qcow2"
+        new_image_full_path = f"{user_vmi_dir}/{new_vmi.image_id}.qcow2"
+
+        new_vmi.image_path=new_image_full_path
+        new_vmi.save()
 
         try:
-            logger.debug(f"Copying image: {vm_name} TO {vmi_id}")
+            logger.debug(f"Copying image: {vm_name} TO {new_vmi.image_id}")
             #shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
         except:
             logger.error("Encountered an error on VM copy. Cannot continue.")
@@ -473,20 +491,24 @@ class VmManager:
             print("Return code not None")
 
         logger.debug(f"Running Sysprep on: {new_image_full_path}")
-        output = self.__run_command(["sudo", "/usr/bin/virt-sysprep", "-a", new_image_full_path])
+        output = self.__run_command(["/usr/bin/virt-sysprep", "-a", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
 
         logger.debug(f"Running Sparsify on: {new_image_full_path}")
-        self.__run_command(["sudo", "/usr/bin/virt-sparsify", "--in-place", new_image_full_path])
+        self.__run_command(["/usr/bin/virt-sparsify", "--in-place", new_image_full_path])
         if output["return_code"] is not None:
             # There was an issue with the resize
             #TODO: Condition on error
             print("Return code not None")
+        
+        
+        new_vmi.status = BaseImageModel.Status.READY
+        new_vmi.save()
 
-        return {"vmi_id": vmi_id}
+        return {"vmi_id": new_vmi.image_id}
 
 
     def get_vm_state(self, vm_id:str = None):
@@ -674,10 +696,13 @@ class VmManager:
         del self.vm_db
 
 
-    def __run_command(self, cmd: list):
+    def __run_command(self, cmd: list, env: dict = {}):
         logger.debug("Running command: ")
         logger.debug(cmd)
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True, env=env)
+        logger.debug("Waiting..")
+        process.wait()
+        logger.debug("Process Wait finished")
         output = process.stdout.readline()
         logger.debug(output.strip())
         return_code = process.poll()
@@ -688,6 +713,9 @@ class VmManager:
         }
 
     
-class InstanceConfiguration():
-    def __init__(self, vm_id, **kwargs):
-        self.id = vm_id
+class VirtualMachineObject():
+    
+    virtual_disk_xml_def: List[KvmXmlDisk] = []
+    virtual_network_xml_def: KvmXmlNetworkInterface = None
+    vnc_xml_def: KvmXmlVncConfiguration = None
+    removable_media_xml_def: List[KvmXmlRemovableMedia] = []

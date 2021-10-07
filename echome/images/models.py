@@ -28,6 +28,19 @@ class BaseImageModel(models.Model):
     deactivated = models.BooleanField(default=False)
     tags = models.JSONField(default=dict)
 
+    class Status(models.TextChoices):
+        CREATING = 1, 'Creating'
+        READY = 2, 'Ready'
+        ERROR = 3, 'Error'
+        DELETING = 4, 'Deleting'
+        DELETED = 5, 'Deleted'
+
+    status = models.CharField(
+        max_length=1,
+        choices=Status.choices,
+        default=Status.CREATING,
+    )
+
     class OperatingSystem(models.TextChoices):
         WINDOWS = 'WIN', 'Windows'
         LINUX = 'LNX', 'Linux'
@@ -46,6 +59,7 @@ class BaseImageModel(models.Model):
     def format(self):
         return self.metadata["format"]
 
+
     def generate_id(self):
         if self.image_id is None or self.image_id == "":
             if self.image_type == "guest":
@@ -58,6 +72,7 @@ class BaseImageModel(models.Model):
             logger.debug(f"Generated ID: '{self.image_id}'")
         else:
             raise AttemptedOverrideOfImmutableIdException
+
 
     def register_image(self, path:str, name:str, description:str, user:User=None, host="localhost", tags=None):
         # Check to see if a file exists at the provided path
@@ -79,16 +94,8 @@ class BaseImageModel(models.Model):
         if cl.objects.filter(image_path=path).exists():
             logger.error(f"Image already exists in database. img_path={path}")
             raise InvalidImageAlreadyExists(f"Image already exists in database. img_path={path}")
-
-
-        # Verify image type
-        obj = QemuImg().info(path)
-        print(obj["format"])
-
-        img_metadata = {}
-        img_metadata["format"] = obj["format"]
-        img_metadata["actual-size"] = obj["actual-size"]
-        img_metadata["virtual-size"] = obj["virtual-size"]
+        
+        self.set_image_metadata()
 
         if self.image_type == "user":
             self.account = user.account
@@ -97,11 +104,22 @@ class BaseImageModel(models.Model):
         self.name = name
         self.description = description
         #self.minimum_requirements = dict
-        self.metadata = img_metadata
         if tags:
             self.tags
         self.save()
         return self.image_id
+
+
+    def set_image_metadata(self):
+        obj = QemuImg().info(self.image_path)
+        logger.debug(obj)
+
+        self.metadata = {
+            "format": obj["format"],
+            "actual-size": obj["actual-size"],
+            "virtual-size": obj["virtual-size"]
+        }
+
 
     def __str__(self) -> str:
         return self.image_id
