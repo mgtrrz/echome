@@ -11,6 +11,7 @@ class QemuImg(BaseCommander):
 
     base_command = '/usr/bin/qemu-img'
     
+
     def resize(self, filename: str, size: str):
         """Resize disk images using `qemu-img resize`.
 
@@ -21,12 +22,13 @@ class QemuImg(BaseCommander):
         :returns: boolean if the operation was successful.
         """
         cmds = ["resize", filename, size]
-        output, return_code = self.command(cmds)
+        _, return_code = self.command(cmds)
         if return_code == 0:
             return True
         else:
             return False
     
+
     def convert(self, filename: str, output_filename: str, output_format=None):
         """Convert or copy an image to another format using `qemu-img convert`.
 
@@ -49,6 +51,7 @@ class QemuImg(BaseCommander):
         else:
             return False
     
+
     def create(self, filename: str, format: str, size: str):
         """Create a new image for virtual machines using `qemu-img create`.
 
@@ -69,6 +72,7 @@ class QemuImg(BaseCommander):
         else:
             return False
         
+
     def info(self, filename: str):
         """Get info about an image. Returns a dictionary if the image exists.
 

@@ -5,24 +5,34 @@ logger = logging.getLogger(__name__)
 
 class BaseCommander():
 
-    base_command = None
+    base_command = ""
     set_verbose = False
     verbose_flag = ["-v"]
+    env = {}
 
-    def command(self, cmd: list):
-        if self.base_command:
-            if self.set_verbose:
-                cmd = [self.base_command] + self.verbose_flag + cmd
-            else:
-                cmd = [self.base_command] + cmd
+    def command(self, cmd: list, wait: bool = False):
+        """Run a command."""
+
+        opt_verbose = self.verbose_flag if self.set_verbose else ""
+        cmd = [self.base_command] + opt_verbose + cmd
         
-        logger.debug("Running command: ")
-        logger.debug(cmd)
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+        logger.debug(f"Running command: {cmd}")
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True, env=self.env)
+        if wait:
+            logger.debug("wait set to True. Waiting..")
+            proc.wait()
+            logger.debug("Process Wait finished")
         stdout, stderr = proc.communicate()
-        logger.debug(stdout.strip())
-
-        return_code = proc.returncode
-        logger.debug(f"SUBPROCESS RETURN CODE: {return_code}")
         logger.debug(stdout)
-        return stdout, return_code
+        logger.debug(f"SUBPROCESS RETURN CODE: {proc.returncode}")
+
+        if proc.returncode != 0:
+            if stderr:
+                logger.error(f"stderr: {stderr}")
+            raise CommandExitedWithError
+
+        return stdout, proc.returncode
+
+
+class CommandExitedWithError(Exception):
+    pass
