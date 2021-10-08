@@ -8,9 +8,6 @@ import xmltodict
 import base64
 import os
 from typing import List
-
-from yaml.tokens import DocumentStartToken
-from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
 from identity.models import User
@@ -713,9 +710,3 @@ class VmManager:
         }
 
     
-class VirtualMachineObject():
-    
-    virtual_disk_xml_def: List[KvmXmlDisk] = []
-    virtual_network_xml_def: KvmXmlNetworkInterface = None
-    vnc_xml_def: KvmXmlVncConfiguration = None
-    removable_media_xml_def: List[KvmXmlRemovableMedia] = []

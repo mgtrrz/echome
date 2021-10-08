@@ -1,10 +1,25 @@
+import libvirt
 import xmltodict
 import logging
-from typing import List
+from ipaddress import IPv4Address
+from typing import List, Dict
 from dataclasses import dataclass, field
-from .models import HostMachine
+from echome.vmmanager.instance_definitions import InstanceDefinition
+from images.models import BaseImageModel
+from network.models import VirtualNetwork
+from .models import HostMachine, Volume
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class KvmXmlCore():
+    memory: int
+    cpu_count: int
+
+    os_arch: str = "x86_64"
+    os_type: str = "hvm"
+
 
 @dataclass
 class KvmXmlDisk():
@@ -43,9 +58,7 @@ class KvmXmlVncConfiguration():
 @dataclass
 class KvmXmlObject():
     name: str
-    memory: int
-    cpu_count: int
-
+    core: KvmXmlCore
     hard_disks: List[KvmXmlDisk]
     network_interfaces: List[KvmXmlNetworkInterface] 
 
@@ -57,8 +70,7 @@ class KvmXmlObject():
 
     vnc_configuration: KvmXmlVncConfiguration = field(default_factory=lambda: KvmXmlVncConfiguration())
 
-    os_arch: str = "x86_64"
-    os_type: str = "hvm" # explore using xen?
+
     # Linux likes utc, Windows has to have 'localtime'
     # https://libvirt.org/formatdomain.html#time-keeping
     clock_offset: str = "utc"
@@ -216,14 +228,14 @@ class KvmXmlObject():
                 'name': self.name,
                 'memory': {
                     "@unit": "MB",
-                    '#text': str(self.memory)
+                    '#text': str(self.core.memory)
                 },
-                'vcpu': self.cpu_count,
+                'vcpu': self.core.cpu_count,
                 'os': {
                     'type': {
                         # https://libvirt.org/formatcaps.html#elementGuest
-                        '@arch': self.os_arch,
-                        '#text': self.os_type
+                        '@arch': self.core.os_arch,
+                        '#text': self.core.os_type
                     },
                     'boot': {
                         '@dev': 'hd',
@@ -264,3 +276,106 @@ class VirtualMachineXmlObject:
     virtual_network_xml_def: KvmXmlNetworkInterface = None
     vnc_xml_def: KvmXmlVncConfiguration = None
     removable_media_xml_def: List[KvmXmlRemovableMedia] = []
+
+
+class VirtualMachineInstance():
+    
+    core: KvmXmlCore
+    virtual_disks: Dict[str, KvmXmlDisk] = {}
+    virtual_network: KvmXmlNetworkInterface = None
+    removable_media: List[KvmXmlRemovableMedia] = []
+    vnc: KvmXmlVncConfiguration = None
+
+    def __init__(self):
+        self.libvirt_conn = libvirt.open('qemu:///system')
+
+
+    def configure_network(self, virtual_network:VirtualNetwork):
+        """Configure networking"""
+        
+        if virtual_network.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
+            type = "bridge"
+            source = virtual_network.config['bridge_interface'] 
+        elif virtual_network.type == VirtualNetwork.Type.NAT:
+            type = "nat"
+            source = virtual_network.name
+            
+        self.virtual_network_xml_def = KvmXmlNetworkInterface(
+            type = type,
+            source = source
+        )
+    
+
+    # def add_removable_media(self, volume:Volume):
+    #     self.virtual_disk.append(KvmXmlDisk(
+    #         file_path=volume.image_path,
+    #         type=image.format,
+    #         os_type=BaseImageModel.OperatingSystem(image.os).label
+    #     ))
+
+
+    def add_virtual_disk(self, volume:Volume, target_dev:str):
+        self.virtual_disks[target_dev] = KvmXmlDisk(
+            file_path=volume.path,
+            type=volume.format,
+            os_type=volume.metadata["os"],
+            target_dev=target_dev
+        )
+
+    
+    def configure_vnc(self, vnc_port:str = None, password:str = None) -> dict:
+        """Configures VNC"""
+        vnc_xml_def = KvmXmlVncConfiguration(True)
+
+        if vnc_port:
+            logger.debug(f"VNC Port also specified: {vnc_port}")
+            vnc_xml_def.vnc_port = vnc_port
+
+        if password:
+            vnc_xml_def.vnc_password = password
+
+        self.vnc = vnc_xml_def
+    
+
+    def configure_core(self, cpu_count:int, instance_def:InstanceDefinition):
+        self.core = KvmXmlCore(
+            cpu_count=instance_def.get_cpu(),
+            memory=instance_def.get_memory()
+        )
+
+
+    def define(self):
+        xmldoc = KvmXmlObject(
+            name=self.vm_db.instance_id,
+            memory=instance_type.get_memory(),
+            cpu_count=instance_type.get_cpu(),
+            network_interfaces=[self.vm_xml_object.virtual_network_xml_def],
+            hard_disks=self.vm_xml_object.virtual_disk_xml_def
+        )
+
+        if self.vm_xml_object.removable_media_xml_def:
+            xmldoc.removable_media = self.removable_media
+
+        # VNC
+        if self.vm_xml_object.vnc_xml_def:
+            xmldoc.vnc_configuration = self.vnc
+        
+        xmldoc.enable_smbios = False
+        xmldoc.smbios_url = ""
+
+        # Render the XML doc        
+        doc = xmldoc.render_xml()
+
+        # Create the actual XML template in the vm directory
+        # We don't need to save the XML document to the file system
+        # as it gets saved within libvirt itself, but this is a good
+        # way to debug templates generated by our script.
+        with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
+            logger.debug("Writing virtual machine XML document: vm.xml")
+            filehandle.write(doc)
+
+        logger.debug("Attempting to define XML with virsh..")
+        self.currentConnection.defineXML(doc)
+        
+        logger.info("Starting VM..")
+        self.start_instance(self.vm_db.instance_id)

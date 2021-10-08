@@ -2,6 +2,7 @@ import logging
 from django.db import models
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 from echome.id_gen import IdGenerator
+from images.models import BaseImageModel
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,44 @@ class InstanceDefinition(models.Model):
     cpu = models.CharField(max_length=40)
     memory = models.CharField(max_length=40)
     tags = models.JSONField(default=dict)
+
+    def __str__(self) -> str:
+        return self.instance_id
+
+
+class Volume(models.Model):
+    volume_id = models.CharField(max_length=24, unique=True, db_index=True)
+    account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
+    created = models.DateTimeField(auto_now_add=True, null=False)
+    last_modified = models.DateTimeField(auto_now=True)
+    host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id", null=True)
+    virtual_machine = models.ForeignKey(VirtualMachine, on_delete=models.DO_NOTHING, to_field="instance_id", null=True)
+    parent_image = models.CharField(max_length=60, null=True)
+    format = models.CharField(max_length=12, null=True)
+    metadata = models.JSONField(default=dict)
+    path = models.CharField(max_length=200)
+    tags = models.JSONField(default=dict)
+
+    class State(models.TextChoices):
+        CREATING = 'CREATING', 'Creating'
+        AVAILABLE = 'AVAILABLE', 'Available'
+        IN_USE = 'IN_USE', 'In Use'
+        ATTACHED = 'ATTACHED', 'Attached'
+        DELETING = 'DELETING', 'Deleting'
+        DELETED = 'DELETED', 'Deleted'
+        ERROR = 'ERROR', 'Error'
+
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.CREATING,
+    )
+
+    def generate_id(self):
+        if self.instance_id is None or self.instance_id == "":
+            self.instance_id = IdGenerator.generate("vol", 12)
+        else:
+            raise AttemptedOverrideOfImmutableIdException
 
     def __str__(self) -> str:
         return self.instance_id
