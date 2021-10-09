@@ -47,6 +47,19 @@ class VirtualMachine(models.Model):
     firewall_rules = models.JSONField(null=True)
     tags = models.JSONField(default=dict)
 
+    class State(models.TextChoices):
+        CREATING = 'CREATING', 'Creating'
+        AVAILABLE = 'AVAILABLE', 'Available'
+        TERMINATING = 'TERMINATING', 'Terminating'
+        TERMINATED = 'TERMINATED', 'Terminated'
+        ERROR = 'ERROR', 'Error'
+
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.CREATING,
+    )
+
     def generate_id(self):
         if self.instance_id is None or self.instance_id == "":
             self.instance_id = IdGenerator.generate("vm")

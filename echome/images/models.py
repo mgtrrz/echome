@@ -28,17 +28,17 @@ class BaseImageModel(models.Model):
     deactivated = models.BooleanField(default=False)
     tags = models.JSONField(default=dict)
 
-    class Status(models.TextChoices):
-        CREATING = 1, 'Creating'
-        READY = 2, 'Ready'
-        ERROR = 3, 'Error'
-        DELETING = 4, 'Deleting'
-        DELETED = 5, 'Deleted'
+    class State(models.TextChoices):
+        CREATING = 'CREATING', 'Creating'
+        READY = 'READY', 'Ready'
+        ERROR = 'ERROR', 'Error'
+        DELETING = 'DELETING', 'Deleting'
+        DELETED = 'DELETED', 'Deleted'
 
-    status = models.CharField(
-        max_length=1,
-        choices=Status.choices,
-        default=Status.CREATING,
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.CREATING,
     )
 
     class OperatingSystem(models.TextChoices):
@@ -137,6 +137,7 @@ class UserImage(BaseImageModel):
 
     def __str__(self) -> str:
         return self.image_id
+
 
 class InvalidImageId(Exception):
     pass

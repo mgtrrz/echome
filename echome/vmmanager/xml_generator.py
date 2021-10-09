@@ -1,13 +1,11 @@
 import libvirt
 import xmltodict
 import logging
-from ipaddress import IPv4Address
 from typing import List, Dict
 from dataclasses import dataclass, field
-from echome.vmmanager.instance_definitions import InstanceDefinition
-from images.models import BaseImageModel
 from network.models import VirtualNetwork
 from .models import HostMachine, Volume
+from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +17,7 @@ class KvmXmlCore():
 
     os_arch: str = "x86_64"
     os_type: str = "hvm"
+    bios: str = "bios"
 
 
 @dataclass
@@ -55,11 +54,12 @@ class KvmXmlVncConfiguration():
     vnc_port: str = "auto"
     vnc_password: str = ""
 
+
 @dataclass
 class KvmXmlObject():
     name: str
     core: KvmXmlCore
-    hard_disks: List[KvmXmlDisk]
+    hard_disks: Dict[str, KvmXmlDisk]
     network_interfaces: List[KvmXmlNetworkInterface] 
 
     # If set to True (default), we'll check the properties of the 
@@ -84,8 +84,10 @@ class KvmXmlObject():
     class Os():
         arch: str
 
+
     def __str__(self) -> str:
         return self.name
+
 
     # Return the devices to attach to the VM
     def _render_devices(self):
@@ -187,6 +189,7 @@ class KvmXmlObject():
             }
         }
     
+
     def _render_cpu_details(self):
         return {
             '@mode': 'host-passthrough',
@@ -306,12 +309,11 @@ class VirtualMachineInstance():
         )
     
 
-    # def add_removable_media(self, volume:Volume):
-    #     self.virtual_disk.append(KvmXmlDisk(
-    #         file_path=volume.image_path,
-    #         type=image.format,
-    #         os_type=BaseImageModel.OperatingSystem(image.os).label
-    #     ))
+    def add_removable_media(self, file_path:str, target_dev:str):
+        self.removable_media.append(KvmXmlRemovableMedia(
+            file_path=file_path,
+            target_dev=target_dev
+        ))
 
 
     def add_virtual_disk(self, volume:Volume, target_dev:str):
@@ -337,7 +339,7 @@ class VirtualMachineInstance():
         self.vnc = vnc_xml_def
     
 
-    def configure_core(self, cpu_count:int, instance_def:InstanceDefinition):
+    def configure_core(self, instance_def:InstanceDefinition):
         self.core = KvmXmlCore(
             cpu_count=instance_def.get_cpu(),
             memory=instance_def.get_memory()
@@ -347,10 +349,9 @@ class VirtualMachineInstance():
     def define(self):
         xmldoc = KvmXmlObject(
             name=self.vm_db.instance_id,
-            memory=instance_type.get_memory(),
-            cpu_count=instance_type.get_cpu(),
-            network_interfaces=[self.vm_xml_object.virtual_network_xml_def],
-            hard_disks=self.vm_xml_object.virtual_disk_xml_def
+            core=self.core,
+            network_interfaces=[self.virtual_network],
+            hard_disks=self.virtual_disks
         )
 
         if self.vm_xml_object.removable_media_xml_def:
@@ -375,7 +376,13 @@ class VirtualMachineInstance():
             filehandle.write(doc)
 
         logger.debug("Attempting to define XML with virsh..")
-        self.currentConnection.defineXML(doc)
+        dom = self.libvirt_conn.defineXML(doc)
+        if not dom:
+            raise DomainConfigurationError
         
         logger.info("Starting VM..")
-        self.start_instance(self.vm_db.instance_id)
+        self.libvirt_conn(self.vm_db.instance_id)
+
+
+class DomainConfigurationError(Exception):
+    pass
