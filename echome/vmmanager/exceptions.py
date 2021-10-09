@@ -4,7 +4,7 @@ class VirtualMachineDoesNotExist(Exception):
 class VirtualMachineTerminationException(Exception):
     pass
 
-class VirtualMachineConfigurationException(Exception):
+class VirtualMachineConfigurationError(Exception):
     pass
 
 class InvalidLaunchConfiguration(Exception):

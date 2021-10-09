@@ -29,7 +29,6 @@ class BaseCommander():
         if proc.returncode != 0:
             if stderr:
                 logger.error(f"stderr: {stderr}")
-            raise CommandExitedWithError
 
         return stdout, proc.returncode
 

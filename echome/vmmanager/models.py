@@ -2,7 +2,8 @@ import logging
 from django.db import models
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 from echome.id_gen import IdGenerator
-from images.models import BaseImageModel
+from commander.qemuimg import QemuImg
+from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class VirtualMachine(models.Model):
     host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id")
     instance_type = models.CharField(max_length=40)
     instance_size = models.CharField(max_length=40)
+    path = models.CharField(max_length=200, null=True)
     metadata = models.JSONField(default=dict)
     image_metadata = models.JSONField()
     interfaces = models.JSONField()
@@ -60,11 +62,18 @@ class VirtualMachine(models.Model):
         default=State.CREATING,
     )
 
+
     def generate_id(self):
         if self.instance_id is None or self.instance_id == "":
             self.instance_id = IdGenerator.generate("vm")
         else:
             raise AttemptedOverrideOfImmutableIdException
+
+
+    def set_instance_definition(self, instance_def:InstanceDefinition):
+        self.instance_type = instance_def.itype
+        self.instance_size = instance_def.isize
+
 
     def __str__(self) -> str:
         return self.instance_id
@@ -92,6 +101,7 @@ class Volume(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id", null=True)
     virtual_machine = models.ForeignKey(VirtualMachine, on_delete=models.DO_NOTHING, to_field="instance_id", null=True)
+    size = models.IntegerField(max_length=200)
     parent_image = models.CharField(max_length=60, null=True)
     format = models.CharField(max_length=12, null=True)
     metadata = models.JSONField(default=dict)
@@ -118,6 +128,14 @@ class Volume(models.Model):
             self.instance_id = IdGenerator.generate("vol", 12)
         else:
             raise AttemptedOverrideOfImmutableIdException
+    
+
+    def populate_details(self):
+        if not self.path:
+            return False
+        details = QemuImg().info(self.path)
+        self.format = details["format"]
+        self.size = details["virtual-size"]
 
     def __str__(self) -> str:
         return self.instance_id

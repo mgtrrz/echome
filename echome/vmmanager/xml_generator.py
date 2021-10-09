@@ -1,11 +1,13 @@
 import libvirt
 import xmltodict
 import logging
+import time
 from typing import List, Dict
 from dataclasses import dataclass, field
 from network.models import VirtualNetwork
 from .models import HostMachine, Volume
 from .instance_definitions import InstanceDefinition
+from .exceptions import VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -283,14 +285,32 @@ class VirtualMachineXmlObject:
 
 class VirtualMachineInstance():
     
+    id: str
     core: KvmXmlCore
     virtual_disks: Dict[str, KvmXmlDisk] = {}
     virtual_network: KvmXmlNetworkInterface = None
     removable_media: List[KvmXmlRemovableMedia] = []
     vnc: KvmXmlVncConfiguration = None
 
-    def __init__(self):
+
+    def __init__(self, vm_id:str = None):
         self.libvirt_conn = libvirt.open('qemu:///system')
+        
+        if vm_id:
+            self.id = vm_id
+            self.build_config_from_xml()
+
+
+    def __del__(self):
+        self.libvirt_conn.close()
+
+    
+    def build_config_from_xml(self):
+        """Returns an object with the configuration details of a defined VM. (dump xml)"""
+        domain = self.__get_libvirt_domain(self.id)
+        xmldoc = domain.XMLDesc()
+        item = xmltodict.parse(xmldoc)
+        logger.debug(item)
 
 
     def configure_network(self, virtual_network:VirtualNetwork):
@@ -382,6 +402,130 @@ class VirtualMachineInstance():
         
         logger.info("Starting VM..")
         self.libvirt_conn(self.vm_db.instance_id)
+    
+    
+    def write_xml_doc(self, doc:str):
+        with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
+            logger.debug("Writing virtual machine XML document: vm.xml")
+            filehandle.write(doc)
+
+
+    def get_vm_state(self):
+        """Get the state of the virtual machine as defined in libvirt."""
+
+        domain = self.__get_libvirt_domain(self.id)
+        if not domain:
+            state_int, reason = domain.state()
+
+            if state_int == libvirt.VIR_DOMAIN_NOSTATE:
+                state_str = "no_state"
+            elif state_int == libvirt.VIR_DOMAIN_RUNNING:
+                state_str = "running"
+            elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
+                state_str = "blocked"
+            elif state_int == libvirt.VIR_DOMAIN_PAUSED:
+                state_str = "paused"
+            elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
+                state_str = "shutdown"
+            elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
+                state_str = "shutoff"
+            elif state_int == libvirt.VIR_DOMAIN_CRASHED:
+                state_str = "crashed"
+            elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
+                # power management (entered into s3 state)
+                state_str = "pm_suspended"
+            else:
+                state_str = "unknown"
+        else:
+            state_str = "unknown"
+            state_int = 0
+            reason = "Unknown state"
+
+        return state_str, state_int, str(reason)
+
+
+    def start(self):
+        """Start an instance and set autostart to 1 for host reboots"""
+
+        domain = self.__get_libvirt_domain(self.id)
+
+        if domain.isActive():
+            logger.info(f"VM '{self.id}' already started")
+            return True
+
+        logger.info(f"Starting VM '{self.id}'")
+        try:
+            domain.create()
+        except libvirt.libvirtError as e:
+            logger.debug(f"Unable to start Virtual Machine {self.id}: {e}")
+            raise VirtualMachineConfigurationError
+        
+        logger.debug("Setting autostart to 1 for started instances")
+        domain.setAutostart(1)
+            
+
+    def stop(self, wait:bool = True):
+        """Stop an instance"""
+
+        logger.debug(f"Stopping vm: {self.id}")
+        domain = self.__get_libvirt_domain(self.id)
+
+        if not domain.isActive():
+            logger.info(f"VM '{self.id}' already stopped")
+            return True
+        
+        logger.debug("Setting autostart to 0 for stopped instances")
+        domain.setAutostart(0)
+
+        vm_force_stop_time = 240
+        seconds_waited = 0
+
+        while domain.isActive():
+            try:
+                # TODO: Is this needed?
+                # Supposedly, destroy() will do exactly this, which is shutdown gracefully, wait,
+                # then force shutdown, without having to do this in Python
+                domain.shutdown()
+                if not wait:
+                    return 
+                time.sleep(1)
+                seconds_waited += 1
+                if seconds_waited >= vm_force_stop_time:
+                    logger.warning(f"Timeout was reached and VM '{self.id}' hasn't stopped yet. Force shutting down...")
+                    domain.destroy()
+            except libvirt.libvirtError as e:
+                # Error code 55 = Not valid operation: domain is not running
+                if (e.get_error_code() == libvirt.VIR_ERR_OPERATION_INVALID):
+                    return
+                else:
+                    logger.exception("Got error code other than VIR_ERR_OPERATION_INVALID")
+                    logger.error(e)
+                    raise VirtualMachineError(e)
+    
+
+    def terminate(self):
+        domain = self.__get_libvirt_domain(self.id)
+        if domain:
+            domain.undefine()
+
+
+    def __get_libvirt_domain(self, vm_id:str):
+        """Returns libvirt connection object if the VM exists. Raises an exception if does not exist."""
+        try:
+            return self.libvirt_conn.lookupByName(vm_id)
+        except libvirt.libvirtError as e:
+            if (e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN):
+                raise VirtualMachineDoesNotExist
+
+
+    def __str__(self):
+        if self.id:
+            return self.core.id
+        else:
+            return "GenericInstance"
+
+class VirtualMachineError(Exception):
+    pass
 
 
 class DomainConfigurationError(Exception):

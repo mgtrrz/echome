@@ -3,7 +3,6 @@ import pathlib
 import logging
 import subprocess
 import shutil
-import time
 import xmltodict
 import base64
 import os
@@ -15,11 +14,11 @@ from images.models import BaseImageModel, GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from network.manager import VirtualNetworkManager
 from keys.models import UserKey
-from .models import VirtualMachine, HostMachine
+from .models import VirtualMachine, HostMachine, Volume
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
-from .xml_generator import KvmXmlObject, KvmXmlNetworkInterface, KvmXmlDisk, KvmXmlRemovableMedia, KvmXmlVncConfiguration, VirtualMachineXmlObject
-from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationException, VirtualMachineTerminationException
+from .xml_generator import VirtualMachineInstance
+from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +101,14 @@ class VmManager:
         # Create the vm id to pass into the other functions
         logger.debug("Generating vm-id")
         # Create our VirtualMachine Database object
-        self.vm_db = VirtualMachine()
+        vm_db = VirtualMachine()
         # Generate the ID
-        self.vm_db.generate_id()
+        vm_db.generate_id()
         logger.info(f"Generated vm-id: {self.vm_db.instance_id}")
         self.user = user
 
         try:
-            result = self._create_virtual_machine(instanceType, **kwargs)
+            result = self._create_virtual_machine(vm_db, instanceType, **kwargs)
         except InvalidLaunchConfiguration as e:
             logger.error(f"Launch Configuration error: {e}")
             self._clean_up(user, self.vm_db.instance_id)
@@ -129,14 +128,16 @@ class VmManager:
         return result
 
 
-    def _create_virtual_machine(self, instanceType:InstanceDefinition, **kwargs):
+    def _create_virtual_machine(self, vm_db:VirtualMachine, instance_def:InstanceDefinition, **kwargs):
         """Actual method that creates a virtual machine."""
         logger.debug(kwargs)
 
         # Creating the directory for the virtual machine
         self.vm_dir = self.__generate_vm_path()
-        # this object houses all of the XML documents needed to define our virtual machine
-        self.vm_xml_object = VirtualMachineXmlObject()
+        vm_db.path = self.vm_dir
+
+        # Create our new VirtualMachineInstance
+        self.instance = VirtualMachineInstance()
         
         # Determine host to run this VM on:
         try:
@@ -153,6 +154,7 @@ class VmManager:
         key_name:str    = kwargs["KeyName"] if "KeyName" in kwargs else None
         tags:dict       = kwargs["Tags"] if "Tags" in kwargs else {}
         enable_vnc:bool = True if "EnableVnc" in kwargs and kwargs["EnableVnc"] == "true" else False
+        vnc_port:str    = kwargs["VncPort"] if "VncPort" in kwargs else None
 
         # Prepare our boot disk image and save the metadata to the DB
         self.vm_db.image_metadata = self.prepare_disk(kwargs["ImageId"])
@@ -185,36 +187,35 @@ class VmManager:
         # Validate and create the cloudinit iso
         try:
             cloudinit_iso_path = self.cloudinit.create_iso()
-        except CloudInitFailedValidation:
-            raise
-        except CloudInitIsoCreationError:
-            raise
+        except CloudInitFailedValidation as e:
+            logger.exception(e)
+            raise VirtualMachineConfigurationError
+        except CloudInitIsoCreationError as e:
+            logger.exception(e)
+            raise VirtualMachineConfigurationError
             
         if cloudinit_iso_path:
-            self.vm_xml_object.removable_media_xml_def.append(KvmXmlRemovableMedia(cloudinit_iso_path))
+            self.instance.add_removable_media(cloudinit_iso_path, "hda")
     
         # VNC?
         metadata = {}
         if enable_vnc:
-            metadata += self.configure_vnc(kwargs["VncPort"] if "VncPort" in kwargs else None)
+            metadata += self.configure_vnc(vnc_port)
             
         # Generate the virtual machine XML document and (try to) launch our VM!
-        self.define_virtual_machine(instanceType)
+        self.instance.configure_core(instance_def)
+        self.instance.define()
+        self.instance.start()
 
         # Add the information for this VM in the db
-        self.vm_db.instance_type = instanceType.itype
-        self.vm_db.instance_size = instanceType.isize
+        self.vm_db.instance_type = instance_def.itype
+        self.vm_db.instance_size = instance_def.isize
         self.vm_db.account = self.user.account
         self.vm_db.storage = {}
         self.vm_db.metadata = metadata
         self.vm_db.firewall_rules = {}
         self.vm_db.tags = tags
-        
-        try:
-            self.vm_db.save()
-        except Exception as e:
-            logger.debug(e)
-            raise Exception
+        self.vm_db.save()
 
         logger.debug(f"Successfully created VM: {self.vm_db.instance_id} : {self.vm_dir}")
         return self.vm_db.instance_id
@@ -223,24 +224,19 @@ class VmManager:
     def configure_vnc(self, vnc_port:str = None) -> dict:
         """This will provide a VNC configuration if a user requests it"""
         logger.debug("Enabling VNC")
-        vnc_xml_def = KvmXmlVncConfiguration(True)
-
-        if vnc_port:
-            logger.debug(f"VNC Port also specified: {vnc_port}")
-            vnc_xml_def.vnc_port = vnc_port
 
         # Generate a random password
         vnc_passwd = User().generate_secret(16)
-        vnc_xml_def.vnc_password = vnc_passwd
+        
+        # Configure the instance
+        self.instance.configure_vnc(vnc_port, vnc_passwd)
 
         # TODO: Store in Vault or a proper key store
-        metadata = {
+        return {
             'vnc': {
                 'password': str(base64.b64encode(bytes(vnc_passwd, 'utf-8')), 'utf-8')
             }
         }
-        self.vm_xml_object.vnc_xml_def = vnc_xml_def
-        return metadata
 
 
     def get_image_from_id(self, image_id:str, user:User) -> BaseImageModel:
@@ -298,12 +294,22 @@ class VmManager:
         # Get the image from the image id:
         logger.debug("Preparing disk..")
         try:
-            image = self.get_image_from_id(image_id)
-        except InvalidLaunchConfiguration:
+            image:BaseImageModel = self.get_image_from_id(image_id)
+        except InvalidImageId:
             raise
         
         # Then copy our image to the destination directory
         image_iso_path = self.copy_image(image)
+
+        new_vol = Volume(
+            account=self.user.account,
+            host=self.vm_db.host,
+            virtual_machine=self.vm_db,
+            parent_image=image.image_id,
+            format=image.metadata["format"],
+            path=image_iso_path
+        )
+        new_vol.generate_id()
 
         # resize our disk
         logger.debug(f"Resizing image size to {disk_size}")
@@ -313,17 +319,16 @@ class VmManager:
             logger.error(f"Encountered error when running qemu resize. {e}")
             raise LaunchError("Encountered error when running qemu resize.")
         
-        self.vm_xml_object.virtual_disk_xml_def.append(KvmXmlDisk(
-            file_path=image_iso_path,
-            type=image.format,
-            os_type=BaseImageModel.OperatingSystem(image.os).label
-        ))
+        new_vol.populate_details()
+        logger.debug(f"Created new volume: {new_vol.volume_id}")
+
+        self.instance.add_virtual_disk(new_vol, "vda")
 
         return {
             "image_id": image_id,
             "image_name": image.name,
             "disk_size": disk_size,
-            "disk_path": image_iso_path
+            "volume_id": new_vol.volume_id
         }
 
 
@@ -344,7 +349,6 @@ class VmManager:
         except VirtualNetwork.DoesNotExist:
             raise InvalidLaunchConfiguration("Provided NetworkProfile does not exist.")
 
-        xml_network_def = None
         
         # Cloud-init for Bridge type networking
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
@@ -357,18 +361,8 @@ class VmManager:
             logger.debug("CloudInit: Creating network config")
             self.cloudinit.generate_network_config(vnet, private_ip)
 
-            xml_network_def = KvmXmlNetworkInterface(
-                type = "bridge",
-                source = vnet.config['bridge_interface']
-            )
-        elif vnet.type == VirtualNetwork.Type.NAT:
-            logger.debug("New virtual machine is using vnet type NAT")
-            xml_network_def = KvmXmlNetworkInterface(
-                type = "nat",
-                source = vnet.name
-            )
-        
-        self.vm_xml_object.virtual_network_xml_def = xml_network_def
+        self.instance.configure_network(vnet)
+
         return  {
             "vnet_id": vnet.network_id,
             "type": vnet.type,
@@ -388,48 +382,7 @@ class VmManager:
             return keyObj.public_key,{key_name: [keyObj.public_key]}
         except UserKey.DoesNotExist:
             raise ValueError("Specified SSH Key Name does not exist.")
-        
 
-
-    def define_virtual_machine(self, instance_type:InstanceDefinition):
-        """Defines the virtual machine within virsh by generating an XML document and applying it"""
-        logger.debug(f"Generating VM config")
-
-        xmldoc = KvmXmlObject(
-            name=self.vm_db.instance_id,
-            memory=instance_type.get_memory(),
-            cpu_count=instance_type.get_cpu(),
-            network_interfaces=[self.vm_xml_object.virtual_network_xml_def],
-            hard_disks=self.vm_xml_object.virtual_disk_xml_def
-        )
-
-        if self.vm_xml_object.removable_media_xml_def:
-            xmldoc.removable_media = self.vm_xml_object.removable_media_xml_def
-
-        # VNC
-        if self.vm_xml_object.vnc_xml_def:
-            xmldoc.vnc_configuration = self.vm_xml_object.vnc_xml_def
-        
-        xmldoc.enable_smbios = False
-        xmldoc.smbios_url = ""
-
-        # Render the XML doc        
-        doc = xmldoc.render_xml()
-
-        # Create the actual XML template in the vm directory
-        # We don't need to save the XML document to the file system
-        # as it gets saved within libvirt itself, but this is a good
-        # way to debug templates generated by our script.
-        with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
-            logger.debug("Writing virtual machine XML document: vm.xml")
-            filehandle.write(doc)
-
-        logger.debug("Attempting to define XML with virsh..")
-        self.currentConnection.defineXML(doc)
-        
-        logger.info("Starting VM..")
-        self.start_instance(self.vm_db.instance_id)
-    
     
     def get_instance_configuration(self, vm_id):
         """Returns an object with the configuration details of a defined VM. (dump xml)"""
@@ -506,104 +459,7 @@ class VmManager:
         new_vmi.save()
 
         return {"vmi_id": new_vmi.image_id}
-
-
-    def get_vm_state(self, vm_id:str = None):
-        """Get the state of the virtual machine as defined in libvirt."""
-        vm_id = vm_id if vm_id else self.vm_db.instance_id
-        domain = self.__get_libvirt_domain(vm_id)
-        if not domain:
-            state_int, reason = domain.state()
-
-            if state_int == libvirt.VIR_DOMAIN_NOSTATE:
-                state_str = "no_state"
-            elif state_int == libvirt.VIR_DOMAIN_RUNNING:
-                state_str = "running"
-            elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
-                state_str = "blocked"
-            elif state_int == libvirt.VIR_DOMAIN_PAUSED:
-                state_str = "paused"
-            elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
-                state_str = "shutdown"
-            elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
-                state_str = "shutoff"
-            elif state_int == libvirt.VIR_DOMAIN_CRASHED:
-                state_str = "crashed"
-            elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
-                # power management (entered into s3 state)
-                state_str = "pm_suspended"
-            else:
-                state_str = "unknown"
-        else:
-            state_str = "unknown"
-            state_int = 0
-            reason = "Unknown state"
-
-        return state_str, state_int, str(reason)
-
         
-    def start_instance(self, vm_id:str = None):
-        """Start an instance (and set autostart to 1 for host reboots)"""
-
-        vm_id = vm_id if vm_id else self.vm_db.instance_id
-
-        vm = self.__get_libvirt_domain(vm_id)
-        if not vm:
-            return VirtualMachineDoesNotExist
-
-        if vm.isActive():
-            logger.info(f"VM '{vm_id}' already started")
-            return True
-
-        logger.info(f"Starting VM '{vm_id}'")
-        try:
-            vm.create()
-        except Exception as e:
-            logger.debug(f"Unable to start Virtual Machine {vm_id}: {e}")
-            raise VirtualMachineConfigurationException
-        
-        logger.debug("Setting autostart to 1 for started instances")
-        vm.setAutostart(1)
-        
-        return True
-    
-
-    def stop_instance(self, vm_id:str = None):
-        """Stop an instance"""
-
-        vm_id = vm_id if vm_id else self.vm_db.instance_id
-
-        logger.debug(f"Stopping vm: {vm_id}")
-        vm = self.__get_libvirt_domain(vm_id)
-        if not vm:
-            raise VirtualMachineDoesNotExist
-
-        if not vm.isActive():
-            logger.info(f"VM '{vm_id}' already stopped")
-            return True
-        
-        logger.debug("Setting autostart to 0 for stopped instances")
-        vm.setAutostart(0)
-
-        vm_force_stop_time = 240
-        seconds_waited = 0
-        while vm.isActive():
-            try:
-                vm.shutdown()
-                time.sleep(1)
-                seconds_waited += 1
-                if seconds_waited >= vm_force_stop_time:
-                    logger.warning(f"Timeout was reached and VM '{vm_id}' hasn't stopped yet. Force shutting down...")
-                    vm.destroy()
-            except libvirt.libvirtError as e:
-                # Error code 55 = Not valid operation: domain is not running
-                if (e.get_error_code() == 55):
-                    pass
-                else:
-                    raise(e)
-
-        return True
-
 
     def try_get_database_object(self, vm_id:str, user:User):
         try:
@@ -613,6 +469,7 @@ class VmManager:
             )
         except VirtualMachine.DoesNotExist:
             raise
+
 
     def terminate_instance(self, vm_id:str, user:User, force:bool = False):
         """Terminate the instance"""
@@ -647,7 +504,7 @@ class VmManager:
             return self.currentConnection.lookupByName(vm_id)
         except libvirt.libvirtError as e:
             # Error code 42 = Domain not found
-            if (e.get_error_code() == 42):
+            if (e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN):
                 return False
 
 

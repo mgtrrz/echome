@@ -7,7 +7,7 @@ from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine
 from .serializers import VirtualMachineSerializer
 from .manager import VmManager
-from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationException
+from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class ModifyVM(HelperView, APIView):
                 VmManager().start_instance(vm_id)
             except VirtualMachineDoesNotExist:
                 return self.not_found_response()
-            except VirtualMachineConfigurationException:
+            except VirtualMachineConfigurationError:
                 return self.error_response(
                     "Could not start VM due to configuration issue. See logs for more details.",
                     status = status.HTTP_500_INTERNAL_SERVER_ERROR
