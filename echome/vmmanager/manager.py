@@ -9,6 +9,7 @@ import os
 from typing import List
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
+from commander.virt_tools import VirtTools
 from identity.models import User
 from images.models import BaseImageModel, GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
@@ -18,7 +19,7 @@ from .models import VirtualMachine, HostMachine, Volume
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
 from .xml_generator import VirtualMachineInstance
-from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
+from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationError, ImagePrepError
 
 logger = logging.getLogger(__name__)
 
@@ -427,33 +428,17 @@ class VmManager:
         new_vmi.image_path=new_image_full_path
         new_vmi.save()
 
-        try:
-            logger.debug(f"Copying image: {vm_name} TO {new_vmi.image_id}")
-            #shutil.copy2(f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}", new_image_full_path)
-        except:
-            logger.error("Encountered an error on VM copy. Cannot continue.")
-            raise
-        
-        output = self.__run_command(["/usr/bin/qemu-img", "convert", "-O", "qcow2", current_image_full_path, new_image_full_path])
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
+        # Copy the image to the new VM directory
+        if not QemuImg().convert(current_image_full_path, new_image_full_path):
+            raise ImagePrepError("Failed copying image with QemuImg() convert")
 
-        logger.debug(f"Running Sysprep on: {new_image_full_path}")
-        output = self.__run_command(["/usr/bin/virt-sysprep", "-a", new_image_full_path])
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
+        # Prep the image for use in a new VM
+        if not VirtTools().sysprep(new_image_full_path):
+            raise ImagePrepError("Failed copying image with VirtTools() sysprep")
 
-        logger.debug(f"Running Sparsify on: {new_image_full_path}")
-        self.__run_command(["/usr/bin/virt-sparsify", "--in-place", new_image_full_path])
-        if output["return_code"] is not None:
-            # There was an issue with the resize
-            #TODO: Condition on error
-            print("Return code not None")
-        
+        # Resize the image
+        if not VirtTools().sparsify(new_image_full_path):
+            raise ImagePrepError("Failed copying image with VirtTools() sparsify")
         
         new_vmi.status = BaseImageModel.Status.READY
         new_vmi.save()
@@ -545,9 +530,9 @@ class VmManager:
 
     def _del_objects(self):
         logger.debug("Deleting objects")
-        del self.vm_xml_object
         del self.cloudinit
         del self.vm_db
+        del self.instance
 
 
     def __run_command(self, cmd: list, env: dict = {}):

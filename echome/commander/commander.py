@@ -10,7 +10,7 @@ class BaseCommander():
     verbose_flag = ["-v"]
     env = {}
 
-    def command(self, cmd: list, wait: bool = False):
+    def command(self, cmd: list, wait: bool = True):
         """Run a command."""
 
         opt_verbose = self.verbose_flag if self.set_verbose else ""

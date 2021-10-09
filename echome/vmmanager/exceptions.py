@@ -10,5 +10,8 @@ class VirtualMachineConfigurationError(Exception):
 class InvalidLaunchConfiguration(Exception):
     pass
 
+class ImagePrepError(Exception):
+    pass
+
 class LaunchError(Exception):
     pass

@@ -5,7 +5,7 @@ import time
 from typing import List, Dict
 from dataclasses import dataclass, field
 from network.models import VirtualNetwork
-from .models import HostMachine, Volume
+from .models import HostMachine, Volume, VirtualMachine
 from .instance_definitions import InstanceDefinition
 from .exceptions import VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
@@ -366,9 +366,12 @@ class VirtualMachineInstance():
         )
 
 
-    def define(self):
+    def define(self, vm_db:VirtualMachine):
+        """Generate an XML document with the virtual machine specs and define it with libvirt"""
+        self.check_components()
+
         xmldoc = KvmXmlObject(
-            name=self.vm_db.instance_id,
+            name=vm_db.instance_id,
             core=self.core,
             network_interfaces=[self.virtual_network],
             hard_disks=self.virtual_disks
@@ -403,6 +406,15 @@ class VirtualMachineInstance():
         logger.info("Starting VM..")
         self.libvirt_conn(self.vm_db.instance_id)
     
+
+    def check_components(self):
+        if self.core is None:
+            raise DomainConfigurationError("Core not set")
+        elif self.virtual_network is None:
+            raise DomainConfigurationError("Networking not set")
+        elif self.virtual_disks is None:
+            raise DomainConfigurationError("No Virtual Disks set")
+
     
     def write_xml_doc(self, doc:str):
         with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
@@ -523,6 +535,7 @@ class VirtualMachineInstance():
             return self.core.id
         else:
             return "GenericInstance"
+
 
 class VirtualMachineError(Exception):
     pass
