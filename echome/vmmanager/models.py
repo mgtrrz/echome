@@ -3,6 +3,7 @@ from django.db import models
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 from echome.id_gen import IdGenerator
 from commander.qemuimg import QemuImg
+from images.models import BaseImageModel, OperatingSystem
 from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
@@ -37,14 +38,14 @@ class VirtualMachine(models.Model):
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
-    host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id")
+    host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id", null=True)
     instance_type = models.CharField(max_length=40)
     instance_size = models.CharField(max_length=40)
     path = models.CharField(max_length=200, null=True)
-    metadata = models.JSONField(default=dict)
-    image_metadata = models.JSONField()
-    interfaces = models.JSONField()
-    storage = models.JSONField()
+    metadata = models.JSONField(default=dict, null=True)
+    image_metadata = models.JSONField(null=True)
+    interfaces = models.JSONField(null=True)
+    storage = models.JSONField(null=True)
     key_name = models.CharField(max_length=50)
     firewall_rules = models.JSONField(null=True)
     tags = models.JSONField(default=dict)
@@ -100,8 +101,8 @@ class Volume(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
     host = models.ForeignKey(HostMachine, on_delete=models.CASCADE, to_field="host_id", null=True)
-    virtual_machine = models.ForeignKey(VirtualMachine, on_delete=models.DO_NOTHING, to_field="instance_id", null=True)
-    size = models.IntegerField(max_length=200)
+    virtual_machine = models.ForeignKey(VirtualMachine, on_delete=models.SET_NULL, to_field="instance_id", null=True)
+    size = models.BigIntegerField(null=True)
     parent_image = models.CharField(max_length=60, null=True)
     format = models.CharField(max_length=12, null=True)
     metadata = models.JSONField(default=dict)
@@ -123,19 +124,34 @@ class Volume(models.Model):
         default=State.CREATING,
     )
 
+    operating_system = models.CharField(
+        max_length=12,
+        choices=OperatingSystem.choices,
+        default=OperatingSystem.LINUX,
+        null=True
+    )
+
+
     def generate_id(self):
-        if self.instance_id is None or self.instance_id == "":
-            self.instance_id = IdGenerator.generate("vol", 12)
+        if self.volume_id is None or self.volume_id == "":
+            self.volume_id = IdGenerator.generate("vol", 12)
         else:
             raise AttemptedOverrideOfImmutableIdException
     
 
-    def populate_details(self):
+    def populate_metadata(self):
         if not self.path:
             return False
         details = QemuImg().info(self.path)
         self.format = details["format"]
         self.size = details["virtual-size"]
+
+
+    def new_volume_from_image(self, image:BaseImageModel):
+        self.parent_image = image.image_id
+        self.format = image.metadata["format"]
+        self.operating_system = image.operating_system
+
 
     def __str__(self) -> str:
         return self.instance_id

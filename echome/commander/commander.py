@@ -13,7 +13,7 @@ class BaseCommander():
     def command(self, cmd: list, wait: bool = True):
         """Run a command."""
 
-        opt_verbose = self.verbose_flag if self.set_verbose else ""
+        opt_verbose = self.verbose_flag if self.set_verbose else []
         cmd = [self.base_command] + opt_verbose + cmd
         
         logger.debug(f"Running command: {cmd}")

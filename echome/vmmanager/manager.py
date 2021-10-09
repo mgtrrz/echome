@@ -1,9 +1,6 @@
-import libvirt
 import pathlib
 import logging
-import subprocess
 import shutil
-import xmltodict
 import base64
 import os
 from typing import List
@@ -18,7 +15,7 @@ from keys.models import UserKey
 from .models import VirtualMachine, HostMachine, Volume
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
-from .xml_generator import VirtualMachineInstance
+from .vm_instance import VirtualMachineInstance
 from .exceptions import LaunchError, InvalidLaunchConfiguration, VirtualMachineDoesNotExist, VirtualMachineConfigurationError, ImagePrepError
 
 logger = logging.getLogger(__name__)
@@ -42,23 +39,7 @@ CLEAN_UP_ON_FAIL = os.getenv("VM_CLEAN_UP_ON_FAIL", 'true').lower() == 'true'
 
 class VmManager:
 
-    def __init__(self):
-        self.currentConnection = libvirt.open('qemu:///system')
-
-    def getConnection(self):
-        return self.currentConnection
-
-    def closeConnection(self):
-        self.currentConnection.close()
-    
-    def _clean_up(self, user:User, vm_id:str):
-        """Cleans up a virtual machine directory if CLEAN_UP_ON_FAIL is true"""
-        if CLEAN_UP_ON_FAIL:
-            logging.debug("CLEAN_UP_ON_FAIL set to true. Cleaning up..")
-            self.__delete_vm_path(vm_id, user)
-    
-    
-    def create_vm(self, user: User, instanceType:InstanceDefinition, **kwargs):
+    def create_vm(self, user: User, instance_def:InstanceDefinition, **kwargs):
         """Create a virtual machine
         This function does not create the VM but instead passes all of the arguments to the internal
         function _create_virtual_machine(). If this process fails, the function will clean up after
@@ -67,8 +48,8 @@ class VmManager:
 
         :param user: User object for identifying which account the VM is created for.
         :type user: User
-        :param instanceType: Instance type for the virtual machine to use.
-        :type instanceType: Instance
+        :param instance_def: Instance type for the virtual machine to use.
+        :type instance_def: Instance
         :key NetworkProfile: Network profile to use for the virtual machine. Use the profile name.
         :type NetworkProfile: str
         :key ImageId: Guest or User image ID to spawn the virtual machine from.
@@ -99,17 +80,19 @@ class VmManager:
             logger.error(msg)
             raise InvalidLaunchConfiguration(msg)
         
-        # Create the vm id to pass into the other functions
-        logger.debug("Generating vm-id")
         # Create our VirtualMachine Database object
-        vm_db = VirtualMachine()
-        # Generate the ID
+        vm_db = VirtualMachine(
+            account=user.account,
+        )
+        vm_db.set_instance_definition(instance_def)
         vm_db.generate_id()
-        logger.info(f"Generated vm-id: {self.vm_db.instance_id}")
+
+        logger.info(f"Generated vm-id: {vm_db.instance_id}")
+        self.vm_db = vm_db
         self.user = user
 
         try:
-            result = self._create_virtual_machine(vm_db, instanceType, **kwargs)
+            result = self._create_virtual_machine(vm_db, instance_def, **kwargs)
         except InvalidLaunchConfiguration as e:
             logger.error(f"Launch Configuration error: {e}")
             self._clean_up(user, self.vm_db.instance_id)
@@ -136,6 +119,7 @@ class VmManager:
         # Creating the directory for the virtual machine
         self.vm_dir = self.__generate_vm_path()
         vm_db.path = self.vm_dir
+        vm_db.save()
 
         # Create our new VirtualMachineInstance
         self.instance = VirtualMachineInstance()
@@ -205,17 +189,14 @@ class VmManager:
             
         # Generate the virtual machine XML document and (try to) launch our VM!
         self.instance.configure_core(instance_def)
-        self.instance.define()
+        self.instance.define(vm_db)
         self.instance.start()
 
         # Add the information for this VM in the db
-        self.vm_db.instance_type = instance_def.itype
-        self.vm_db.instance_size = instance_def.isize
-        self.vm_db.account = self.user.account
         self.vm_db.storage = {}
         self.vm_db.metadata = metadata
-        self.vm_db.firewall_rules = {}
         self.vm_db.tags = tags
+        self.vm_db.state = VirtualMachine.State.AVAILABLE
         self.vm_db.save()
 
         logger.debug(f"Successfully created VM: {self.vm_db.instance_id} : {self.vm_dir}")
@@ -295,22 +276,22 @@ class VmManager:
         # Get the image from the image id:
         logger.debug("Preparing disk..")
         try:
-            image:BaseImageModel = self.get_image_from_id(image_id)
+            image:BaseImageModel = self.get_image_from_id(image_id, self.user)
         except InvalidImageId:
             raise
         
-        # Then copy our image to the destination directory
+        # Copy our image to the destination directory
         image_iso_path = self.copy_image(image)
 
         new_vol = Volume(
             account=self.user.account,
             host=self.vm_db.host,
             virtual_machine=self.vm_db,
-            parent_image=image.image_id,
-            format=image.metadata["format"],
-            path=image_iso_path
+            path=image_iso_path,
         )
         new_vol.generate_id()
+        new_vol.new_volume_from_image(image)
+        new_vol.save()
 
         # resize our disk
         logger.debug(f"Resizing image size to {disk_size}")
@@ -320,10 +301,12 @@ class VmManager:
             logger.error(f"Encountered error when running qemu resize. {e}")
             raise LaunchError("Encountered error when running qemu resize.")
         
-        new_vol.populate_details()
+        new_vol.populate_metadata()
         logger.debug(f"Created new volume: {new_vol.volume_id}")
 
         self.instance.add_virtual_disk(new_vol, "vda")
+        new_vol.state = Volume.State.ATTACHED
+        new_vol.save()
 
         return {
             "image_id": image_id,
@@ -384,13 +367,6 @@ class VmManager:
         except UserKey.DoesNotExist:
             raise ValueError("Specified SSH Key Name does not exist.")
 
-    
-    def get_instance_configuration(self, vm_id):
-        """Returns an object with the configuration details of a defined VM. (dump xml)"""
-        domain = self.__get_libvirt_domain(vm_id)
-        xmldoc = domain.XMLDesc()
-        xmltodict.parse(xmldoc)
-    
 
     def get_vm_db_from_id(self, vm_id:str):
         try:
@@ -464,33 +440,19 @@ class VmManager:
 
         vm_db = self.try_get_database_object(vm_id, user)
 
-        vm_domain = self.__get_libvirt_domain(vm_db.instance_id)
-
+        instance = VirtualMachineInstance(vm_id)
         # Stop the instance and undefine (remove) from Virsh
-        self.stop_instance(vm_db.instance_id)
-        self.__undefine_domain(vm_db.instance_id)
+        instance.stop()
+        instance.terminate()
         
         # Delete folder/path
         self.__delete_vm_path(vm_db.instance_id, user)
 
         # delete entry in db
-        try:
-            if vm_db: 
-                vm_db.delete()
-        except Exception as e:
-            raise Exception(f"Unable to delete row from database. instance_id={self.vm_db.instance_id}")
+        if vm_db: 
+            vm_db.delete()
 
         return True
-
-
-    def __get_libvirt_domain(self, vm_id:str):
-        """Returns currentConnection object if the VM exists. Returns False if vm does not exist."""
-        try:
-            return self.currentConnection.lookupByName(vm_id)
-        except libvirt.libvirtError as e:
-            # Error code 42 = Domain not found
-            if (e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN):
-                return False
 
 
     def __generate_vm_path(self):
@@ -522,33 +484,40 @@ class VmManager:
             logger.error("Encountered an error when atempting to delete VM path.")
 
 
-    def __undefine_domain(self, vm_id:str):
-        vm = self.__get_libvirt_domain(vm_id)
-        if vm:
-            vm.undefine()
+    def _clean_up(self, user:User, vm_id:str):
+        """Cleans up a virtual machine directory if CLEAN_UP_ON_FAIL is true
+        This should only be run when the virtual machine creation process fails!
+        """
+        if CLEAN_UP_ON_FAIL:
+            logging.debug("CLEAN_UP_ON_FAIL set to true. Cleaning up..")
+            self.vm_db.delete()
+            self.__delete_vm_path(vm_id, user)
+
+        if self.instance:
+            self._del_disks(self.instance)
+            del self.instance
 
 
     def _del_objects(self):
+        """Clean up objects for memory management"""
         logger.debug("Deleting objects")
-        del self.cloudinit
+        if self.cloudinit:
+            del self.cloudinit
         del self.vm_db
-        del self.instance
 
 
-    def __run_command(self, cmd: list, env: dict = {}):
-        logger.debug("Running command: ")
-        logger.debug(cmd)
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True, env=env)
-        logger.debug("Waiting..")
-        process.wait()
-        logger.debug("Process Wait finished")
-        output = process.stdout.readline()
-        logger.debug(output.strip())
-        return_code = process.poll()
-        logging.debug(f"SUBPROCESS RETURN CODE: {return_code}")
-        return {
-            "return_code": return_code,
-            "output": output,
-        }
+    def _del_disks(self, instance:VirtualMachineInstance):
+        """Deletes orphan disks that were created during the creation process."""
+        logger.debug("Deleting any orphan disks")
+        if not instance.virtual_disks:
+            logger.debug("None to delete")
+            return
+        
+        for disk in instance.virtual_disks.values():
+            try:
+                logger.debug(f"Found disk with alias: {disk.alias}")
+                Volume.objects.filter(volume_id=disk.alias).delete()
+            except Volume.DoesNotExist:
+                pass
 
     

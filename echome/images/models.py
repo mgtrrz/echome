@@ -8,6 +8,12 @@ from echome.exceptions import AttemptedOverrideOfImmutableIdException
 
 logger = logging.getLogger(__name__)
 
+class OperatingSystem(models.TextChoices):
+    WINDOWS = 'WINDOWS', 'Windows'
+    LINUX = 'LINUX', 'Linux'
+    OTHER = 'OTHER', 'Other'
+    NONE = 'NONE', 'None'
+
 # All images (disk images) derive from this model.
 # There's currently only two types:
 # GuestImage (gmi-): For ALL accounts/users on the server
@@ -41,13 +47,8 @@ class BaseImageModel(models.Model):
         default=State.CREATING,
     )
 
-    class OperatingSystem(models.TextChoices):
-        WINDOWS = 'WIN', 'Windows'
-        LINUX = 'LNX', 'Linux'
-        OTHER = 'OTH', 'Other'
-
-    os = models.CharField(
-        max_length=3,
+    operating_system = models.CharField(
+        max_length=12,
         choices=OperatingSystem.choices,
         default=OperatingSystem.LINUX,
     )

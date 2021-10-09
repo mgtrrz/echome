@@ -1,16 +1,11 @@
-import libvirt
 import xmltodict
 import logging
-import time
 from typing import List, Dict
 from dataclasses import dataclass, field
-from network.models import VirtualNetwork
-from .models import HostMachine, Volume, VirtualMachine
-from .instance_definitions import InstanceDefinition
-from .exceptions import VirtualMachineDoesNotExist, VirtualMachineConfigurationError
+from images.models import OperatingSystem
+from .models import HostMachine
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class KvmXmlCore():
@@ -25,23 +20,25 @@ class KvmXmlCore():
 @dataclass
 class KvmXmlDisk():
     file_path: str
+    alias: str
     device: str = "disk"
     driver: str = "qemu"
     type: str = "qcow2"
     target_dev: str = "vda"
     bus: str = "virtio"
-    os_type:str = "Linux"
+    operating_system:OperatingSystem = OperatingSystem.LINUX
 
 
 @dataclass
 class KvmXmlRemovableMedia():
     file_path: str
+    alias: str
     device: str = "cdrom"
     driver: str = "qemu"
     type: str = "raw"
     target_dev: str = "hda"
     bus: str = "ide"
-    read_only = True
+    read_only: bool = True
 
 
 @dataclass
@@ -101,30 +98,8 @@ class KvmXmlObject():
         }
 
         # Hard Disk or removal drive devices
-        obj['disk'] = []
-
-        devices = self.hard_disks + self.removable_media
-        for dev in devices:
-            d = {
-                '@type': 'file',
-                '@device': dev.device,
-                'driver': {
-                    '@name': dev.driver,
-                    '@type': dev.type
-                },
-                'source': {
-                    '@file': dev.file_path
-                },
-                'target': {
-                    '@dev': dev.target_dev,
-                    '@bus': dev.bus
-                }
-            }
-            if isinstance(dev, KvmXmlRemovableMedia):
-                if dev.read_only:
-                    d['readonly'] = {}
-            
-            obj['disk'].append(d)
+        devices = list(self.hard_disks.values()) + self.removable_media
+        obj['disk'] = self._generate_disk_devices(devices)
 
         # Network devices
         for net_dev in self.network_interfaces:
@@ -164,6 +139,37 @@ class KvmXmlObject():
 
 
         return obj
+    
+
+    def _generate_disk_devices(self, devices:list):
+        devices = []
+        for dev in devices:
+            d = {
+                '@type': 'file',
+                '@device': dev.device,
+                'driver': {
+                    '@name': dev.driver,
+                    '@type': dev.type
+                },
+                'source': {
+                    '@file': dev.file_path
+                },
+                'alias': {
+                    '@name': dev.alias
+                },
+                'target': {
+                    '@dev': dev.target_dev,
+                    '@bus': dev.bus
+                }
+            }
+            
+            if dev.read_only:
+                d['readonly'] = {}
+            
+            devices.append(d)
+        
+        return devices
+
 
     # Return SMBIOS details
     def _render_smbios(self):
@@ -217,7 +223,7 @@ class KvmXmlObject():
         if not self.hard_disks:
             return
         
-        if self.hard_disks[0].os_type == "Windows":
+        if self.hard_disks["vda"].operating_system == OperatingSystem.WINDOWS:
             self.clock_offset = "localtime"
 
 
@@ -275,271 +281,3 @@ class KvmXmlObject():
 
         return xmltodict.unparse(obj, full_document=False, pretty=True, short_empty_elements=True, indent=" ")
 
-
-class VirtualMachineXmlObject:
-    virtual_disk_xml_def: List[KvmXmlDisk] = []
-    virtual_network_xml_def: KvmXmlNetworkInterface = None
-    vnc_xml_def: KvmXmlVncConfiguration = None
-    removable_media_xml_def: List[KvmXmlRemovableMedia] = []
-
-
-class VirtualMachineInstance():
-    
-    id: str
-    core: KvmXmlCore
-    virtual_disks: Dict[str, KvmXmlDisk] = {}
-    virtual_network: KvmXmlNetworkInterface = None
-    removable_media: List[KvmXmlRemovableMedia] = []
-    vnc: KvmXmlVncConfiguration = None
-
-
-    def __init__(self, vm_id:str = None):
-        self.libvirt_conn = libvirt.open('qemu:///system')
-        
-        if vm_id:
-            self.id = vm_id
-            self.build_config_from_xml()
-
-
-    def __del__(self):
-        self.libvirt_conn.close()
-
-    
-    def build_config_from_xml(self):
-        """Returns an object with the configuration details of a defined VM. (dump xml)"""
-        domain = self.__get_libvirt_domain(self.id)
-        xmldoc = domain.XMLDesc()
-        item = xmltodict.parse(xmldoc)
-        logger.debug(item)
-
-
-    def configure_network(self, virtual_network:VirtualNetwork):
-        """Configure networking"""
-        
-        if virtual_network.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
-            type = "bridge"
-            source = virtual_network.config['bridge_interface'] 
-        elif virtual_network.type == VirtualNetwork.Type.NAT:
-            type = "nat"
-            source = virtual_network.name
-            
-        self.virtual_network_xml_def = KvmXmlNetworkInterface(
-            type = type,
-            source = source
-        )
-    
-
-    def add_removable_media(self, file_path:str, target_dev:str):
-        self.removable_media.append(KvmXmlRemovableMedia(
-            file_path=file_path,
-            target_dev=target_dev
-        ))
-
-
-    def add_virtual_disk(self, volume:Volume, target_dev:str):
-        self.virtual_disks[target_dev] = KvmXmlDisk(
-            file_path=volume.path,
-            type=volume.format,
-            os_type=volume.metadata["os"],
-            target_dev=target_dev
-        )
-
-    
-    def configure_vnc(self, vnc_port:str = None, password:str = None) -> dict:
-        """Configures VNC"""
-        vnc_xml_def = KvmXmlVncConfiguration(True)
-
-        if vnc_port:
-            logger.debug(f"VNC Port also specified: {vnc_port}")
-            vnc_xml_def.vnc_port = vnc_port
-
-        if password:
-            vnc_xml_def.vnc_password = password
-
-        self.vnc = vnc_xml_def
-    
-
-    def configure_core(self, instance_def:InstanceDefinition):
-        self.core = KvmXmlCore(
-            cpu_count=instance_def.get_cpu(),
-            memory=instance_def.get_memory()
-        )
-
-
-    def define(self, vm_db:VirtualMachine):
-        """Generate an XML document with the virtual machine specs and define it with libvirt"""
-        self.check_components()
-
-        xmldoc = KvmXmlObject(
-            name=vm_db.instance_id,
-            core=self.core,
-            network_interfaces=[self.virtual_network],
-            hard_disks=self.virtual_disks
-        )
-
-        if self.vm_xml_object.removable_media_xml_def:
-            xmldoc.removable_media = self.removable_media
-
-        # VNC
-        if self.vm_xml_object.vnc_xml_def:
-            xmldoc.vnc_configuration = self.vnc
-        
-        xmldoc.enable_smbios = False
-        xmldoc.smbios_url = ""
-
-        # Render the XML doc        
-        doc = xmldoc.render_xml()
-
-        # Create the actual XML template in the vm directory
-        # We don't need to save the XML document to the file system
-        # as it gets saved within libvirt itself, but this is a good
-        # way to debug templates generated by our script.
-        with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
-            logger.debug("Writing virtual machine XML document: vm.xml")
-            filehandle.write(doc)
-
-        logger.debug("Attempting to define XML with virsh..")
-        dom = self.libvirt_conn.defineXML(doc)
-        if not dom:
-            raise DomainConfigurationError
-        
-        logger.info("Starting VM..")
-        self.libvirt_conn(self.vm_db.instance_id)
-    
-
-    def check_components(self):
-        if self.core is None:
-            raise DomainConfigurationError("Core not set")
-        elif self.virtual_network is None:
-            raise DomainConfigurationError("Networking not set")
-        elif self.virtual_disks is None:
-            raise DomainConfigurationError("No Virtual Disks set")
-
-    
-    def write_xml_doc(self, doc:str):
-        with open(f"{self.vm_dir}/vm.xml", 'w') as filehandle:
-            logger.debug("Writing virtual machine XML document: vm.xml")
-            filehandle.write(doc)
-
-
-    def get_vm_state(self):
-        """Get the state of the virtual machine as defined in libvirt."""
-
-        domain = self.__get_libvirt_domain(self.id)
-        if not domain:
-            state_int, reason = domain.state()
-
-            if state_int == libvirt.VIR_DOMAIN_NOSTATE:
-                state_str = "no_state"
-            elif state_int == libvirt.VIR_DOMAIN_RUNNING:
-                state_str = "running"
-            elif state_int == libvirt.VIR_DOMAIN_BLOCKED:
-                state_str = "blocked"
-            elif state_int == libvirt.VIR_DOMAIN_PAUSED:
-                state_str = "paused"
-            elif state_int == libvirt.VIR_DOMAIN_SHUTDOWN:
-                state_str = "shutdown"
-            elif state_int == libvirt.VIR_DOMAIN_SHUTOFF:
-                state_str = "shutoff"
-            elif state_int == libvirt.VIR_DOMAIN_CRASHED:
-                state_str = "crashed"
-            elif state_int == libvirt.VIR_DOMAIN_PMSUSPENDED:
-                # power management (entered into s3 state)
-                state_str = "pm_suspended"
-            else:
-                state_str = "unknown"
-        else:
-            state_str = "unknown"
-            state_int = 0
-            reason = "Unknown state"
-
-        return state_str, state_int, str(reason)
-
-
-    def start(self):
-        """Start an instance and set autostart to 1 for host reboots"""
-
-        domain = self.__get_libvirt_domain(self.id)
-
-        if domain.isActive():
-            logger.info(f"VM '{self.id}' already started")
-            return True
-
-        logger.info(f"Starting VM '{self.id}'")
-        try:
-            domain.create()
-        except libvirt.libvirtError as e:
-            logger.debug(f"Unable to start Virtual Machine {self.id}: {e}")
-            raise VirtualMachineConfigurationError
-        
-        logger.debug("Setting autostart to 1 for started instances")
-        domain.setAutostart(1)
-            
-
-    def stop(self, wait:bool = True):
-        """Stop an instance"""
-
-        logger.debug(f"Stopping vm: {self.id}")
-        domain = self.__get_libvirt_domain(self.id)
-
-        if not domain.isActive():
-            logger.info(f"VM '{self.id}' already stopped")
-            return True
-        
-        logger.debug("Setting autostart to 0 for stopped instances")
-        domain.setAutostart(0)
-
-        vm_force_stop_time = 240
-        seconds_waited = 0
-
-        while domain.isActive():
-            try:
-                # TODO: Is this needed?
-                # Supposedly, destroy() will do exactly this, which is shutdown gracefully, wait,
-                # then force shutdown, without having to do this in Python
-                domain.shutdown()
-                if not wait:
-                    return 
-                time.sleep(1)
-                seconds_waited += 1
-                if seconds_waited >= vm_force_stop_time:
-                    logger.warning(f"Timeout was reached and VM '{self.id}' hasn't stopped yet. Force shutting down...")
-                    domain.destroy()
-            except libvirt.libvirtError as e:
-                # Error code 55 = Not valid operation: domain is not running
-                if (e.get_error_code() == libvirt.VIR_ERR_OPERATION_INVALID):
-                    return
-                else:
-                    logger.exception("Got error code other than VIR_ERR_OPERATION_INVALID")
-                    logger.error(e)
-                    raise VirtualMachineError(e)
-    
-
-    def terminate(self):
-        domain = self.__get_libvirt_domain(self.id)
-        if domain:
-            domain.undefine()
-
-
-    def __get_libvirt_domain(self, vm_id:str):
-        """Returns libvirt connection object if the VM exists. Raises an exception if does not exist."""
-        try:
-            return self.libvirt_conn.lookupByName(vm_id)
-        except libvirt.libvirtError as e:
-            if (e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN):
-                raise VirtualMachineDoesNotExist
-
-
-    def __str__(self):
-        if self.id:
-            return self.core.id
-        else:
-            return "GenericInstance"
-
-
-class VirtualMachineError(Exception):
-    pass
-
-
-class DomainConfigurationError(Exception):
-    pass

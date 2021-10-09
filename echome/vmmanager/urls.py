@@ -1,5 +1,10 @@
 from django.urls import path
-from .views import *
+from .views import (
+    CreateVM,
+    DescribeVM,
+    TerminateVM,
+    ModifyVM
+)
 
 app_name = 'vmmanager'
 urlpatterns = [

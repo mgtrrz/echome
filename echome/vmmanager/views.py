@@ -7,6 +7,7 @@ from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine
 from .serializers import VirtualMachineSerializer
 from .manager import VmManager
+from .vm_instance import VirtualMachineInstance
 from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ class DescribeVM(HelperView, APIView):
             
             for vm in vms:
                 j_obj = VirtualMachineSerializer(vm).data
-                state, state_int, _  = VmManager().get_vm_state(vm.instance_id)
+                state, state_int, _  = VirtualMachineInstance(vm_id).get_vm_state(vm.instance_id)
                 j_obj["state"] = {
                     "code": state_int,
                     "state": state,
@@ -117,6 +118,7 @@ class DescribeVM(HelperView, APIView):
             logger.debug(e)
             return self.not_found_response()
         except Exception as e:
+            logger.exception(e)
             return self.internal_server_error_response()
 
         return self.success_response(i)
@@ -149,7 +151,8 @@ class ModifyVM(HelperView, APIView):
 
         if action == 'stop':
             try:
-                VmManager().stop_instance(vm_id)
+                instance = VirtualMachineInstance(vm_id)
+                instance.stop(wait=False)
             except VirtualMachineDoesNotExist:
                 return self.not_found_response()
             except Exception:
@@ -158,7 +161,8 @@ class ModifyVM(HelperView, APIView):
             return self.success_response()
         elif action == 'start':
             try:
-                VmManager().start_instance(vm_id)
+                instance = VirtualMachineInstance(vm_id)
+                instance.start()
             except VirtualMachineDoesNotExist:
                 return self.not_found_response()
             except VirtualMachineConfigurationError:
