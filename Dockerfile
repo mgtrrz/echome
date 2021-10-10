@@ -16,12 +16,12 @@ ENV PYTHONUNBUFFERED 1
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Set work directory
-WORKDIR /app
-
 # Copy project
-COPY ./echome /app/
+COPY ./echome/ /app/
+
+# Set work directory
+WORKDIR /app/
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "--chdir", "./echome" ,"echome.wsgi"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "echome.wsgi"]

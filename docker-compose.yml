@@ -15,6 +15,18 @@ services:
       - echome_postgres_data:/var/lib/postgresql/data/
     ports:
       - 15432:5432
+  worker:
+    build: .
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
+      - /etc/echome:/etc/echome
+      - /mnt:/mnt
+    devices:
+      - /dev/kvm
+    command: "celery -A echome worker -l INFO"
   api:
     build: .
     environment:
@@ -25,7 +37,6 @@ services:
     depends_on:
       - db
       - vault
-      - rabbitmq
     volumes:
       - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
       - /etc/echome:/etc/echome
@@ -40,7 +51,7 @@ services:
   vault:
     image: "vault:1.8.2"
     ports:
-      - "8200:8200"
+      - 8200:8200
     restart: always
     volumes:
       - echome_vault_data:/vault/
@@ -49,10 +60,11 @@ services:
       - IPC_LOCK
     command: vault server -config=/vault/config/vault-config.json
   rabbitmq:
-    image: "rabbitmq:3.9"
+    image: "rabbitmq:3.9-management"
     hostname: echome-rabbit
     ports:
-      - "5672:5672"
+      - 15672:15672
+      - 5672:5672
 
 volumes:
   echome_postgres_data:

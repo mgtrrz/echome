@@ -119,6 +119,8 @@ WSGI_APPLICATION = 'echome.wsgi.application'
 DATABASES = {"default": dj_database_url.config(default='postgres://echome:echome@localhost/echome')}
 
 
+CELERY_BROKER_URL = 'amqp://guest@rabbitmq//'
+
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
 
