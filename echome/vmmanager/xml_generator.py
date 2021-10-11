@@ -80,9 +80,6 @@ class KvmXmlObject():
     enable_smbios: bool = False
     smbios_url:str = ""
 
-    class Os():
-        arch: str
-
 
     def __str__(self) -> str:
         return self.name
@@ -142,7 +139,7 @@ class KvmXmlObject():
     
 
     def _generate_disk_devices(self, devices:list):
-        devices = []
+        rendered_devices = []
         for dev in devices:
             d = {
                 '@type': 'file',
@@ -163,12 +160,12 @@ class KvmXmlObject():
                 }
             }
             
-            if dev.read_only:
+            if isinstance(dev, KvmXmlRemovableMedia):
                 d['readonly'] = {}
             
-            devices.append(d)
+            rendered_devices.append(d)
         
-        return devices
+        return rendered_devices
 
 
     # Return SMBIOS details

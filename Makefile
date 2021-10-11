@@ -43,5 +43,8 @@ createsuperuser: ## Create a new Django admin superuser
 manage: ## Pass a manage command to Django cmd="do something"
 	${DOCKER_COMPOSE_EXEC} python3 manage.py $(cmd)
 
-.PHONY: ssh dbstart dbstop initdb dropdb resetdb clean start createsuperuser manageshell
+test: ## Run Django tests 
+	${DOCKER_COMPOSE_EXEC} python3 manage.py test
+
+.PHONY: ssh dbstart dbstop initdb dropdb resetdb clean start createsuperuser manageshell test
 .DEFAULT_GOAL := help

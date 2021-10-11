@@ -7,6 +7,7 @@ from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine
 from .serializers import VirtualMachineSerializer
 from .manager import VmManager
+from .tasks import task_create_image, task_stop_instance, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
 from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
@@ -53,7 +54,7 @@ class CreateVM(HelperView, APIView):
         try:
             vm_id = vm.create_vm(
                 user=request.user, 
-                instanceType=instanceDefinition, 
+                instance_def=instanceDefinition, 
                 Tags=tags,
                 KeyName=request.POST["KeyName"] if "KeyName" in request.POST else None,
                 NetworkProfile=request.POST["NetworkProfile"],
@@ -129,14 +130,14 @@ class TerminateVM(HelperView, APIView):
 
     def post(self, request, vm_id:str):
         try:
-            VmManager().terminate_instance(vm_id, request.user)
+            task_terminate_instance.delay(vm_id, request.user.user_id)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
         
-        return self.success_response()
+        return self.request_success_response()
 
 
 class ModifyVM(HelperView, APIView):

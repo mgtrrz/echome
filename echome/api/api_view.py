@@ -69,6 +69,15 @@ class HelperView():
 
         return Response(msg, status=status.HTTP_200_OK)
 
+    
+    def request_success_response(self) -> Response:
+        msg = {
+            'request': 'Accepted',
+            'success': True,
+        }
+
+        return Response(msg, status=status.HTTP_200_OK)
+
 
     def unpack_tags(self, request:HttpRequest=None):
         logger.debug("Unpacking tags")

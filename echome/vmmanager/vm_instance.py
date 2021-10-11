@@ -12,7 +12,7 @@ from .exceptions import VirtualMachineDoesNotExist, VirtualMachineConfigurationE
 logger = logging.getLogger(__name__)
 
 class VirtualMachineInstance():
-    
+    """Class responsible for creating, managing, and deleting virtual machine instances directly through the libvirt API"""
     id: str
     core: KvmXmlCore
     virtual_disks: Dict[str, KvmXmlDisk] = {}
@@ -58,6 +58,7 @@ class VirtualMachineInstance():
     
 
     def add_removable_media(self, file_path:str, target_dev:str):
+        logger.debug(f"Adding removable media with target dev: {target_dev}")
         self.removable_media.append(KvmXmlRemovableMedia(
             file_path=file_path,
             target_dev=target_dev,
@@ -66,6 +67,7 @@ class VirtualMachineInstance():
 
 
     def add_virtual_disk(self, volume:Volume, target_dev:str):
+        logger.debug(f"Adding virtual disk with target dev: {target_dev}")
         self.virtual_disks[target_dev] = KvmXmlDisk(
             file_path=volume.path,
             alias=volume.volume_id,
@@ -109,7 +111,7 @@ class VirtualMachineInstance():
 
         if self.removable_media:
             xmldoc.removable_media = self.removable_media
-
+        
         # VNC
         if self.vnc:
             xmldoc.vnc_configuration = self.vnc

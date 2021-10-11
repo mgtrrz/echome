@@ -17,6 +17,9 @@ services:
       - 15432:5432
   worker:
     build: .
+    environment:
+      - DATABASE_URL=postgres://echome:echome@db:5432/echome
+      - LOG_LEVEL=DEBUG
     depends_on:
       - db
       - rabbitmq
@@ -26,7 +29,7 @@ services:
       - /mnt:/mnt
     devices:
       - /dev/kvm
-    command: "celery -A echome worker -l INFO"
+    command: "celery -A echome worker"
   api:
     build: .
     environment:

@@ -142,7 +142,7 @@ class VmManager:
         vnc_port:str    = kwargs["VncPort"] if "VncPort" in kwargs else None
 
         # Prepare our boot disk image and save the metadata to the DB
-        self.vm_db.image_metadata = self.prepare_disk(kwargs["ImageId"])
+        self.vm_db.image_metadata = self.prepare_disk(kwargs["ImageId"], kwargs["DiskSize"])
 
         # initialize our CloudInit object
         self.cloudinit = CloudInit(base_dir=self.vm_dir)
