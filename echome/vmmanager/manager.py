@@ -448,6 +448,9 @@ class VmManager:
         # Delete folder/path
         self.__delete_vm_path(vm_db.instance_id, user)
 
+        # Delete the volume from the database
+        Volume.objects.filter(virtual_machine=vm_db).delete()
+
         # delete entry in db
         if vm_db: 
             vm_db.delete()
