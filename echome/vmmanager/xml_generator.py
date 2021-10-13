@@ -87,6 +87,7 @@ class KvmXmlObject():
 
     # Return the devices to attach to the VM
     def _render_devices(self):
+        # Default emulator 
         obj = {
             'emulator': '/usr/bin/kvm-spice',
             'console': {
@@ -119,23 +120,28 @@ class KvmXmlObject():
         
         # VNC (If enabled)
         if self.vnc_configuration.enable:
-            obj['graphics'] = {
-                '@type': 'vnc',
-                '@autoport': 'yes' if self.vnc_configuration.vnc_port == 'auto' else 'no',
-                '@listen': '0.0.0.0',
-                '@sharePolicy': 'allow-exclusive',
-                '@passwd': self.vnc_configuration.vnc_password,
-                'listen': {
-                    '@type': 'address',
-                    '@address': '0.0.0.0',
-                }
-            }
-
-            if self.vnc_port != 'auto':
-                obj['graphics']['@port'] = self.vnc_configuration.vnc_port
-
+            obj['graphics'] = self._generate_vnc_config()
 
         return obj
+    
+
+    def _generate_vnc_config(self):
+        vnc_obj = {
+            '@type': 'vnc',
+            '@autoport': 'yes' if self.vnc_configuration.vnc_port == 'auto' else 'no',
+            '@listen': '0.0.0.0',
+            '@sharePolicy': 'allow-exclusive',
+            '@passwd': self.vnc_configuration.vnc_password,
+            'listen': {
+                '@type': 'address',
+                '@address': '0.0.0.0',
+            }
+        }
+
+        if self.vnc_port != 'auto':
+            vnc_obj['@port'] = self.vnc_configuration.vnc_port
+        
+        return vnc_obj
     
 
     def _generate_disk_devices(self, devices:list):

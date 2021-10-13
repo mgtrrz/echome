@@ -46,33 +46,29 @@ class VmManager:
         itself. Set the environment var VM_CLEAN_UP_ON_FAIL to False to alter this behavior to keep
         files for debugging purposes.
 
-        :param user: User object for identifying which account the VM is created for.
-        :type user: User
-        :param instance_def: Instance type for the virtual machine to use.
-        :type instance_def: Instance
-        :key NetworkProfile: Network profile to use for the virtual machine. Use the profile name.
-        :type NetworkProfile: str
-        :key ImageId: Guest or User image ID to spawn the virtual machine from.
-        :type ImageId: str
-        :key DiskSize: Disk size for the virtual machine. (e.g. 10G, 200G, 10000M)
-        :type DiskSize: str
-        :key KeyName: Name of the SSH Keystore item to add a public ssh key to the VM. Defaults to None.
-        :type KeyName: str
-        :key PrivateIp: Private IP address to assign. Defaults to None.
-        :type PrivateIp: str
-        :key CustomXML: Specify a custom XML file (located in xml_templates) to launch the VM from. Defaults to None.
-        :type CustomXML: str
-        :key UserDataScript: User-data shell script to boot the instance with. Defaults to none.
-        :type UserDataScript: str
-        :key Tags: Dictionary of tags to apply to this instance. Defaults to None
-        :type Tags: dict
-        :key ServiceKey: Name of the SSH Keystore item for a ecHome service. This should not be set by a user. Defaults to None.
-        :type KeyName: str
-        :raises InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
-        :raises LaunchError: If there was an error during build of the virtual machine.
-        :return: Virtual machine ID if successful.
-        :rtype: str
+        Args:
+            user (User): User object for identifying which account the VM is created for.
+            instance_def (InstanceDefinition): Instance type for the virtual machine to use.
+        
+        Kwargs:
+            NetworkProfile (str): Network profile to use for the virtual machine. Use the name rather than the ID.
+            ImageId (str): Guest or User image ID to spawn the virtual machine from.
+            DiskSize (str): Disk size for the virtual machine. (e.g. 10G, 200G, 10000M). Defaults to 10G.
+            KeyName (str): Name of the SSH Keystore item to add a public ssh key to the VM.
+            PrivateIp (str): Private IP address to assign.
+            UserDataScript (str): User-data shell script to boot the instance with.
+            Tags (dict): Dictionary of tags to apply to this instance.
+            EnableVnc (bool): Whether this machine will have VNC enabled.
+            VncPort (str): Value for the VNC port (if enabled above).
+
+        Raises:
+            InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
+            LaunchError: If there was an error during build of the virtual machine.
+
+        Returns:
+            dict: [description]
         """
+
 
         # We need an image id to create our VM!
         if "ImageId" not in kwargs:
