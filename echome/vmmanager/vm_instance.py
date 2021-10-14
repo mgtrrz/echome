@@ -47,7 +47,7 @@ class VirtualMachineInstance():
         domain = self.__get_libvirt_domain(self.id)
         xmldoc = domain.XMLDesc()
         item = xmltodict.parse(xmldoc)
-        logger.debug(item)
+        #logger.debug(item)
 
 
     def configure_network(self, virtual_network:VirtualNetwork):

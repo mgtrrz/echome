@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 from rest_framework import status
 from api.api_view import HelperView
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
-from .models import VirtualMachine
-from .serializers import VirtualMachineSerializer
+from .models import VirtualMachine, Volume
+from .serializers import VirtualMachineSerializer, VolumeSerializer
 from .manager import VmManager
 from .tasks import task_create_image, task_stop_instance, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
@@ -109,7 +109,7 @@ class DescribeVM(HelperView, APIView):
             
             for vm in vms:
                 j_obj = VirtualMachineSerializer(vm).data
-                state, state_int, _  = VirtualMachineInstance(vm_id).get_vm_state(vm.instance_id)
+                state, state_int, _  = VirtualMachineInstance(vm.instance_id).get_vm_state()
                 j_obj["state"] = {
                     "code": state_int,
                     "state": state,
@@ -208,7 +208,33 @@ class DeleteVolume(HelperView, APIView):
 
 
 class DescribeVolume(HelperView, APIView):
-    pass
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, vol_id:str):
+        i = []
+
+        try:
+            if vol_id == "all":
+                vols = Volume.objects.filter(
+                    account=request.user.account
+                )
+            else:
+                vols = []
+                vols.append(Volume.objects.get(
+                    account=request.user.account,
+                    volume_id=vol_id
+                ))
+            
+            for vol in vols:
+                i.append(VolumeSerializer(vol).data)
+        except Volume.DoesNotExist as e:
+            logger.debug(e)
+            return self.not_found_response()
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+
+        return self.success_response(i)
 
 
 class ModifyVolume(HelperView, APIView):
