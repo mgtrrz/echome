@@ -13,27 +13,36 @@ logger = logging.getLogger(__name__)
 
 class VirtualMachineInstance():
     """Class responsible for creating, managing, and deleting virtual machine instances directly through the libvirt API"""
+
     id: str
+    virsh_domain:libvirt.virDomain = None
+
     core: KvmXmlCore
     virtual_disks: Dict[str, KvmXmlDisk] = {}
     virtual_network: KvmXmlNetworkInterface = None
     removable_media: List[KvmXmlRemovableMedia] = []
     vnc: KvmXmlVncConfiguration = None
 
-
     def __init__(self, vm_id:str = None):
         self.libvirt_conn = libvirt.open('qemu:///system')
         
+        # If an ID is supplied, lets build the instance using info from the current
+        # VM instance
         if vm_id:
+            try:
+                self.virsh_domain = self.__get_libvirt_domain(vm_id)
+            except VirtualMachineDoesNotExist:
+                raise
+
             self.id = vm_id
-            self.build_config_from_xml()
+            self._build_config_from_xml()
 
 
     def __del__(self):
         self.libvirt_conn.close()
 
     
-    def build_config_from_xml(self):
+    def _build_config_from_xml(self):
         """Returns an object with the configuration details of a defined VM. (dump xml)"""
         domain = self.__get_libvirt_domain(self.id)
         xmldoc = domain.XMLDesc()
@@ -66,6 +75,10 @@ class VirtualMachineInstance():
         ))
 
 
+    def remove_removable_media(self, target_dev):
+        pass
+
+
     def add_virtual_disk(self, volume:Volume, target_dev:str):
         logger.debug(f"Adding virtual disk with target dev: {target_dev}")
         self.virtual_disks[target_dev] = KvmXmlDisk(
@@ -76,7 +89,11 @@ class VirtualMachineInstance():
             target_dev=target_dev
         )
 
+
+    def remove_virtual_disk(self, target_dev:str):
+        pass
     
+
     def configure_vnc(self, vnc_port:str = None, password:str = None) -> dict:
         """Configures VNC"""
         vnc_xml_def = KvmXmlVncConfiguration(True)
@@ -254,7 +271,17 @@ class VirtualMachineInstance():
 
 
     def __get_libvirt_domain(self, vm_id:str):
-        """Returns libvirt connection object if the VM exists. Raises an exception if does not exist."""
+        """Returns a libvirt connection object if the VM exists
+
+        Args:
+            vm_id (str): Virtual machine instance ID
+
+        Raises:
+            VirtualMachineDoesNotExist: If the VM does not exist.
+
+        Returns:
+            virDomain: virsh domain 
+        """
         try:
             return self.libvirt_conn.lookupByName(vm_id)
         except libvirt.libvirtError as e:

@@ -129,10 +129,14 @@ class TerminateVM(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, vm_id:str):
+
         try:
-            task_terminate_instance.delay(vm_id, request.user.user_id)
+            instance = VirtualMachineInstance(vm_id)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
+
+        try:
+            task_terminate_instance.delay(vm_id, request.user.user_id)
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
@@ -147,25 +151,24 @@ class ModifyVM(HelperView, APIView):
         if missing_params := self.require_parameters(request, ["Action"]):
             return self.missing_parameter_response(missing_params)
 
+        try:
+            instance = VirtualMachineInstance(vm_id)
+        except VirtualMachineDoesNotExist:
+            return self.not_found_response()
+
         action = request.POST['Action'].lower()
         logger.debug(f"Action: {action}")
 
         if action == 'stop':
             try:
-                instance = VirtualMachineInstance(vm_id)
                 instance.stop(wait=False)
-            except VirtualMachineDoesNotExist:
-                return self.not_found_response()
             except Exception:
                 return self.internal_server_error_response()
         
             return self.success_response()
         elif action == 'start':
             try:
-                instance = VirtualMachineInstance(vm_id)
                 instance.start()
-            except VirtualMachineDoesNotExist:
-                return self.not_found_response()
             except VirtualMachineConfigurationError:
                 return self.error_response(
                     "Could not start VM due to configuration issue. See logs for more details.",
@@ -178,23 +181,35 @@ class ModifyVM(HelperView, APIView):
             req_params = ["Name", "Description"]
             if missing_params := self.require_parameters(request, req_params):
                 return self.missing_parameter_response(missing_params)
-            try:
-                result = VmManager().create_virtual_machine_image(
-                    vm_id, 
-                    request.user,
-                    request.POST["Name"],
-                    request.POST["Description"],
-                    self.unpack_tags(request)
-                )
-            except Exception as e:
-                logger.exception(e)
-                return self.internal_server_error_response()
-            return self.success_response(result)
+            
+            task_create_image.delay(
+                vm_id, 
+                request.user.user_id, 
+                request.POST["Name"],
+                request.POST["Description"],
+                self.unpack_tags(request)
+            )
+
+            return self.request_success_response()
         else:
             return self.error_response(
                     "Unknown action",
                     status = status.HTTP_400_BAD_REQUEST
                 )
         return self.success_response()
-    
-        
+
+
+class CreateVolume(HelperView, APIView):
+    pass
+
+
+class DeleteVolume(HelperView, APIView):
+    pass  
+
+
+class DescribeVolume(HelperView, APIView):
+    pass
+
+
+class ModifyVolume(HelperView, APIView):
+    pass

@@ -32,7 +32,6 @@ class InstanceDefinition:
                 "cpu": 8,
                 "memory_megabytes": 8192,
             },
-            "xml_template": "create_vm.xml"
         }
     }
 
@@ -48,9 +47,6 @@ class InstanceDefinition:
         self._class = instance_class
         self._size = instance_size
 
-        #deprecated
-        self.itype = instance_class
-        self.isize = instance_size
 
     def __str__(self):
         return f"{self._class}.{self._size}"
@@ -70,8 +66,6 @@ class InstanceDefinition:
     def get_memory(self):
         return self.instanceSizes[self._class][self._size]["memory_megabytes"]
     
-    def get_xml_template(self):
-        return self.instanceSizes[self._class]["xml_template"]
 
 class InvalidInstanceType(Exception):
     pass
