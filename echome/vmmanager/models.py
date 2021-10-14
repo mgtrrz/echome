@@ -3,7 +3,6 @@ from django.db import models
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 from echome.id_gen import IdGenerator
 from commander.qemuimg import QemuImg
-from images.models import BaseImageModel, OperatingSystem
 from .instance_definitions import InstanceDefinition
 
 logger = logging.getLogger(__name__)
@@ -95,6 +94,92 @@ class InstanceDefinition(models.Model):
         return self.instance_id
 
 
+class OperatingSystem(models.TextChoices):
+    WINDOWS = 'WINDOWS', 'Windows'
+    LINUX = 'LINUX', 'Linux'
+    OTHER = 'OTHER', 'Other'
+    NONE = 'NONE', 'None'
+
+# All images (disk images) derive from this model.
+# There's currently only two types:
+# GuestImage (gmi-): For ALL accounts/users on the server
+# UserImage (vmi-): For only a specific account on the server
+class Image(models.Model):
+    class ImageType(models.TextChoices):
+        GUEST = 'GUEST', 'Guest'
+        USER = 'USER', 'User'
+
+    image_type = models.CharField(
+        max_length=16,
+        choices=ImageType.choices,
+        default=ImageType.GUEST,
+    )
+    image_id = models.CharField(max_length=20, unique=True, db_index=True)
+    created = models.DateTimeField(auto_now_add=True, null=False)
+    last_modified = models.DateTimeField(auto_now=True)
+    account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id", null=True)
+    image_path = models.CharField(max_length=200)
+    name = models.CharField(max_length=60)
+    description = models.CharField(max_length=100)
+
+    minimum_requirements = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict)
+    deactivated = models.BooleanField(default=False)
+    tags = models.JSONField(default=dict)
+
+    class State(models.TextChoices):
+        CREATING = 'CREATING', 'Creating'
+        READY = 'READY', 'Ready'
+        ERROR = 'ERROR', 'Error'
+        DELETING = 'DELETING', 'Deleting'
+        DELETED = 'DELETED', 'Deleted'
+
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.CREATING,
+    )
+
+    operating_system = models.CharField(
+        max_length=12,
+        choices=OperatingSystem.choices,
+        default=OperatingSystem.LINUX,
+    )
+    
+
+    @property
+    def format(self):
+        return self.metadata["format"]
+
+
+    def generate_id(self):
+        if self.image_id is None or self.image_id == "":
+            if self.image_type == Image.ImageType.GUEST:
+                id = "gmi"
+            elif self.image_type == Image.ImageType.USER:
+                id = "vmi"
+
+            self.image_id = IdGenerator.generate(id)
+            logger.debug(f"Generated ID: '{self.image_id}'")
+        else:
+            raise AttemptedOverrideOfImmutableIdException
+
+
+    def set_image_metadata(self):
+        obj = QemuImg().info(self.image_path)
+        logger.debug(obj)
+
+        self.metadata = {
+            "format": obj["format"],
+            "actual-size": obj["actual-size"],
+            "virtual-size": obj["virtual-size"]
+        }
+
+
+    def __str__(self) -> str:
+        return self.image_id
+
+
 class Volume(models.Model):
     volume_id = models.CharField(max_length=24, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id")
@@ -147,7 +232,7 @@ class Volume(models.Model):
         self.size = details["virtual-size"]
 
 
-    def new_volume_from_image(self, image:BaseImageModel):
+    def new_volume_from_image(self, image:Image):
         self.parent_image = image.image_id
         self.format = image.metadata["format"]
         self.operating_system = image.operating_system

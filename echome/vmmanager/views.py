@@ -6,7 +6,7 @@ from api.api_view import HelperView
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine, Volume
 from .serializers import VirtualMachineSerializer, VolumeSerializer
-from .manager import VmManager
+from .vm_manager import VmManager
 from .tasks import task_create_image, task_stop_instance, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
 from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError

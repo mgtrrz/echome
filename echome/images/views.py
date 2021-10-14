@@ -6,6 +6,10 @@ from api.api_view import HelperView
 from .serializers import GuestImageSerializer, UserImageSerializer
 from .models import GuestImage, UserImage
 
+# Combine guest and user image and just use image_type as an enum to differentiat
+# there's no need to have two separate DBs
+# Could also argue that images can go under the VM namespace
+
 logger = logging.getLogger(__name__)
 
 # Create your views here.

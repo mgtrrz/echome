@@ -2,7 +2,7 @@ import logging
 from celery import shared_task
 from identity.models import User
 from .vm_instance import VirtualMachineInstance
-from .manager import VmManager
+from .vm_manager import VmManager
 
 logger = logging.getLogger(__name__)
 
