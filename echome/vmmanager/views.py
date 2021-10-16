@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 from rest_framework import status
 from api.api_view import HelperView
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
-from .models import VirtualMachine, Volume
-from .serializers import VirtualMachineSerializer, VolumeSerializer
+from .models import VirtualMachine, Volume, Image
+from .serializers import VirtualMachineSerializer, VolumeSerializer, ImageSerializer
 from .vm_manager import VmManager
 from .tasks import task_create_image, task_stop_instance, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
@@ -252,29 +252,36 @@ class DeleteImage(HelperView, APIView):
 class DescribeImage(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, vol_id:str):
+    def get(self, request, type:str, image_id:str):
         i = []
 
-        try:
-            if vol_id == "all":
-                vols = Volume.objects.filter(
-                    account=request.user.account
-                )
-            else:
-                vols = []
-                vols.append(Volume.objects.get(
-                    account=request.user.account,
-                    volume_id=vol_id
-                ))
-            
-            for vol in vols:
-                i.append(VolumeSerializer(vol).data)
-        except Volume.DoesNotExist as e:
-            logger.debug(e)
-            return self.not_found_response()
-        except Exception as e:
-            logger.exception(e)
-            return self.internal_server_error_response()
+        if type not in ["guest", "user"]:
+            return self.error_response(
+                "Unknown type",
+                status = status.HTTP_404_NOT_FOUND
+            )
+        
+        if type == "guest":
+            try:
+                if image_id == "all":
+                    images = Image.objects.filter(
+                        image_type=Image.ImageType.GUEST
+                    )
+                else:
+                    images = []
+                    images.append(Image.objects.get(
+                        image_type=Image.ImageType.GUEST,
+                        image_id=image_id
+                    ))
+                
+                for image in images:
+                    i.append(ImageSerializer(image).data)
+            except Image.DoesNotExist as e:
+                logger.debug(e)
+                return self.not_found_response()
+            except Exception as e:
+                logger.exception(e)
+                return self.internal_server_error_response()
 
         return self.success_response(i)
 
