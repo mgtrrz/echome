@@ -7,5 +7,4 @@ urlpatterns = [
     path('vm/', include('vmmanager.urls')),
     path('network/', include('network.urls')),
     path('kube/', include('kube.urls')),
-    path('images/', include('images.urls')),
 ]
