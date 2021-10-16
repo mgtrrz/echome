@@ -23,6 +23,9 @@ dbstop: ## Stop the database
 dropdb: ## Drop the database
 	${DOCKER_COMPOSE_EXEC} python3 manage.py reset_db --noinput
 
+dbmigrate: ## Migrate the database to apply changes made with manage.py makemigrations
+	${DOCKER_COMPOSE_EXEC} python3 manage.py migrate
+
 resetdb: ## Reset the database
 	make dropdb
 	make initdb
@@ -46,5 +49,5 @@ manage: ## Pass a manage command to Django cmd="do something"
 test: ## Run Django tests 
 	${DOCKER_COMPOSE_EXEC} python3 manage.py test
 
-.PHONY: ssh dbstart dbstop initdb dropdb resetdb clean start createsuperuser manageshell test
+.PHONY: ssh dbstart dbstop initdb dropdb dbmigrate resetdb clean start createsuperuser manageshell test
 .DEFAULT_GOAL := help

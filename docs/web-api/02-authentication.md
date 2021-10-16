@@ -6,7 +6,7 @@ Note: ALL credentials and tokens that are retrieved or sent to the server must n
 
 ## 1. Retrieve access token
 
-Your first request to the server will be to retrieve a JWT token which will be included for every other request to the server.
+Your first request to the server will be to retrieve a JWT token which should be included for every subsequent request to the server.
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{"username": "[USER_ACCESS_ID]", "password": "[SECRET]"}' [SERVER_ADDRESS]/api/v1/identity/token

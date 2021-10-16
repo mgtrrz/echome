@@ -239,3 +239,45 @@ class DescribeVolume(HelperView, APIView):
 
 class ModifyVolume(HelperView, APIView):
     pass
+
+
+class RegisterImage(HelperView, APIView):
+    pass
+
+
+class DeleteImage(HelperView, APIView):
+    pass  
+
+
+class DescribeImage(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, vol_id:str):
+        i = []
+
+        try:
+            if vol_id == "all":
+                vols = Volume.objects.filter(
+                    account=request.user.account
+                )
+            else:
+                vols = []
+                vols.append(Volume.objects.get(
+                    account=request.user.account,
+                    volume_id=vol_id
+                ))
+            
+            for vol in vols:
+                i.append(VolumeSerializer(vol).data)
+        except Volume.DoesNotExist as e:
+            logger.debug(e)
+            return self.not_found_response()
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+
+        return self.success_response(i)
+
+
+class ModifyImage(HelperView, APIView):
+    pass

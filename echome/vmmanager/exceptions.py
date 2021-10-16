@@ -24,7 +24,7 @@ class InvalidImageId(Exception):
 class InvalidImagePath(Exception):
     pass
 
-class InvalidImageAlreadyExists(Exception):
+class ImageAlreadyExistsError(Exception):
     pass
 
 class UserImageInvalidUser(Exception):
