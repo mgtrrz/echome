@@ -227,13 +227,14 @@ class VmManager:
         """Given an image ID and disk size, will prepare a virtual disk for the VM."""
         # Get the image from the image id:
         logger.debug("Preparing disk..")
+        img_mgr = ImageManager()
         try:
-            image:Image = self.get_image_from_id(image_id, self.user)
+            image:Image = img_mgr.get_image_from_id(image_id, self.vm_db.path)
         except ImageDoesNotExistError:
             raise
         
         # Copy our image to the destination directory
-        image_iso_path = self.copy_image(image)
+        image_iso_path = img_mgr.copy_image(image, Path(self.vm_db.path), self.vm_db.instance_id)
 
         new_vol = Volume(
             account=self.user.account,
@@ -327,14 +328,20 @@ class VmManager:
             raise VirtualMachineDoesNotExist
 
 
-    def create_virtual_machine_image(self, vm_id:str, user:User, name:str, description:str, tags:dict = None):
+    def create_virtual_machine_image(self, 
+            vm_id:str, user:User, name:str = None, description:str = None, 
+            tags:dict = None, prepared_manager:ImageManager = None):
         """Create a virtual machine image to create new virtual machines from."""
 
         logger.debug(f"Creating VMI from {vm_id}")
 
-        image_manager = ImageManager()
-        new_vmi_id = image_manager.prepare_user_image(user)
-        logger.debug(f"New VMI ID: {new_vmi_id}")
+        if not prepared_manager:
+            image_manager = ImageManager()
+            new_vmi_id = image_manager.prepare_user_image(user, name, description, tags)
+            logger.debug(f"New VMI ID: {new_vmi_id}")
+        else: 
+            image_manager = prepared_manager
+            new_vmi_id = image_manager.image.image_id
 
 
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
@@ -343,6 +350,9 @@ class VmManager:
 
         # Stop the instance (we can't copy a live machine, yet)
         instance = VirtualMachineInstance(vm_id)
+        # But first, get the current state so we can start it back up if it was on before.
+        before_state, _, _ = instance.get_vm_state()
+        logger.debug(f"Previous VM state: {before_state}")
         instance.stop()
 
         # Define the path to the account vmi directory & create it if doesn't exist
@@ -356,6 +366,10 @@ class VmManager:
         if not QemuImg().convert(current_image_full_path, new_image_full_path):
             raise ImagePrepError("Failed copying image with QemuImg() convert")
 
+        # Revert the state of the VM (if it was running, turn it back on)
+        if before_state == "running":
+            instance.start()
+
         # Prep the image for use in a new VM
         if not VirtTools().sysprep(new_image_full_path):
             raise ImagePrepError("Failed copying image with VirtTools() sysprep")
@@ -364,7 +378,7 @@ class VmManager:
         if not VirtTools().sparsify(new_image_full_path):
             raise ImagePrepError("Failed copying image with VirtTools() sparsify")
         
-        image_manager.finish_user_image(new_image_full_path, name, description, tags)
+        image_manager.finish_user_image(new_image_full_path)
 
         return {"vmi_id": new_vmi_id}
         

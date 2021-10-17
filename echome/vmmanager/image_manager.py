@@ -19,6 +19,11 @@ class ImageManager:
 
     image:Image = None
 
+    def __init__(self, image_id:str = None) -> None: 
+        if image_id:
+            self.image = self.__get_image_from_id(image_id)
+
+
     def register_guest_image(self, path:str, name:str, description:str, host="localhost", tags=None):
         """Instantly register an image for use. If you need to prepare an image that needs processing done
         in the background, use prepare_guest_image()."""
@@ -39,13 +44,16 @@ class ImageManager:
         """Prepare a Guest image by instantiating an empty object with an ID which can then be later registered.
         Complete the image with finish_guest_image().
 
+        This will create a relatively empty value in the database with the state set to 'CREATING'.
+
         Returns the Image ID but the image can be accessed with obj.image
         """
 
         self.image = Image(
-            type =  Image.ImageType.GUEST,
+            image_type =  Image.ImageType.GUEST,
         )
         self.image.generate_id()
+        self.image.save()
         return self.image.image_id
     
 
@@ -58,31 +66,38 @@ class ImageManager:
         return self._register_image(path, name, description, tags)
 
 
-    def prepare_user_image(self, user:User) -> str:
+    def prepare_user_image(self, user:User, name:str, description:str, tags:dict = None) -> str:
         """Prepare a User image by instantiating an empty object with an ID which can then be later registered.
         Complete the image with finish_user_image().
+
+        This will create a relatively empty value in the database with the state set to 'CREATING'.
 
         Returns the Image ID but the image can be accessed with obj.image
         """
 
         self.image = Image(
-            type = Image.ImageType.USER,
-            account = user.account
+            image_type = Image.ImageType.USER,
+            account = user.account,
+            name = name,
+            description = description,
+            tags = tags if tags else {}
         )
+
         self.image.generate_id()
+        self.image.save()
         return self.image.image_id
     
 
-    def finish_user_image(self, path, name, description, tags:dict = None) -> str:
+    def finish_user_image(self, path) -> str:
         """Finishes a user image that was first prepared with prepare_user_image()."""
         if not self.image:
             logger.warn("Cannot finish an image that was not first prepared")
             raise ImagePrepError
         
-        return self._register_image(path, name, description, tags)
+        return self._register_image(path)
 
 
-    def _register_image(self, path:str, name:str, description:str, host="localhost", tags:dict=None):
+    def _register_image(self, path:str):
         # Check to see if a file exists at the provided path
         if not os.path.exists(path):
             logger.error(f"File does not exist at specified file path: {path}")
@@ -95,10 +110,6 @@ class ImageManager:
         
         self.image.image_path = path
         self.image.set_image_metadata()
-
-        self.image.name = name
-        self.image.description = description
-        self.image.tags = tags
 
         self.image.state = Image.State.AVAILABLE
 
@@ -113,12 +124,14 @@ class ImageManager:
         try:
             if image_id.startswith("vmi-"):
                 image:Image = Image.objects.get(
+                    image_type=Image.ImageType.USER,
                     image_id=image_id,
                     deactivated=False,
                     account=user.account
                 )
             elif image_id.startswith("gmi-"):
                 image:Image = Image.objects.get(
+                    image_type=Image.ImageType.GUEST,
                     image_id=image_id,
                     deactivated=False,
                 )
@@ -140,7 +153,7 @@ class ImageManager:
         destination_vm_img = destination_dir.absolute() / f"{file_name}.{img_format}"
 
         try:
-            logger.debug(f"Copying image: {img_path} TO directory {self.vm_dir} as {self.vm_db.instance_id}.{img_format}")
+            logger.debug(f"Copying image: {img_path} TO directory {destination_dir} as {destination_vm_img}")
             shutil.copy2(img_path, destination_vm_img)
         except FileNotFoundError:
             raise ImageCopyError("Encountered an error on image copy. Original image is not found. Cannot continue.")
@@ -157,3 +170,16 @@ class ImageManager:
 
     def delete_image(self):
         pass
+
+    
+    def __get_image_from_id(self, image_id:str) -> Image:
+        """Returns an image object from an image_id string belonging to an account, bypassing all
+        normal filters such as deactivated or user account."""
+        try:
+            return Image.objects.get(
+                    image_id=image_id,
+                )
+        except Image.DoesNotExist:
+            logger.debug(f"Did not find defined image with ID: {image_id}")
+            raise ImageDoesNotExistError()
+        

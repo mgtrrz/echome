@@ -15,8 +15,9 @@ class VirtTools(BaseCommander):
         :returns: boolean if the operation was successful.
         """
 
-        cmds = ['/usr/bin/virt-sysprep', '-a', file_name]
-        _, return_code = self.command(cmds,)
+        self.base_command = '/usr/bin/virt-sysprep'
+        cmds = ['-a', file_name]
+        _, return_code = self.command(cmds)
         if return_code == 0:
             return True
         else:
@@ -31,7 +32,8 @@ class VirtTools(BaseCommander):
         :returns: boolean if the operation was successful
         """
         
-        cmds = ['/usr/bin/virt-sparsify', '--in-place', file_name]
+        self.base_command = '/usr/bin/virt-sparsify'
+        cmds = ['--in-place', file_name]
         output, return_code = self.command(cmds)
         if return_code == 0:
             return True

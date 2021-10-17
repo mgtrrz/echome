@@ -66,6 +66,22 @@ class InstanceDefinition:
     def get_memory(self):
         return self.instanceSizes[self._class][self._size]["memory_megabytes"]
     
+    @property
+    def instance_class(self):
+        return self._class
+
+    @property
+    def instance_size(self): 
+        return self._size
+
+    @property
+    def cpu(self):
+        return self.instanceSizes[self._class][self._size]["cpu"]
+    
+    @property
+    def memory(self):
+        return self.instanceSizes[self._class][self._size]["memory_megabytes"]
+    
 
 class InvalidInstanceType(Exception):
     pass

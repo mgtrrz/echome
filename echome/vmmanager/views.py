@@ -6,6 +6,7 @@ from api.api_view import HelperView
 from .instance_definitions import InstanceDefinition, InvalidInstanceType
 from .models import VirtualMachine, Volume, Image
 from .serializers import VirtualMachineSerializer, VolumeSerializer, ImageSerializer
+from .image_manager import ImageManager
 from .vm_manager import VmManager
 from .tasks import task_create_image, task_stop_instance, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
@@ -182,15 +183,22 @@ class ModifyVM(HelperView, APIView):
             if missing_params := self.require_parameters(request, req_params):
                 return self.missing_parameter_response(missing_params)
             
+            image_manager = ImageManager()
+            new_vmi_id = image_manager.prepare_user_image(
+                request.user,
+                request.POST["Name"],
+                request.POST["Description"],
+                self.unpack_tags(request),
+            )
+            logger.debug(f"New VMI ID: {new_vmi_id}")
+            
             task_create_image.delay(
                 vm_id, 
                 request.user.user_id, 
-                request.POST["Name"],
-                request.POST["Description"],
-                self.unpack_tags(request)
+                prepared_id = new_vmi_id
             )
 
-            return self.request_success_response()
+            return self.request_success_response(new_vmi_id)
         else:
             return self.error_response(
                     "Unknown action",

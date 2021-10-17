@@ -70,11 +70,16 @@ class HelperView():
         return Response(msg, status=status.HTTP_200_OK)
 
     
-    def request_success_response(self) -> Response:
+    def request_success_response(self, new_id:str = None) -> Response:
         msg = {
             'request': 'Accepted',
             'success': True,
         }
+
+        if new_id:
+            msg['details'] = {
+                'resource_id': new_id
+            }
 
         return Response(msg, status=status.HTTP_200_OK)
 

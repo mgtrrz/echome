@@ -169,6 +169,10 @@ class VirtualMachineInstance():
 
 
     def get_vm_state(self):
+        """Alias of get_state(). This will be deprecated and removed."""
+        return self.get_state()
+
+    def get_state(self):
         """Get the state of the virtual machine as defined in libvirt."""
 
         domain = self.__get_libvirt_domain(self.id)

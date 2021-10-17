@@ -71,8 +71,8 @@ class VirtualMachine(models.Model):
 
 
     def set_instance_definition(self, instance_def:InstanceDefinition):
-        self.instance_type = instance_def.itype
-        self.instance_size = instance_def.isize
+        self.instance_type = instance_def.instance_class
+        self.instance_size = instance_def.instance_size
 
 
     def __str__(self) -> str:

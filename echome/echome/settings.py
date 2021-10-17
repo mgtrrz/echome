@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import dj_database_url
 from datetime import timedelta
+from celery.signals import setup_logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -119,6 +120,14 @@ DATABASES = {"default": dj_database_url.config(default='postgres://echome:echome
 
 
 CELERY_BROKER_URL = 'amqp://guest@rabbitmq//'
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
+
+@setup_logging.connect
+def configure_logging(sender=None, **kwargs):
+    import logging
+    import logging.config
+    logging.config.dictConfig(LOGGING)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
