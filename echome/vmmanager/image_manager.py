@@ -100,7 +100,7 @@ class ImageManager:
         self.image.description = description
         self.image.tags = tags
 
-        self.image.state = Image.State.READY
+        self.image.state = Image.State.AVAILABLE
 
         self.image.save()
         return self.image.image_id

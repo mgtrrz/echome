@@ -2,7 +2,7 @@ import xmltodict
 import logging
 from typing import List, Dict
 from dataclasses import dataclass, field
-from images.models import OperatingSystem
+from .models import OperatingSystem
 from .models import HostMachine
 
 logger = logging.getLogger(__name__)

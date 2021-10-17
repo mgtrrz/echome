@@ -21,6 +21,7 @@ from .exceptions import (
     VirtualMachineDoesNotExist, 
     VirtualMachineConfigurationError, 
     ImagePrepError,
+    ImageDoesNotExistError
 )
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ class VmManager:
         logger.debug("Preparing disk..")
         try:
             image:Image = self.get_image_from_id(image_id, self.user)
-        except InvalidImageId:
+        except ImageDoesNotExistError:
             raise
         
         # Copy our image to the destination directory

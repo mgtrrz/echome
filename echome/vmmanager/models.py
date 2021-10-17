@@ -129,7 +129,7 @@ class Image(models.Model):
 
     class State(models.TextChoices):
         CREATING = 'CREATING', 'Creating'
-        READY = 'READY', 'Ready'
+        AVAILABLE = 'AVAILABLE', 'Available'
         ERROR = 'ERROR', 'Error'
         DELETING = 'DELETING', 'Deleting'
         DELETED = 'DELETED', 'Deleted'
@@ -156,7 +156,7 @@ class Image(models.Model):
     @property
     def is_ready_for_use(self) -> bool:
         """Helper property to determine if the image can be used in a VM."""
-        return True if self.state == Image.State.READY else False
+        return True if self.state == Image.State.AVAILABLE and self.deactivated is False else False
 
 
     def generate_id(self):

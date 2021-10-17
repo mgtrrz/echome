@@ -252,18 +252,18 @@ class DeleteImage(HelperView, APIView):
 class DescribeImage(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, type:str, image_id:str):
+    def get(self, request, img_type:str, img_id:str):
         i = []
 
-        if type not in ["guest", "user"]:
+        if img_type not in ["guest", "user"]:
             return self.error_response(
                 "Unknown type",
                 status = status.HTTP_404_NOT_FOUND
             )
         
-        if type == "guest":
+        if img_type == "guest":
             try:
-                if image_id == "all":
+                if img_id == "all":
                     images = Image.objects.filter(
                         image_type=Image.ImageType.GUEST
                     )
@@ -271,7 +271,7 @@ class DescribeImage(HelperView, APIView):
                     images = []
                     images.append(Image.objects.get(
                         image_type=Image.ImageType.GUEST,
-                        image_id=image_id
+                        image_id=img_id
                     ))
                 
                 for image in images:

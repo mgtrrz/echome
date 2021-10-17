@@ -24,8 +24,8 @@ urlpatterns = [
     path('volume/describe/<str:vol_id>', DescribeVolume.as_view()),
     path('volume/terminate/<str:vol_id>', DeleteVolume.as_view()),
     path('volume/modify/<str:vol_id>', ModifyVolume.as_view()),
-    path('image/register', RegisterImage.as_view()),
-    path('image/describe/<str:img_id>', DescribeImage.as_view()),
-    path('volume/delete/<str:img_id>', DeleteImage.as_view()),
-    path('volume/modify/<str:img_id>', ModifyImage.as_view()),
+    path('image/guest/register', RegisterImage.as_view()),
+    path('image/<str:img_type>/describe/<str:img_id>', DescribeImage.as_view()),
+    path('image/<str:img_type>/delete/<str:img_id>', DeleteImage.as_view()),
+    path('image/<str:img_type>/modify/<str:img_id>', ModifyImage.as_view()),
 ]
