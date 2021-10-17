@@ -11,14 +11,11 @@ class VirtualMachineConfigurationError(Exception):
 class InvalidLaunchConfiguration(Exception):
     pass
 
-class ImagePrepError(Exception):
-    pass
-
 class LaunchError(Exception):
     pass
 
 # Image Model Exceptions
-class InvalidImageId(Exception):
+class ImageDoesNotExistError(Exception):
     pass
 
 class InvalidImagePath(Exception):
@@ -28,4 +25,10 @@ class ImageAlreadyExistsError(Exception):
     pass
 
 class UserImageInvalidUser(Exception):
+    pass
+
+class ImagePrepError(Exception):
+    pass
+
+class ImageCopyError(Exception):
     pass

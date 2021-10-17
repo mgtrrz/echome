@@ -1,18 +1,17 @@
-import pathlib
 import logging
 import shutil
 import base64
 import os
-from typing import List
+from pathlib import Path
 from echome.config import ecHomeConfig
 from commander.qemuimg import QemuImg
 from commander.virt_tools import VirtTools
 from identity.models import User
-from images.models import BaseImageModel, GuestImage, UserImage, InvalidImageId
 from network.models import VirtualNetwork
 from network.manager import VirtualNetworkManager
 from keys.models import UserKey
-from .models import VirtualMachine, HostMachine, Volume
+from .image_manager import ImageManager
+from .models import VirtualMachine, HostMachine, Volume, Image
 from .instance_definitions import InstanceDefinition
 from .cloudinit import CloudInit, CloudInitFailedValidation, CloudInitIsoCreationError
 from .vm_instance import VirtualMachineInstance
@@ -21,7 +20,7 @@ from .exceptions import (
     InvalidLaunchConfiguration, 
     VirtualMachineDoesNotExist, 
     VirtualMachineConfigurationError, 
-    ImagePrepError
+    ImagePrepError,
 )
 
 logger = logging.getLogger(__name__)
@@ -223,62 +222,12 @@ class VmManager:
         }
 
 
-    def get_image_from_id(self, image_id:str, user:User) -> BaseImageModel:
-        """Returns an image object from an image_id string"""
-        logger.debug("Determining image metadata..")
-        
-        # check if it's a user image
-        image = None
-        try:
-            image:UserImage = UserImage.objects.get(
-                account=user.account,
-                image_id=image_id,
-                deactivated=False
-            )
-            
-        except UserImage.DoesNotExist:
-            logger.debug(f"Did not find User defined image with ID: {image_id}")
-        
-        # Or a guest image
-        try:
-            image:GuestImage = GuestImage.objects.get(
-                image_id=image_id,
-                deactivated=False
-            )
-        except GuestImage.DoesNotExist:
-            logger.debug(f"Did not find Guest defined image with ID: {image_id}")
-        
-        if not image:
-            msg = "Provided ImageId does not exist."
-            logger.error(msg)
-            raise InvalidImageId(msg)
-        
-        return image
-    
-
-    def copy_image(self, image:BaseImageModel) -> str:
-        """Copy a guest or user image to the path. Returns the full path of the copied image."""
-        img_path = image.image_path
-        img_format = image.format
-
-        # Create a copy of the VM image
-        destination_vm_img = f"{self.vm_dir}/{self.vm_db.instance_id}.{img_format}"
-        try:
-            logger.debug(f"Copying image: {img_path} TO directory {self.vm_dir} as {self.vm_db.instance_id}.{img_format}")
-            shutil.copy2(img_path, destination_vm_img)
-        except:
-            raise LaunchError("Encountered an error on VM copy. Cannot continue.")
-
-        logger.debug(f"Final image: {destination_vm_img}")
-        return destination_vm_img
-
-
     def prepare_disk(self, image_id:str, disk_size:str = "10G") -> dict:
         """Given an image ID and disk size, will prepare a virtual disk for the VM."""
         # Get the image from the image id:
         logger.debug("Preparing disk..")
         try:
-            image:BaseImageModel = self.get_image_from_id(image_id, self.user)
+            image:Image = self.get_image_from_id(image_id, self.user)
         except InvalidImageId:
             raise
         
@@ -377,34 +326,30 @@ class VmManager:
             raise VirtualMachineDoesNotExist
 
 
-    def create_virtual_machine_image(self, vm_id:str, user:User, name:str, desc:str, tags:dict = {}):
-        """Create a virtual machine image to create new virtual machines from"""
-        account_id = user.account
+    def create_virtual_machine_image(self, vm_id:str, user:User, name:str, description:str, tags:dict = None):
+        """Create a virtual machine image to create new virtual machines from."""
+
+        logger.debug(f"Creating VMI from {vm_id}")
+
+        image_manager = ImageManager()
+        new_vmi_id = image_manager.prepare_user_image(user)
+        logger.debug(f"New VMI ID: {new_vmi_id}")
+
+
         vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
 
         vm_db = self.get_vm_db_from_id(vm_id)
-        image_id = self.get_image_from_id(vm_db.image_metadata['image_id'], user)
 
-        new_vmi = UserImage(
-            account=user.account,
-            name=name,
-            description=desc,
-            tags=tags,
-            os=image_id.os,
-        )
-        new_vmi.generate_id()
+        # Stop the instance (we can't copy a live machine, yet)
+        instance = VirtualMachineInstance(vm_id)
+        instance.stop()
 
-        logger.debug(f"Creating VMI from {vm_id}")
-        self.stop_instance(vm_id)
+        # Define the path to the account vmi directory & create it if doesn't exist
+        user_vmi_dir = Path(f"{VM_ROOT_DIR}/{user.account}/account_vmi")
+        user_vmi_dir.mkdir(parents=True, exist_ok=True)
 
-        user_vmi_dir = f"{VM_ROOT_DIR}/{account_id}/account_vmi"
-        # Create it if doesn't exist
-        pathlib.Path(user_vmi_dir).mkdir(parents=True, exist_ok=True)
-        current_image_full_path = f"{VM_ROOT_DIR}/{account_id}/{vm_id}/{vm_name}"
-        new_image_full_path = f"{user_vmi_dir}/{new_vmi.image_id}.qcow2"
-
-        new_vmi.image_path=new_image_full_path
-        new_vmi.save()
+        current_image_full_path = Path(f"{vm_db.path}/{vm_name}")
+        new_image_full_path = user_vmi_dir / f"{new_vmi_id}.qcow2"
 
         # Copy the image to the new VM directory
         if not QemuImg().convert(current_image_full_path, new_image_full_path):
@@ -418,10 +363,9 @@ class VmManager:
         if not VirtTools().sparsify(new_image_full_path):
             raise ImagePrepError("Failed copying image with VirtTools() sparsify")
         
-        new_vmi.status = BaseImageModel.Status.READY
-        new_vmi.save()
+        image_manager.finish_user_image(new_image_full_path, name, description, tags)
 
-        return {"vmi_id": new_vmi.image_id}
+        return {"vmi_id": new_vmi_id}
         
 
     def try_get_database_object(self, vm_id:str, user:User):
@@ -465,7 +409,7 @@ class VmManager:
         vm_path = f"{VM_ROOT_DIR}/{self.user.account}/{self.vm_db.instance_id}"
         logger.debug(f"Generated VM Path: {vm_path}. Creating..")
         try:
-            pathlib.Path(vm_path).mkdir(parents=True, exist_ok=False)
+            Path(vm_path).mkdir(parents=True, exist_ok=False)
             logger.info(f"Created VM Path: {vm_path}")
             return vm_path
         except:

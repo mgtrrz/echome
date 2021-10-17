@@ -149,7 +149,14 @@ class Image(models.Model):
 
     @property
     def format(self):
+        """Helper property for retrieving the format from the image metadata."""
         return self.metadata["format"]
+
+
+    @property
+    def is_ready_for_use(self) -> bool:
+        """Helper property to determine if the image can be used in a VM."""
+        return True if self.state == Image.State.READY else False
 
 
     def generate_id(self):
