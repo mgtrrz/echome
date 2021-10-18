@@ -2,6 +2,7 @@ import logging
 import yaml
 import json
 import sys
+import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from echome.config import ecHomeConfig
@@ -96,7 +97,7 @@ class CloudInit:
         return contents
     
 
-    def generate_userdata_config(self, vm_id: str, public_keys: list = None, user_data_script = None):
+    def generate_userdata_config(self, public_keys: list = None, user_data_script = None):
         """Generate Cloudinit Userdata config yaml
 
         Generates a basic cloudinit config with hostname and public key entries. The only
@@ -104,7 +105,6 @@ class CloudInit:
         be left blank.
 
         Args:
-            vm_id (str): Virtual Machine Id. Used to fill the hostname if Hostname is not provided.
             public_keys (list, optional): Public key to attach to the virtual machine. If not used, no SSH key will
             be provided. Defaults to None.
             user_data_script (str, optional): User-data shell script to boot the instance with. Defaults to None.
@@ -133,9 +133,11 @@ class CloudInit:
 
         if user_data_script:
             logger.debug("UserData script is included in request, making multipart file..")
+            base64_bytes = user_data_script.encode('utf-8')
+
             sub_messages = []
             format = 'x-shellscript'
-            sub_message = MIMEText(user_data_script, format, sys.getdefaultencoding())
+            sub_message = MIMEText(base64.b64decode(base64_bytes).decode('utf-8'), format, sys.getdefaultencoding())
             sub_message.add_header('Content-Disposition', 'attachment; filename="shellscript.sh"')
             content_type = sub_message.get_content_type().lower()
             if content_type not in KNOWN_CONTENT_TYPES:
@@ -155,6 +157,8 @@ class CloudInit:
             for msg in sub_messages:
                 combined_message.attach(msg)
             logger.debug(combined_message)
+            self.userdata_config = str(combined_message)
+            self._write_file(USERDATA_CONFIG_FILE_NAME, str(combined_message))
             return str(combined_message)
 
         self.userdata_config = yaml_config
@@ -219,10 +223,11 @@ class CloudInit:
             metadata_file = None
         
         # Validate the yaml file
-        logger.debug("Validating Cloudinit config yaml.")        
-        if not CloudInitCommand().validate_schema(userdata_file):
-            logger.exception("Failed validating Cloudinit config yaml")
-            raise CloudInitFailedValidation
+        
+        # logger.debug("Validating Cloudinit config yaml.")        
+        # if not CloudInitCommand().validate_schema(userdata_file):
+        #     logger.exception("Failed validating Cloudinit config yaml")
+        #     raise CloudInitFailedValidation
 
         # This is the final path for the cloud_init disk image to be mounted
         # onto the VMs

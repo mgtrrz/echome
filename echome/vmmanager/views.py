@@ -64,6 +64,7 @@ class CreateVM(HelperView, APIView):
                 DiskSize=disk_size,
                 EnableVnc=True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
                 VncPort=request.POST["VncPort"] if "VncPort" in request.POST else None,
+                UserDataScript=request.POST["UserDataScript"] if "UserDataScript" in request.POST else None
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)

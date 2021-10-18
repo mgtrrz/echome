@@ -163,7 +163,6 @@ class VmManager:
         # Generate the cloudinit Userdata
         # This includes the public keys and user data scripts if any exist.
         self.cloudinit.generate_userdata_config(
-            vm_id = self.vm_db.instance_id,
             public_keys = [public_key],
             user_data_script = kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
         )

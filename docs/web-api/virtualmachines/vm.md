@@ -8,13 +8,15 @@
 
 ### POST 
 
-#### Required Parameters
+#### Parameters
+
+##### Required
 
 - ImageId
 - InstanceType
 - NetworkProfile
 
-##### Optional Parameters
+##### Optional
 
 - KeyName
 - PrivateIp
