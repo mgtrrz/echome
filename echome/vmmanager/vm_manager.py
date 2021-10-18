@@ -362,7 +362,7 @@ class VmManager:
         new_image_full_path = user_vmi_dir / f"{new_vmi_id}.qcow2"
 
         # Copy the image to the new VM directory
-        if not QemuImg().convert(current_image_full_path, new_image_full_path):
+        if not QemuImg().convert(current_image_full_path, new_image_full_path, 'qcow2'):
             raise ImagePrepError("Failed copying image with QemuImg() convert")
 
         # Revert the state of the VM (if it was running, turn it back on)
