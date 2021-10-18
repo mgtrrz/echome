@@ -228,7 +228,7 @@ class VmManager:
         logger.debug("Preparing disk..")
         img_mgr = ImageManager()
         try:
-            image:Image = img_mgr.get_image_from_id(image_id, self.vm_db.path)
+            image:Image = img_mgr.get_image_from_id(image_id, self.user)
         except ImageDoesNotExistError:
             raise
         
@@ -467,6 +467,8 @@ class VmManager:
         if self.cloudinit:
             del self.cloudinit
         del self.vm_db
+        if self.instance:
+            del self.instance
 
 
     def _del_disks(self, instance:VirtualMachineInstance):
