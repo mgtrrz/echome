@@ -269,8 +269,8 @@ class DescribeImage(HelperView, APIView):
                 status = status.HTTP_404_NOT_FOUND
             )
         
-        if img_type == "guest":
-            try:
+        try:
+            if img_type == "guest":
                 if img_id == "all":
                     images = Image.objects.filter(
                         image_type=Image.ImageType.GUEST
@@ -281,15 +281,28 @@ class DescribeImage(HelperView, APIView):
                         image_type=Image.ImageType.GUEST,
                         image_id=img_id
                     ))
-                
-                for image in images:
-                    i.append(ImageSerializer(image).data)
-            except Image.DoesNotExist as e:
-                logger.debug(e)
-                return self.not_found_response()
-            except Exception as e:
-                logger.exception(e)
-                return self.internal_server_error_response()
+            elif img_type == "user":
+                if img_id == "all":
+                    images = Image.objects.filter(
+                        image_type=Image.ImageType.USER,
+                        account=request.user.account,
+                    )
+                else:
+                    images = []
+                    images.append(Image.objects.get(
+                        image_type=Image.ImageType.USER,
+                        image_id=img_id,
+                        account=request.user.account,
+                    ))
+            
+            for image in images:
+                i.append(ImageSerializer(image).data)
+        except Image.DoesNotExist as e:
+            logger.debug(e)
+            return self.not_found_response()
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
 
         return self.success_response(i)
 

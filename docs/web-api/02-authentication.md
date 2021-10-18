@@ -1,4 +1,4 @@
-# ecHome API - Authentication
+# ecHome Web API - Authentication
 
 Ensure you have your access key ID and secret handy. Your username and password will not work with the API.
 
