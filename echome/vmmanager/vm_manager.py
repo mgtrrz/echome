@@ -83,18 +83,12 @@ class VmManager:
             raise InvalidLaunchConfiguration(msg)
         
         # Create our VirtualMachine Database object
-        vm_db = VirtualMachine(
-            account=user.account,
-        )
-        vm_db.set_instance_definition(instance_def)
-        vm_db.generate_id()
-
-        logger.info(f"Generated vm-id: {vm_db.instance_id}")
-        self.vm_db = vm_db
+        self.prepare_vm_db(user, instance_def, kwargs["Tags"] if "Tags" in kwargs else {})
+        
         self.user = user
 
         try:
-            result = self._create_virtual_machine(vm_db, instance_def, **kwargs)
+            result = self._create_virtual_machine(instance_def, **kwargs)
         except InvalidLaunchConfiguration as e:
             logger.error(f"Launch Configuration error: {e}")
             self._clean_up(user, self.vm_db.instance_id)
@@ -114,14 +108,9 @@ class VmManager:
         return result
 
 
-    def _create_virtual_machine(self, vm_db:VirtualMachine, instance_def:InstanceDefinition, **kwargs):
+    def _create_virtual_machine(self, instance_def:InstanceDefinition, **kwargs):
         """Actual method that creates a virtual machine."""
         logger.debug(kwargs)
-
-        # Creating the directory for the virtual machine
-        self.vm_dir = self.__generate_vm_path()
-        vm_db.path = self.vm_dir
-        vm_db.save()
 
         # Create our new VirtualMachineInstance
         self.instance = VirtualMachineInstance()
@@ -139,7 +128,6 @@ class VmManager:
         # Prepare some variables
         private_ip:str  = kwargs["PrivateIp"] if "PrivateIp" in kwargs else None
         key_name:str    = kwargs["KeyName"] if "KeyName" in kwargs else None
-        tags:dict       = kwargs["Tags"] if "Tags" in kwargs else {}
         enable_vnc:bool = True if "EnableVnc" in kwargs and kwargs["EnableVnc"] == "true" else False
         vnc_port:str    = kwargs["VncPort"] if "VncPort" in kwargs else None
 
@@ -190,15 +178,13 @@ class VmManager:
             
         # Generate the virtual machine XML document and (try to) launch our VM!
         self.instance.configure_core(instance_def)
-        self.instance.define(vm_db)
+        self.instance.define(self.vm_db)
         self.instance.start()
 
         # Add the information for this VM in the db
         self.vm_db.storage = {}
         self.vm_db.metadata = metadata
-        self.vm_db.tags = tags
-        self.vm_db.state = VirtualMachine.State.AVAILABLE
-        self.vm_db.save()
+        self.finish_vm_db()
 
         logger.debug(f"Successfully created VM: {self.vm_db.instance_id} : {self.vm_dir}")
         return self.vm_db.instance_id
@@ -416,6 +402,36 @@ class VmManager:
             vm_db.delete()
 
         return True
+    
+
+    def prepare_vm_db(self, user:User, instance_def:InstanceDefinition, tags:dict = {}) -> str:
+        """Prepare the virtual machine Database object. Use finish_vm_db() to finalize the DB details."""
+        vm_db = VirtualMachine(
+            account=user.account,
+            tags=tags
+        )
+        vm_db.set_instance_definition(instance_def)
+        vm_db.generate_id()
+
+        logger.info(f"Generated vm-id: {vm_db.instance_id}")
+        self.vm_db = vm_db
+
+        # Creating the directory for the virtual machine
+        self.vm_dir = self.__generate_vm_path()
+        self.vm_db.path = self.vm_dir
+
+        self.vm_db.save()
+
+        return vm_db.instance_id
+    
+
+    def finish_vm_db(self):
+        if not self.vm_db:
+            raise VirtualMachineConfigurationError("No vm_db object to finish db with.")
+        
+        self.vm_db.state = VirtualMachine.State.AVAILABLE
+        self.vm_db.save()
+        
 
 
     def __generate_vm_path(self):
