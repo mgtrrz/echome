@@ -3,6 +3,7 @@ import xmltodict
 import logging
 import time
 from typing import List, Dict
+from echome.vmmanager.vm_manager import VmManager
 from network.models import VirtualNetwork
 from .models import Volume, VirtualMachine
 from .instance_definitions import InstanceDefinition
@@ -17,14 +18,17 @@ class VirtualMachineInstance():
     id: str
     virsh_domain:libvirt.virDomain = None
 
-    core: KvmXmlCore
-    virtual_disks: Dict[str, KvmXmlDisk] = {}
+    core: KvmXmlCore = None
+    virtual_disks: Dict[str, KvmXmlDisk] = None
     virtual_network: KvmXmlNetworkInterface = None
-    removable_media: List[KvmXmlRemovableMedia] = []
+    removable_media: List[KvmXmlRemovableMedia] = None
     vnc: KvmXmlVncConfiguration = None
 
     def __init__(self, vm_id:str = None):
         self.libvirt_conn = libvirt.open('qemu:///system')
+
+        self.virtual_disks = {}
+        self.removable_media = []
         
         # If an ID is supplied, lets build the instance using info from the current
         # VM instance
@@ -36,10 +40,6 @@ class VirtualMachineInstance():
 
             self.id = vm_id
             self._build_config_from_xml()
-
-
-    def __del__(self):
-        self.libvirt_conn.close()
 
     
     def _build_config_from_xml(self):
@@ -299,6 +299,11 @@ class VirtualMachineInstance():
         else:
             return "GenericInstance"
     
+
+    def __del__(self):
+        logger.debug("Deleting VirtualMachineInstance object")
+        logger.debug("Closing libvirt connection")
+        self.libvirt_conn.close()
 
 
 

@@ -45,6 +45,10 @@ CLEAN_UP_ON_FAIL = os.getenv("VM_CLEAN_UP_ON_FAIL", 'true').lower() == 'true'
 
 class VmManager:
 
+    cloudinit:CloudInit = None
+    vm_db:VirtualMachine = None
+    instance:VirtualMachineInstance = None
+
     def create_vm(self, user: User, instance_def:InstanceDefinition, **kwargs):
         """Create a virtual machine
         This function does not create the VM but instead passes all of the arguments to the internal
@@ -82,11 +86,15 @@ class VmManager:
             logger.error(msg)
             raise InvalidLaunchConfiguration(msg)
         
-        # Create our VirtualMachine Database object
-        self.prepare_vm_db(user, instance_def, kwargs["Tags"] if "Tags" in kwargs else {})
-        
         self.user = user
 
+        # Create our VirtualMachine Database object
+        instance_id = self.prepare_vm_db(user, instance_def, kwargs["Tags"] if "Tags" in kwargs else {})
+
+        # Creating the directory for the virtual machine
+        self.vm_dir = self.__generate_vm_path(user.account, instance_id)
+        self.vm_db.path = self.vm_dir
+        
         try:
             result = self._create_virtual_machine(instance_def, **kwargs)
         except InvalidLaunchConfiguration as e:
@@ -219,7 +227,7 @@ class VmManager:
             raise
         
         # Copy our image to the destination directory
-        image_iso_path = img_mgr.copy_image(image, Path(self.vm_db.path), self.vm_db.instance_id)
+        image_iso_path = img_mgr.copy_image(image, Path(self.vm_dir), self.vm_db.instance_id)
 
         new_vol = Volume(
             account=self.user.account,
@@ -344,7 +352,7 @@ class VmManager:
         user_vmi_dir = Path(f"{VM_ROOT_DIR}/{user.account}/account_vmi")
         user_vmi_dir.mkdir(parents=True, exist_ok=True)
 
-        current_image_full_path = Path(f"{vm_db.path}/{vm_name}")
+        current_image_full_path = Path(f"{self.vm_dir}/{vm_name}")
         new_image_full_path = user_vmi_dir / f"{new_vmi_id}.qcow2"
 
         # Copy the image to the new VM directory
@@ -408,18 +416,13 @@ class VmManager:
         """Prepare the virtual machine Database object. Use finish_vm_db() to finalize the DB details."""
         vm_db = VirtualMachine(
             account=user.account,
-            tags=tags
+            tags=tags,
         )
         vm_db.set_instance_definition(instance_def)
         vm_db.generate_id()
 
         logger.info(f"Generated vm-id: {vm_db.instance_id}")
         self.vm_db = vm_db
-
-        # Creating the directory for the virtual machine
-        self.vm_dir = self.__generate_vm_path()
-        self.vm_db.path = self.vm_dir
-
         self.vm_db.save()
 
         return vm_db.instance_id
@@ -434,9 +437,9 @@ class VmManager:
         
 
 
-    def __generate_vm_path(self):
+    def __generate_vm_path(self, user_account:str, instance_id:str):
         """Create a path for the virtual machine files to be created in"""
-        vm_path = f"{VM_ROOT_DIR}/{self.user.account}/{self.vm_db.instance_id}"
+        vm_path = f"{VM_ROOT_DIR}/{user_account}/{instance_id}"
         logger.debug(f"Generated VM Path: {vm_path}. Creating..")
         try:
             Path(vm_path).mkdir(parents=True, exist_ok=False)
@@ -481,9 +484,15 @@ class VmManager:
         """Clean up objects for memory management"""
         logger.debug("Deleting objects")
         if self.cloudinit:
+            logger.debug("Deleting self.cloudinit")
             del self.cloudinit
-        del self.vm_db
+
+        if self.vm_db:
+            logger.debug("Deleting self.vm_db")
+            del self.vm_db
+
         if self.instance:
+            logger.debug("Deleting self.instance")
             del self.instance
 
 
