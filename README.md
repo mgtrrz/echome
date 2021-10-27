@@ -2,9 +2,15 @@
 
 Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
 
-This is a work-in-progress and the installation steps only support Ubuntu 18.04.
+ecHome is an easy to deploy python docker application designed to run and manage virtual machines while exposing an HTTP API that allows management of various aspects of ecHome. It's responsible for managing virtual machines, ssh keys, images, users, and more while being easier to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
 
-Changes will be continuously pushed to **Master** until I feel that we've reached a point with features where we can put in a version number. However, if there's any objection to that, please let me know. 
+When fully setup, you can create a virtual machine in seconds from any other computer in your home with a simple command:
+
+```
+echome vm create --image-id gmi-492384f --instance-size standard.small --network-profile home-network --key my-ssh-key --disk-size 30G --name openvpn
+```
+
+This is a currently a work-in-progress and API endpoints may change with any release.
 
 If there's any issues, bugs, or features you'd like to see, please use the Issues tab above.
 
@@ -13,22 +19,15 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 ### Application Requirements
 
 * A clean Ubuntu 18.04 installation
-* Python 3.6
-* Postgres 11
+* Docker
 * QEMU 2.11
 
-The installation script will install Python, Postgres, QEMU, and the necessary packages for you.
-
 A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT repository only has version 2.11. In the future, we'll look into installing and utilizing more recent QEMU versions. For now, we're focusing on a lot of the base functionality.
-
-When launching Kubernetes clusters, ecHome depends on Docker and Hashicorp Vault.
 
 ### Server Requirements
 
 * Virtualization enabled in the BIOS for your Intel/AMD CPU.
 * Enough disk space for guest images and your virtual machines
-
-In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 GB RAM. I have not yet tested this with a modern Intel processor. There will likely need to be some modifications to the XML templates before they'll work with Intel processors.
 
 If you're using secondary drives, mount your storage before installation and ensure that they're setup to mount automatically on boot.
 
@@ -78,40 +77,9 @@ qcow2 images work best for what we're doing. But any image type should work.
 
 ### Backend/API
 
-At the root of the stack is the API. The API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
+ecHome is a Python django application with Postgres as the database backend and Rabbitmq as the message queuing service. At the root of the stack is the API. The API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
 
-ecHome uses the `libvirt-python` library to coordinate virtual machine management with the Libvirt API. The `VmManager` class in `./echome/backend/vm_manager.py` has methods that create, terminate, and get information about a virtual machine using Libvirt.
-
-In front of the API is UWSGI and Nginx that serves requests to the ecHome API and the instance metadata API.
-
-Code for all of the services exists in `./echome/backend/`
-
-#### Running the API in debug mode.
-
-Navigate to the `./echome/` directory and run `virtualenv --python=python3.6 venv`. Activate the environment by running `source venv/bin/activate`. Install the requirements with `pip install -r ./requirements.txt`. Finally, start the API with `python api.py`.
-
-Test connectivity by `curl`ing to your server IP address at the port listed in the `api.py` file which by default is `5000`:
-
-```
-$ curl 172.16.9.6:5000/v1/ping
-{
-  "response": "pong"
-}
-```
-
-In ecHome's current iteration, there is no user authentication and all implemented ecHome requests can be made to the server.
-
-You can interact with the HTTP API directly to manage your ecHome host. An example request to create a virtual machine with the HTTP API would look like:
-
-```
-$ curl 172.16.9.6:5000/v1/vm/create\?ImageId=gmi-fc1c9a62 \
- \&InstanceSize=standard.small \
- \&NetworkProfile=home-lan \
- \&PrivateIp=172.16.9.10\
- \&KeyName=echome
-```
-
-However, it's preferred you use the Python-SDK (programmatic) or the CLI to do everything you need. 
+Documentation can be found [here](docs/web-api/01-introduction.md). Code for all of the services exists in `./echome/`
 
 ### Python-SDK
 
@@ -119,56 +87,6 @@ The Python SDK allows for managing aspects of ecHome by importing the library. T
 
 Code for this library exists in the [echome-python-sdk repository](https://github.com/mgtrrz/echome-python-sdk). Install the library with `pip install echome-sdk`.
 
-#### Example code
-
-An example for interacting with the SDK:
-
-```
-from echome import Session, Vm, Images, SshKey
-
-import json
-
-vm_client = Session().client("Vm")
-
-vms = vm_client.describe_all()
-print("VMs__________________________________")
-for vm in vms:
-    name = vm["tags"]["Name"] if "Name" in vm["tags"] else ""
-    print(f"{vm['instance_id']}\t{name}")
-
-guest_images = Session().client("Images").guest().describe_all()
-print("\nGuest Images_______________________")
-for guest_img in guest_images:
-    print(f"{guest_img['guest_image_id']}\t{guest_img['name']}")
-
-
-ssh_keys = Session().client("SshKey").describe_all()
-print("\nSSH Keys___________________________")
-for sshkey in ssh_keys:
-    print(f"{sshkey['key_id']}\t{sshkey['key_name']}\t{sshkey['fingerprint']}")
-
-```
-
-```
-python3 test_script.py 
-VMs__________________________________
-vm-a8b30fda     ubiquiti controller
-vm-b49c2840     ansible_host
-vm-29b73556     kubernetes_master
-vm-2bfecdf6     kubernetes_worker_1
-vm-2e10d36e     kubernetes_worker_2
-
-Guest Images_______________________
-gmi-d60beeba    Ubuntu 16.04 Server
-gmi-fc1c9a62    Ubuntu 18.04 Server
-gmi-1326e63a    Windows 10 May 2020 64-bit
-gmi-6341042a    Windows Server 2020 R2 Standard Eval 64-bit
-
-SSH Keys___________________________
-key-5393842a    example_key     MD5:98:6c:0f:e5:fb:cb:74:5d:fa:f8:3c:f1:03:e3:35:5b
-key-91c8cbd8    test_key        MD5:62:dd:13:e9:7f:a9:be:23:cf:df:64:ac:4b:63:77:d9
-key-8ff552b8    echome  MD5:d4:d2:12:d3:95:81:9a:10:ba:43:43:15:45:08:a7:bc
-```
 
 ### CLI
 
@@ -212,13 +130,6 @@ $ echome sshkeys describe test_key --format json
 ]
 ```
 
-### Frontend/Web-Interface
-
-Note: Not yet implemented
-
-Web interface that communicates to the Backend/API to manage ecHome. Javascript running on the page will be responsible for making the HTTP requests directly to the API.
-
-Code for this service exists in `./echome/web/`
 
 ## Authors
 
