@@ -1,10 +1,15 @@
 from django.urls import path
-from .views import *
+from .views import (
+    CreateKubeCluster,
+    DescribeKubeCluster,
+    TerminateKubeCluster,
+    ModifyKubeCluster,
+)
 
 app_name = 'kube'
 urlpatterns = [
-    # path('create', CreateNetwork.as_view()),
-    # path('describe/<str:net_id>', DescribeNetwork.as_view()),
-    # path('terminate/<str:net_id>', TerminateNetwork.as_view()),
-    # path('modify/<str:net_id>', ModifyNetwork.as_view()),
+    path('cluster/create', CreateKubeCluster.as_view()),
+    path('cluster/describe/<str:cluster_id>', DescribeKubeCluster.as_view()),
+    path('cluster/terminate/<str:cluster_id>', TerminateKubeCluster.as_view()),
+    path('cluster/modify/<str:cluster_id>', ModifyKubeCluster.as_view()),
 ]

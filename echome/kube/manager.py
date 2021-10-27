@@ -2,7 +2,7 @@ import logging
 import docker
 from identity.models import User
 from vmmanager.instance_definitions import InstanceDefinition
-from vmmanager.manager import VmManager
+from vmmanager.vm_manager import VmManager
 from keys.manager import UserKeyManager
 from echome.id_gen import IdGenerator
 from echome.config import ecHomeConfig
@@ -200,6 +200,12 @@ class KubeClusterManager:
         )
 
         return cluster_id
+
+    
+    def generate_kubernetes_image(self):
+        """Creates a Kubernetes image with kubeadm that will be used to launch clusters."""
+        
+        pass
     
     # otp = one time policy
     def _generate_vault_policy_otp(self, path:str):
@@ -209,8 +215,3 @@ path "kubesvc/data/%s/*" {
 }
 """ % path
 
-class ClusterDoesNotExist(Exception):
-    pass
-
-class ServerError(Exception):
-    pass
