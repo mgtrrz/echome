@@ -2,24 +2,36 @@
 
 Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
 
-This is a work-in-progress and the installation steps only support Ubuntu 18.04.
+ecHome is an easy to deploy python docker application designed to run and manage virtual machines while exposing an HTTP API that allows management of various aspects of ecHome. It's responsible for managing virtual machines, ssh keys, images, users, and more while being much simpler to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
 
-Changes will be continuously pushed to **Master** until I feel that we've reached a point with features where we can put in a version number. However, if there's any objection to that, please let me know. 
+When fully setup, you can create a virtual machine in seconds from any other computer in your home with a single command:
+
+```
+echome vm create --image-id gmi-492384f \
+    --instance-size standard.small --network-profile home-network \
+    --key my-ssh-key --disk-size 30G --name openvpn
+```
 
 If there's any issues, bugs, or features you'd like to see, please use the Issues tab above.
 
+## Features
+
+* Launch a virtual machine of your flavor linux distribution in seconds.
+* Launch virtual machines with IPs in your home-network that will allow them to be seen by other guests, perfect for home environments and running applications such as Pihole or Homebridge.
+* Customize your own virtual machines and create images of them to later launch your prepared VM.
+* Add SSH scripts as user-data to your virtual machines that run on first-boot.
+* Create, upload, and manage SSH keys that can be automatically imported to any linux instances that are launched.
+* Launch and manage your own kubernetes clusters in a few minutes
+* ecHome CLI makes it easy to manage and view several aspects of your environment from any computer within your network in the terminal.
+* Use the Python SDK to manage your environment with code or use the web API to work in any other language you prefer.
+
+
+## Safety
+
+ecHome isn't designed to run in a public cloud or in a datacenter. Do not expose any ports of your ecHome installation to the outside world and only use within a home network. While ecHome requires authentication before making any changes, the safer option is to access your environment from outside by using a VPN to get into your home network. Treat any VM in your environment as you would an unauthorized computer and making sure that all VMs and its packages are up-to-date.
+
+
 ## Requirements
-
-### Application Requirements
-
-* A clean Ubuntu 18.04 installation
-* Python 3.6
-* Postgres 11
-* QEMU 2.11
-
-The installation script will install Python, Postgres, QEMU, and the necessary packages for you.
-
-A Note on the QEMU version: QEMU is up to version 5, however, Ubuntu 18.04's APT repository only has version 2.11. In the future, we'll look into installing and utilizing more recent QEMU versions. For now, we're focusing on a lot of the base functionality.
 
 When launching Kubernetes clusters, ecHome depends on Docker and Hashicorp Vault.
 
@@ -32,47 +44,19 @@ In my lab/setup, I am running a Ryzen 5 1600 (6 core, 12 thread) server with 32 
 
 If you're using secondary drives, mount your storage before installation and ensure that they're setup to mount automatically on boot.
 
+### Operating System Requirements
+
+* A clean Ubuntu 20.04 installation
+
+The installation script will take care of installing the other required components:
+
+* Docker
+* KVM-QEMU
+* Libvirt
+
 ## Installation
 
-The `./host_server_setup.sh` script is currently set up to run as if you'll develop on the server, meaning it'll git clone (ssh) the echome repo and symlink some directories to `echome`'s user/app directory. In the future, installation will move files into their own places but this will work for now.
-
-Setup a clean install of Ubuntu 18.04 on your server to start and generate an ssh key with `ssh-keygen` for your user (not root). Add your public key to your Github profile.
-
-Grab the `host_server_setup.sh` script and run it on the machine with sudo.
-
-```
-~$ sudo apt update && sudo apt upgrade
-
-~$ wget https://raw.githubusercontent.com/mgtrrz/echome/master/host_server_setup.sh -O host_server_setup.sh
-~$ chmod +x host_server_setup.sh
-~$ ./host_server_setup.sh
-```
-
-Setup a bridge network on your ubuntu server with the name 'br0'. Example guide here:
-https://fabianlee.org/2019/04/01/kvm-creating-a-bridged-network-with-netplan-on-ubuntu-bionic/
-
-Set up two new directories for guest images and user accounts. These can be defined anywhere but must be accessible and writable to the echome user.
-
-Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
-
-### Post setup
-
-Grab your cloud images and place them into your `guestimages` directory. In this example, I'm grabbing the Ubuntu 18.04 cloud image from Ubuntu's [Cloud Image directories](https://cloud-images.ubuntu.com/). Download the `amd64` architecture image, being careful to avoid `arm64`:
-
-```
-echome:/mnt/nvme/guestimages$ wget https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
-
-# You can confirm the image type by running qemu-img
-
-echome:/mnt/nvme/guestimages$ qemu-img info bionic-server-cloudimg-amd64.img
-image: bionic-server-cloudimg-amd64.img
-file format: qcow2
-virtual size: 2.2G (2361393152 bytes)
-disk size: 330M
-cluster_size: 65536
-```
-
-qcow2 images work best for what we're doing. But any image type should work.
+See the [Installation document](docs/installation/01-install.md) for steps on installing and configuring ecHome to your server.
 
 ## Components
 

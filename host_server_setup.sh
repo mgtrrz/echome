@@ -23,98 +23,23 @@ echo ": Updating/upgrading packages"
 sudo apt update && sudo apt upgrade -y
 
 echo ": Installing packages"
-sudo apt install -y qemu-kvm libvirt-bin libvirt-dev virtinst bridge-utils cpu-checker libguestfs-tools jq ovmf pkg-config bridge-utils cloud-image-utils
-sudo apt install -y postgresql postgresql-contrib postgresql-server-dev-10
-sudo apt install -y python3-pip virtualenv nginx
+#sudo apt install -y qemu-kvm libvirt-bin libvirt-dev virtinst bridge-utils cpu-checker libguestfs-tools jq ovmf pkg-config bridge-utils cloud-image-utils
+#sudo apt install -y postgresql postgresql-contrib postgresql-server-dev-10
+#sudo apt install -y python3-pip virtualenv nginx
 
-echo ": Installing Vault"
-curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-sudo apt-get update && sudo apt-get install vault
+sudo apt install -y qemu-kvm bridge-utils openvswitch-switch
 
-# This application to be installed in:
-# /opt/echome/
-
-sudo useradd -m -d /opt/echome -G lxd,kvm,libvirt,sudo echome
-#sudo usermod -s /usr/sbin/nologin echome
-
-echo '# User rules for ecHome' | sudo tee -a /etc/sudoers.d/echome
-echo 'echome ALL=(ALL) NOPASSWD:ALL' | sudo tee -a /etc/sudoers.d/echome
 
 # Determine if host is ready for virtualization
-sudo virt-host-validate qemu
-sudo virt-host-validate lxc
+# sudo virt-host-validate qemu
+# sudo virt-host-validate lxc
 
 # Development specific steps:
-echo ": Moving app files into place."
-echo "    Cloning git directory."
-cd ~
-git clone ${git_url}
-cd echome/
-echome_dir=$(pwd)
-
-sudo -u echome -H bash -c "cd /opt/echome; ln -s ${echome_dir}/echome ./app"
-
-echo "    Assigning echome to developers group, correcting permissions."
-# Add the echome user and your user to the Developers group to allow access to the echome app directory
-sudo groupadd Developers 
-sudo usermod -a -G Developers echome
-sudo usermod -a -G Developers ${USER}
-sudo chgrp -R Developers ${echome_dir}/echome
 
 # Database/config files for echome
-echo ": Moving database configuration files into place."
-sudo mkdir -pv /etc/echome/services/
-sudo cp ${echome_dir}/echome.ini.template /etc/echome/echome.ini
-sudo chown -R echome. /etc/echome
-
-# Logging in /var/log
-sudo mkdir -pv /var/log/echome/
-sudo chown echome. /var/log/echome/
-
-# Create PSQL user with random password for echome
-psqlpass=$(openssl rand -base64 20)
-
-echo "    Setting up PostgreSQL user."
-sudo -u postgres bash -c "psql -c \"CREATE USER echome WITH PASSWORD '${psqlpass}';\""
-sudo -u postgres bash -c "psql -c \"CREATE DATABASE echome;\""
-sudo -u postgres bash -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE echome to echome;\""
-
-sudo -u echome bash -c "sed -i 's#url=PSQLADDR#url=postgresql://echome:${psqlpass}@localhost/echome#' /etc/echome/echome.ini"
-
-echo ": Creating virtualenv for ecHome."
-sudo -u echome -H bash -c "cd /opt/echome/app; virtualenv -p python3 venv;"
-echo ":    Installing requirements via pip"
-sudo -u echome -H bash -c "cd /opt/echome/app; source venv/bin/activate; pip install -r ./requirements.txt"
-
-# uwsgi and nginx configuration
-echo
-echo ": Setting uwsgi and nginx"
-sudo mkdir -pv /run/echome/
-sudo chown echome. /run/echome/
-
-echo ":   Copying services uwsgi files.."
-sudo cp "${echome_dir}/system/etc/emperor.ini" /etc/echome/
-sudo cp "${echome_dir}/system/etc/services/echome_metadata_uwsgi.ini" /etc/echome/services/
-sudo cp "${echome_dir}/system/etc/services/echome_uwsgi.ini" /etc/echome/services/
-
-sudo cp "${echome_dir}/system/echome.service" /etc/systemd/system/
-
-echo ":   Copying nginx files.."
-sudo cp "${echome_dir}/system/nginx/echome.conf" /etc/nginx/sites-available/
-sudo cp "${echome_dir}/system/nginx/echome_metadata.conf" /etc/nginx/sites-available/
-sudo ln -s /etc/nginx/sites-available/echome.conf /etc/nginx/sites-enabled
-sudo ln -s /etc/nginx/sites-available/echome_metadata.conf /etc/nginx/sites-enabled
-sudo unlink /etc/nginx/sites-enabled/default
-
-sudo systemctl start echome
-sudo systemctl enable echome
-
-# Check for errors in nginx configuration files
-sudo nginx -t
-sudo systemctl restart nginx
-cd ~
-
+echo ": Moving configuration files into place."
+sudo mkdir -pv /etc/echome/
+sudo cp ./echome.ini.template /etc/echome/echome.ini
 
 echo "Done! 
 

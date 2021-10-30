@@ -1,23 +1,14 @@
 [echome]
-; Location to the backend directory 
-base_dir=/opt/echome/app/backend
 
 ; Create a long, random, secure secret for use for API tokens and web sessions
 api_secret=
 
-; Log Location
-api_server_log=/var/log/echome/api_server.log
 
 ; Server URL
 api_url=http://<IP-ADDRESS>
 api_port=80
 metadata_api_url=http://<IP-ADDRESS>
 metadata_api_port=8080
-
-
-[database]
-; Postgres url in the following format: postgresql://<USER>:<PASSWORD>@<HOST>/<DATABASE_NAME>
-url=PSQLADDR
 
 
 [Metadata]
@@ -28,12 +19,6 @@ url=PSQLADDR
 ;region=us-central-tx
 ;availability_zone=home
 
-[Vault]
-; Vault stores encrypted keys for various services 
-
-addr=http://127.0.0.1:8200
-token=<server-token>
-
 
 [VirtualMachines]
 ; This is where your guest images are stored
@@ -43,11 +28,3 @@ guest_images_dir=/directory/to/shared-guest-images
 ; If this is a new installation, this directory can be empty and must
 ; be writable to the echome user.
 user_dir=/directory/to/user/directories
-
-;;;;;;;;;;;;;;
-; Networking ;
-;;;;;;;;;;;;;;
-
-[BridgeToLan]
-interfaceName=enp4s0
-bridgeName=br0
