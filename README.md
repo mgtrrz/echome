@@ -19,7 +19,7 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 * Launch a virtual machine of your flavor linux distribution in seconds.
 * Launch virtual machines with IPs in your home-network that will allow them to be seen by other guests, perfect for home environments and running applications such as Pihole or Homebridge.
 * Customize your own virtual machines and create images of them to later launch your prepared VM.
-* Add SSH scripts as user-data to your virtual machines that run on first-boot.
+* Add shell scripts as user-data to your virtual machines that run on first-boot.
 * Create, upload, and manage SSH keys that can be automatically imported to any linux instances that are launched.
 * Launch and manage your own kubernetes clusters in a few minutes
 * ecHome CLI makes it easy to manage and view several aspects of your environment from any computer within your network in the terminal.
@@ -28,7 +28,7 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 
 ## Safety
 
-ecHome isn't designed to run in a public cloud or in a datacenter. Do not expose any ports of your ecHome installation to the outside world and only use within a home network. While ecHome requires authentication before making any changes, the safer option is to access your environment from outside by using a VPN to get into your home network. Treat any VM in your environment as you would an unauthorized computer and making sure that all VMs and its packages are up-to-date.
+ecHome isn't designed to run in a public cloud or in a datacenter. Do not expose any ports of your ecHome installation to the outside world and only use within a home network. While ecHome requires authentication before making any changes, the safer option is to access your environment from outside by using a VPN to get into your home network. Treat any VM in your environment as you would an unauthorized computer by ensuring that all VMs and its packages are up-to-date.
 
 
 ## Requirements
