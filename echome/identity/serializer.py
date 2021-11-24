@@ -12,6 +12,7 @@ class UserAccessKeySerializer(serializers.ModelSerializer):
         model = User
         exclude = [
             'id', 
+            'user_id',
             'secret', 
             'type', 
             'parent', 

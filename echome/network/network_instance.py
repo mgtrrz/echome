@@ -1,0 +1,3 @@
+class BridgeInstance:
+
+    pass
