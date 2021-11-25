@@ -1,0 +1,45 @@
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+bootstrapTokens:
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: {{ env("KUBEADM_TOKEN") }}
+  ttl: {{ token_ttl }}
+  usages:
+  - signing
+  - authentication
+localAPIEndpoint:
+  advertiseAddress: {{ controller_ip }}
+  bindPort: 6443
+nodeRegistration:
+#  criSocket: /var/run/dockershim.sock
+  imagePullPolicy: IfNotPresent
+  name: {{ env("HOSTNAME") }}
+  taints: null
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+apiServer:
+  timeoutForControlPlane: 4m0s
+# certificatesDir: 
+clusterName: {{ cluster_name }}
+controllerManager: {}
+dns: {}
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+imageRepository: k8s.gcr.io
+kubernetesVersion: {{ cluster_version }} #1.22.0
+networking:
+  dnsDomain: cluster.local
+  serviceSubnet: {{ cluster_service_subnet }} #10.96.0.0/12
+scheduler: {}
+# ---
+# apiVersion: kubeadm.k8s.io/v1beta1
+# kind: JoinConfiguration
+# discovery:
+#   bootstrapToken:
+#     apiServerEndpoint: {{ controller_ip }}
+#     token: 
+#     caCertHashes:
+#     - ${ca_cert_hash}
