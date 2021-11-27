@@ -337,10 +337,6 @@ class VmManager:
             new_vmi_id = image_manager.image.image_id
 
 
-        vm_name = f"{vm_id}.qcow2" # TODO: CHANGE THIS TO ACTUAL MACHINE IMAGE FILE
-
-        vm_db = self.get_vm_db_from_id(vm_id)
-
         # Stop the instance (we can't copy a live machine, yet)
         instance = VirtualMachineInstance(vm_id)
         # But first, get the current state so we can start it back up if it was on before.
@@ -349,11 +345,13 @@ class VmManager:
         instance.stop()
 
         # Define the path to the account vmi directory & create it if doesn't exist
-        user_vmi_dir = Path(f"{VM_ROOT_DIR}/{user.account}/account_vmi")
-        user_vmi_dir.mkdir(parents=True, exist_ok=True)
+        user_vmi_dir = self.__return_account_user_images_path(user.account)
+        logger.debug(f"User_vmi_dir: {user_vmi_dir}")
 
-        current_image_full_path = Path(f"{self.vm_dir}/{vm_name}")
+        current_image_full_path = self.__return_vm_path(user.account, vm_id) / f"{vm_id}.qcow2"
+        logger.debug(f"Current image full path: {current_image_full_path}")
         new_image_full_path = user_vmi_dir / f"{new_vmi_id}.qcow2"
+        logger.debug(f"New image full path: {new_image_full_path}")
 
         # Copy the image to the new VM directory
         if not QemuImg().convert(current_image_full_path, new_image_full_path, 'qcow2'):
@@ -426,8 +424,8 @@ class VmManager:
         self.vm_db.save()
 
         return vm_db.instance_id
-    
 
+    
     def finish_vm_db(self):
         if not self.vm_db:
             raise VirtualMachineConfigurationError("No vm_db object to finish db with.")
@@ -435,6 +433,19 @@ class VmManager:
         self.vm_db.state = VirtualMachine.State.AVAILABLE
         self.vm_db.save()
         
+
+    def __return_account_user_images_path(self, user_account:str) -> Path:
+        try:
+            vm_path = Path(f"{VM_ROOT_DIR}/{user_account}/account_vmi")
+            vm_path.mkdir(parents=True, exist_ok=True)
+            return vm_path
+        except Exception:
+            logger.error("Encountered an error when attempting to return VMI path. Cannot continue.")
+            raise
+    
+
+    def __return_vm_path(self, user_account:str, instance_id:str):
+        return Path(f"{VM_ROOT_DIR}/{user_account}/{instance_id}")
 
 
     def __generate_vm_path(self, user_account:str, instance_id:str):
@@ -445,7 +456,7 @@ class VmManager:
             Path(vm_path).mkdir(parents=True, exist_ok=False)
             logger.info(f"Created VM Path: {vm_path}")
             return vm_path
-        except:
+        except Exception:
             logger.error("Encountered an error when attempting to generate VM path. Cannot continue.")
             raise
 

@@ -42,7 +42,8 @@ class QemuImg(BaseCommander):
         """        
         flags = []
         if output_format:
-            flags.append(["-O", output_format])
+            flags.append("-O")
+            flags.append(output_format)
         
         cmds = ["convert"] + flags + [filename, output_filename]
         output, return_code = self.command(cmds)

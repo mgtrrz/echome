@@ -26,4 +26,9 @@ def task_create_image(vm_id:str, user_id:str, prepared_id:str):
     logger.debug(f"Received async task to create disk image for: {vm_id}")
     user = User.objects.get(user_id=user_id)
     manager = ImageManager(prepared_id)
-    VmManager().create_virtual_machine_image(vm_id, user, prepared_manager=manager)
+    try:
+        VmManager().create_virtual_machine_image(vm_id, user, prepared_manager=manager)
+    except Exception as e:
+        logger.error("Image creation process from VM failed")
+        logger.error(e)
+        manager.mark_image_as_failed()

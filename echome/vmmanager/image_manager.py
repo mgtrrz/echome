@@ -163,6 +163,12 @@ class ImageManager:
         logger.debug(f"Final image: {destination_vm_img}")
         return destination_vm_img
 
+    
+    def mark_image_as_failed(self):
+        logger.debug("Marking image as failed")
+        self.image.state = Image.State.ERROR
+        self.image.save()
+
 
     def deactivate_image(self):
         pass
