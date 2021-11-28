@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from api.api_view import HelperView
 from .manager import KubeClusterManager
-from .tasks import task_create_cluster
 from .serializers import KubeClusterSerializer
 
 logger = logging.getLogger(__name__)
@@ -14,15 +13,34 @@ class CreateKubeCluster(HelperView, APIView):
     def post(self, request):
         required_params = [
             "KeyName",
+            "InstanceType",
+            "ImageId",
+            "NetworkProfile",
+            "ControllerIp",
         ]
-        optional_params = []
+        optional_params = {
+            "KubeVersion": "1.22",
+            "KeyName": None,
+            "DiskSize": "30G"
+        }
         if missing_params := self.require_parameters(request, required_params):
             return self.missing_parameter_response(missing_params)
         
         manager = KubeClusterManager()
-        cluster_id = manager.prepare_cluster()
 
-        task_create_cluster(cluster_id, request.user)
+        try:
+            cluster_id = manager.prepare_cluster(
+                user_id = request.user.user_id,
+                instance_def = request.POST["InstanceType"],
+                image_id = request.POST["ImageId"],
+                network_profile = request.POST["NetworkProfile"],
+                controller_ip = request.POST["ControllerIp"],
+                kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
+                key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
+                disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else optional_params["DiskSize"],
+            )
+        except Exception as e:
+            pass
         return self.success_response({"kube_cluster_id": cluster_id})
         
 

@@ -3,3 +3,6 @@ class ClusterDoesNotExist(Exception):
 
 class ServerError(Exception):
     pass
+
+class ClusterConfigurationError(Exception):
+    pass

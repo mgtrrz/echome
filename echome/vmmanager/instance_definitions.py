@@ -35,7 +35,13 @@ class InstanceDefinition:
         }
     }
 
-    def __init__(self, instance_class, instance_size):
+    def __init__(self, instance_class:str = None, instance_size:str = None):
+
+        if "." in instance_class:
+            full_string = instance_class.split(".")
+            instance_class = full_string[0]
+            instance_size = full_string[1]
+
         if not instance_class in self.instanceSizes:
             logger.error(f"Provided instance type is not a valid option: {instance_class}")
             raise InvalidInstanceType("Provided instance class is not a valid option.")

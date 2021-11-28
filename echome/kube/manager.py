@@ -1,10 +1,14 @@
 import logging
 from identity.models import User
 from vault.vault import Vault
+from network.manager import VirtualNetworkManager
+from keys.manager import UserKeyManager
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
 from vmmanager.cloudinit import CloudInitFile
 from .models import KubeCluster
+from .tasks import task_create_cluster
+from .exceptions import ClusterConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,7 @@ class KubeClusterManager:
             self.cluster_db = KubeCluster()
 
 
-    def prepare_cluster(self, tags:dict = None):
+    def _prepare_cluster_db(self, tags:dict = None):
         self.cluster_db.generate_id()
         self.cluster_db.tags = tags if tags else {}
         self.cluster_db.save()
@@ -61,25 +65,64 @@ class KubeClusterManager:
         
         cluster.delete()
         return True
+    
 
-
-    def create_cluster(self, user:User, instance_size: InstanceDefinition, \
+    def prepare_cluster(self, user:User, instance_def: InstanceDefinition, \
         controller_ip:str, image_id:str, network_profile:str, kubernetes_version:str = "1.22", 
-        key_name:str = None, disk_size:str = "50G", tags:dict = None):
+        key_name:str = None, disk_size:str = "30G", tags:dict = None):
+        """Create Kubernetes cluster. This function checks all the values to make sure they're
+        valid, then sends the data to a task queue for it to complete asynchronously.
 
-        cluster_db = KubeCluster()
-        cluster_db.generate_id()
-        logger.debug(f"Generated cluster id {cluster_db.cluster_id}")
+        Args:
+            user (User): [description]
+            instance_def (InstanceDefinition): [description]
+            image_id (str): [description]
+            network_profile (str): [description]
+            kubernetes_version (str, optional): [description]. Defaults to "1.22".
+            key_name (str, optional): [description]. Defaults to None.
+            disk_size (str, optional): [description]. Defaults to "50G".
+            tags (dict, optional): [description]. Defaults to None.
+        """
+
+        # Checking inputs to make sure everything is correct
+        instance_definition = InstanceDefinition(instance_def)
+        network_profile = VirtualNetworkManager(network_profile)
+        if key_name:
+
+
+        cluster_id = self._prepare_cluster_db(tags=tags)
+        task_create_cluster(
+            prepared_cluster_id = cluster_id,
+            user = user.user_id,
+            instance_def = str(instance_definition),
+            image_id = image_id,
+            network_profile = network_profile,
+            controller_ip = controller_ip,
+            kubernetes_version = kubernetes_version,
+            key_name = key_name,
+            disk_size = disk_size
+        )
+        return cluster_id
+
+
+    def create_cluster(self, user:User, instance_def: InstanceDefinition, \
+        controller_ip:str, image_id:str, network_profile:str, disk_size:str, kubernetes_version:str = "1.22", 
+        key_name:str = None):
+
+        if self.cluster_db is None:
+            raise ClusterConfigurationError("cluster_db is not set!")
 
         files = []
 
-        sh_script = '/root/init_kube_debian.sh'
+        cluster_info_file_path = "/root/cluster_info.yaml"
+        kubeadm_template_path = "/root/kubeadm_template.yaml"
+        sh_script_path = "/root/init_kube_debian.sh"
         
         # Cluster deploy JSON details
         deploy_details = self.generate_cluster_deploy_details(
-            controller_ip, cluster_db.cluster_id, kubernetes_version)
+            controller_ip, self.cluster_db.cluster_id, kubernetes_version)
         cluster_file = CloudInitFile(
-            path = "/root/cluster_info.yaml",
+            path = cluster_info_file_path,
             content = deploy_details
         )
         files.append(cluster_file)
@@ -87,29 +130,28 @@ class KubeClusterManager:
         # Kubeadm template file
         with open("./kubeadm_templates/init_cluster_template.yaml") as f:
             template_file = CloudInitFile(
-                path = "/root/kubeadm_template.yaml",
+                path = kubeadm_template_path,
                 content = f.read()
             )
             files.append(template_file)
 
         with open("./cloudinit_scripts/02-init_kube_debian.sh") as f:
             init_kube_script = CloudInitFile(
-                path = sh_script,
+                path = sh_script_path,
                 content = f.read(),
                 permissions = '0775'
             )
             files.append(init_kube_script)
 
-
         instance_tags = {
-            "Name": f"{cluster_db.cluster_id}-controller",
-            "cluster_id": cluster_db.cluster_id,
+            "Name": f"{self.cluster_db.cluster_id}-controller",
+            "cluster_id": self.cluster_db.cluster_id,
             "controller": True,
         }
 
         # Create controller virtual machine
         vm_manager = VmManager()
-        vm_manager.create_vm(user, instance_size, 
+        vm_manager.create_vm(user, instance_def=instance_def, 
             NetworkProfile = network_profile,
             ImageId = image_id,
             DiskSize = disk_size,
@@ -117,10 +159,10 @@ class KubeClusterManager:
             KeyName = key_name,
             Tags = instance_tags,
             Files = files,
-            RunCommands = [sh_script]
+            RunCommands = [sh_script_path]
         )
 
-        return cluster_db.cluster_id
+        return self.cluster_db.cluster_id
     
 
     def generate_cluster_deploy_details(self, controller_ip, cluster_id, version, cluster_svc_subnet = "10.96.0.0/12"):

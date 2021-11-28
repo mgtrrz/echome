@@ -5,11 +5,28 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from identity.models import User
 from .models import UserKey
-from .exceptions import *
+from .exceptions import (
+    KeyDoesNotExist,
+    KeyNameAlreadyExists,
+    PublicKeyAlreadyExists,
+)
 
 logger = logging.getLogger(__name__)
 
 class UserKeyManager:
+
+    user_key_db:UserKey = None
+
+    def __init__(self, user_key_name:str, user:User = None) -> None:
+        if user_key_name:
+            try:
+                self.user_key_db = UserKey.objects.get(
+                    name=user_key_name,
+                    account=user.account
+                )
+            except UserKey.DoesNotExist:
+                raise KeyDoesNotExist
+
 
     def generate_sshkey(self, user:User, key_name:str, service_key=False):
         """
@@ -43,6 +60,7 @@ class UserKeyManager:
             raise
 
         return key_obj, private_key
+    
     
     def store_key(self, user:User, key_name:str, public_key:str):
         """
