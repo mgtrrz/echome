@@ -12,8 +12,6 @@ class KubeCluster(models.Model):
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
     
-    type = models.CharField(max_length=50)
-
     class Status(models.TextChoices):
         BUILDING = 1, 'Building'
         FAILED = 2, 'Failed'
@@ -41,7 +39,7 @@ class KubeCluster(models.Model):
     tags = models.JSONField(default=dict)
 
     def generate_id(self):
-        if self.instance_id is None or self.instane_id == "":
-            self.instance_id = IdGenerator.generate("vm")
+        if self.cluster_id is None or self.cluster_id == "":
+            self.cluster_id = IdGenerator.generate("kube")
         else:
             raise AttemptedOverrideOfImmutableIdException

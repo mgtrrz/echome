@@ -1,28 +1,42 @@
 import logging
-import docker
 from identity.models import User
+from vault.vault import Vault
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
-from keys.manager import UserKeyManager
-from echome.id_gen import IdGenerator
-from echome.config import ecHomeConfig
-from vault.vault import Vault
+from vmmanager.cloudinit import CloudInitFile
+from .models import KubeCluster
 
 logger = logging.getLogger(__name__)
 
 class KubeClusterManager:
+
+    cluster_db: KubeCluster = None
+
+    def __init__(self, cluster_id:str = None) -> None:
+        if cluster_id:
+            self.cluster_db = KubeCluster(cluster_id=cluster_id)
+        else:
+            self.cluster_db = KubeCluster()
+
+
+    def prepare_cluster(self, tags:dict = None):
+        self.cluster_db.generate_id()
+        self.cluster_db.tags = tags if tags else {}
+        self.cluster_db.save()
+        return self.cluster_db.cluster_id
     
+
     def get_cluster_config(self, cluster_id:str, user:User):
 
-        vault = Vault()
-        try:
-            conf = vault.get_secret(self.vault_mount_point, f"{cluster_id}/admin")
-            conf = conf["data"]["data"]["admin.conf"]
-        except Exception:
-            logger.debug(f"Could not extract config from Vault for {cluster_id}/admin")
-            raise ServerError("Could not retrieve config for specified cluster.")
-        
-        return conf
+            vault = Vault()
+            try:
+                conf = vault.get_secret(self.vault_mount_point, f"{cluster_id}/admin")
+                conf = conf["data"]["data"]["admin.conf"]
+            except Exception:
+                logger.debug(f"Could not extract config from Vault for {cluster_id}/admin")
+                raise ServerError("Could not retrieve config for specified cluster.")
+            
+            return conf
     
     def delete_cluster(self, cluster_id:str, user:User):
 
@@ -50,156 +64,73 @@ class KubeClusterManager:
 
 
     def create_cluster(self, user:User, instance_size: InstanceDefinition, \
-        ips:list, image_id:str, network_profile:str, kubernetes_version="v1.18.5", key_name=None, disk_size="50G", \
-        image_user="ubuntu", image_ssh_port="22", tags={}):
+        controller_ip:str, image_id:str, network_profile:str, kubernetes_version:str = "1.22", 
+        key_name:str = None, disk_size:str = "50G", tags:dict = None):
 
-        cluster_id = IdGenerator().generate("kube", 8)
-        logger.debug(f"Generated cluster id {cluster_id}")
-        service_key_name = IdGenerator().generate("svc-kube", 12)
-        logger.debug(f"Creating Service key {service_key_name}")
+        cluster_db = KubeCluster()
+        cluster_db.generate_id()
+        logger.debug(f"Generated cluster id {cluster_db.cluster_id}")
 
-        # Create a new service key for ansible to install/setup the cluster
-        kstore = KeyStore()
-        key = kstore.create_key(user, service_key_name, True)
+        files = []
 
-        # Save the key in Vault for the Docker container to access later
-        vault = Vault()
-        vault.store_sshkey(self.vault_mount_point, f"{cluster_id}/svckey", key["PrivateKey"])
-
-        # Generate the inventory file for Ansible
-        logger.debug("Creating inventory file")
-        inv = "[all:vars]\n"
-        inv += f"ansible_user = {image_user}\n"
-        inv += f"ansible_port = {image_ssh_port}\n\n"
+        sh_script = '/root/init_kube_debian.sh'
         
-        inv += "[all]\n"
-        num = 1
-        for ip in ips:
-            inv += f"node{num} ansible_host={ip} etcd_member_name=etcd{num}\n"
-            num += 1
-        
-        inv += "\n[kube-master]\n"
-        inv += "node1\n\n"
-
-        inv += "[etcd]\n"
-        for num in range(1, len(ips)+1):
-            inv += f"node{num}\n"
-        
-        inv += "\n[kube-node]\n"
-        for num in range(2, len(ips)+1):
-            inv += f"node{num}\n"
-
-        inv += "\n[k8s-cluster:children]\n"
-        inv += "kube-master\n"
-        inv += "kube-node\n"
-
-        logger.debug(inv)
-
-        tmp_inv_file = f"/tmp/{cluster_id}_inventory.ini"
-        with open(tmp_inv_file, "w") as file:
-            file.write(inv)
-
-        # Cluster yaml generation
-
-        source_template_cluster_yaml = f"{ecHomeConfig.EcHome().base_dir}/templates/kube/k8s-cluster.yaml"
-        rendered_tmp_cluster_file = f"/tmp/{cluster_id}_k8s_cluster.yaml"
-        with open(source_template_cluster_yaml, "r") as template_file:
-            template_contents = str.Template(template_file.read())
-            cluster_yaml_render = template_contents.substitute({
-                'KUBERNETES_VERSION': kubernetes_version,
-                'KUBERNETES_SERVICE_ADDRESSES': "10.233.0.0/18",
-                'KUBERNETES_PODS_SUBNET': "10.233.64.0/18",
-                'KUBERNETES_NETWORK_NODE_PREFIX': "24",
-                'KUBERNETES_CLUSTER_NAME': f"{cluster_id}.local",
-            })
-
-        with open(rendered_tmp_cluster_file, "w") as file:
-            file.write(cluster_yaml_render) 
-
-        # Generate a temporary Vault token to pass to docker
-        policy_name = f"kubesvc-{cluster_id}"
-        vault.create_policy(
-            self._generate_vault_policy_otp(cluster_id), 
-            policy_name
+        # Cluster deploy JSON details
+        deploy_details = self.generate_cluster_deploy_details(
+            controller_ip, cluster_db.cluster_id, kubernetes_version)
+        cluster_file = CloudInitFile(
+            path = "/root/cluster_info.yaml",
+            content = deploy_details
         )
-    
-        token_info = vault.generate_temp_token(
-            [policy_name]
-        )
-        
-        vmanager = VmManager()
-        instances = []
-        num = 1
-        for ip in ips:
-            if num == 1:
-                name = "kube-controller"
-            else:
-                name = f"kube-node-{num}"
+        files.append(cluster_file)
 
-            instances.append(
-                vmanager.create_vm(
-                    user, 
-                    instanceType=instance_size, 
-                    ImageId=image_id,
-                    KeyName=key_name, 
-                    ServiceKey=service_key_name,
-                    NetworkProfile=network_profile, 
-                    DiskSize=disk_size, 
-                    PrivateIp=ip,
-                    Tags={
-                        "Name": name,
-                        "Cluster": cluster_id
-                    }
-                )
+        # Kubeadm template file
+        with open("./kubeadm_templates/init_cluster_template.yaml") as f:
+            template_file = CloudInitFile(
+                path = "/root/kubeadm_template.yaml",
+                content = f.read()
             )
-            num += 1
-        
-        # Create an entry in the DB
-        primary = instances[0]
-        instances.pop(0)
-        nodes = instances
-        cluster = KubeCluster(
-            cluster_id = cluster_id,
-            account = user.account,
-            type = "cluster",
-            status = "BUILDING",
-            primary_controller = primary,
-            assoc_instances = nodes,
-            tags = tags
+            files.append(template_file)
+
+        with open("./cloudinit_scripts/02-init_kube_debian.sh") as f:
+            init_kube_script = CloudInitFile(
+                path = sh_script,
+                content = f.read(),
+                permissions = '0775'
+            )
+            files.append(init_kube_script)
+
+
+        instance_tags = {
+            "Name": f"{cluster_db.cluster_id}-controller",
+            "cluster_id": cluster_db.cluster_id,
+            "controller": True,
+        }
+
+        # Create controller virtual machine
+        vm_manager = VmManager()
+        vm_manager.create_vm(user, instance_size, 
+            NetworkProfile = network_profile,
+            ImageId = image_id,
+            DiskSize = disk_size,
+            PrivateIp = controller_ip,
+            KeyName = key_name,
+            Tags = instance_tags,
+            Files = files,
+            RunCommands = [sh_script]
         )
 
-        cluster.commit()
+        return cluster_db.cluster_id
+    
 
-        # Create a service API key for the ansible job
-        # to report back to ecHome when it is complete.
-        # TODO: Expiry for the service accounts
-        svc_manager = ServiceAccountManager()
-        auth_id, secret = svc_manager.create_service_account(user.account)
-        vault.store_dict(self.vault_mount_point, f"{cluster_id}/echome", {'key': auth_id, 'secret': secret})
-        
-        docker_client = docker.from_env()
-        docker_client.containers.run(
-            'kubelauncher:0.5',
-            detach=True,
-            environment=[
-                f"VAULT_TOKEN={token_info['auth']['client_token']}",
-                f"VAULT_ADDR={ecHomeConfig.Vault().addr}",
-                f"VAULT_PATH={self.vault_mount_point}",
-                f"VAULT_SVC_KEY_PATH={self.vault_mount_point}/{cluster_id}/svckey",
-                f"VAULT_ADMIN_PATH={self.vault_mount_point}/{cluster_id}/admin",
-                f"CLUSTER_ID={cluster_id}",
-                f"ECHOME_SERVER={ecHomeConfig.EcHome().api_url}",
-                f"ECHOME_MSG_API=/v1/service/msg",
-                f"ECHOME_AUTH_LOGIN_API=/v1/auth/api/login",
-                f"ECHOME_SVC_CREDS={self.vault_mount_point}/{cluster_id}/echome",
-            ],
-            volumes={
-                tmp_inv_file: {'bind': '/mnt/inventory.ini', 'mode': 'rw'},
-                rendered_tmp_cluster_file: {'bind': '/mnt/k8s-cluster.yaml', 'mode': 'rw'},
-            }
-        )
-
-        return cluster_id
+    def generate_cluster_deploy_details(self, controller_ip, cluster_id, version, cluster_svc_subnet = "10.96.0.0/12"):
+        return {
+            "controller_ip": controller_ip,
+            "cluster_name": cluster_id,
+            "cluster_version": version,
+            "cluster_service_subnet": cluster_svc_subnet,
+            "token_ttl": "0h1m0s",
+        }
 
     
     def generate_kubernetes_image(self):

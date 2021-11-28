@@ -3,8 +3,10 @@ import yaml
 import json
 import sys
 import base64
+from typing import List
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from dataclasses import dataclass
 from echome.config import ecHomeConfig
 from commander.cloudlocalds import CloudLocalds
 from commander.cloudinit import CloudInit as CloudInitCommand
@@ -26,6 +28,29 @@ KNOWN_CONTENT_TYPES = [
 NETWORK_CONFIG_FILE_NAME = "network.yaml"
 USERDATA_CONFIG_FILE_NAME = "user-data"
 METADATA_CONFIG_FILE_NAME = "meta-data"
+
+@dataclass
+class CloudInitFile():
+    path: str
+    content: str 
+    permissions: str = '0644'
+    owner: str = 'root:root'
+
+    def base64_encode_content(self):
+        base64_bytes = base64.b64encode(self.content.encode("utf-8"))
+        content = base64_bytes.decode("utf-8")
+        return content
+
+
+    def render_json(self):
+        return {
+            "encoding": 'b64',
+            "content": self.base64_encode_content(),
+            "owner": self.owner,
+            "permissions": self.permissions,
+            "owner": self.owner
+        }
+
 
 class CloudInit:
 
@@ -97,7 +122,7 @@ class CloudInit:
         return contents
     
 
-    def generate_userdata_config(self, public_keys: list = None, user_data_script = None):
+    def generate_userdata_config(self, public_keys: list = None, user_data_script:str = None, files: List[CloudInitFile] = None, run_command: List[str] = None):
         """Generate Cloudinit Userdata config yaml
 
         Generates a basic cloudinit config with hostname and public key entries. The only
@@ -108,6 +133,8 @@ class CloudInit:
             public_keys (list, optional): Public key to attach to the virtual machine. If not used, no SSH key will
             be provided. Defaults to None.
             user_data_script (str, optional): User-data shell script to boot the instance with. Defaults to None.
+            files (List[CloudInitFile], optional): Files to upload to the virtual machine. Defaults to None
+            run_command (List[str], optional): Specify which commands to run. Defaults to None
 
         Returns:
             str: The complete yaml config
@@ -123,13 +150,29 @@ class CloudInit:
             "ssh_authorized_keys": public_keys if public_keys is not None else []
         }
 
+        files_json = {}
+
+        if files:
+            for file_obj in files:
+                file_list = []
+                file_list.append(file_obj.render_json())
+                files_json["write_files"] = file_list
+
+        run_commands_json = {}
+        
+        if run_command:
+            run_commands_json['runcmd'] = run_command
+               
+
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
         # I'm unsure if cloudinit would actually just be happy receiving all YAML input.
         configfile = "#cloud-config\n"
         config_yaml = yaml.dump(config_json, default_flow_style=None, sort_keys=False)
         ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
+        write_files = yaml.dump(files_json, default_flow_style=False, sort_keys=False, width=1000)
+        run_commands = yaml.dump(run_commands_json, default_flow_style=False, sort_keys=False, width=1000)
 
-        yaml_config = configfile + config_yaml + ssh_keys_yaml
+        yaml_config = configfile + config_yaml + ssh_keys_yaml + write_files + run_commands
 
         if user_data_script:
             logger.debug("UserData script is included in request, making multipart file..")

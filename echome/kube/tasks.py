@@ -1,21 +1,19 @@
 import logging
 from celery import shared_task
 from identity.models import User
-from .vm_manager import VmManager
-from .image_manager import ImageManager
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
-def task_terminate_instance(vm_id:str, user_id:str):
-    logger.debug(f"Received async task to terminate VM: {vm_id}")
+def task_terminate_cluster(cluster_id:str, user_id:str):
+    logger.debug(f"Received async task to terminate VM: {cluster_id}")
     user = User.objects.get(user_id=user_id)
-    VmManager().terminate_instance(vm_id, user)
+    #VmManager().terminate_instance(vm_id, user)
 
 
 @shared_task
-def task_create_image(vm_id:str, user_id:str, prepared_id:str):
+def task_create_cluster(prepared_cluster_id:str, user_id:str):
     logger.debug(f"Received async task to create disk image for: {vm_id}")
     user = User.objects.get(user_id=user_id)
     manager = ImageManager(prepared_id)

@@ -1,10 +1,9 @@
 import logging
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework import status
 from api.api_view import HelperView
-from .models import KubeCluster
 from .manager import KubeClusterManager
+from .tasks import task_create_cluster
 from .serializers import KubeClusterSerializer
 
 logger = logging.getLogger(__name__)
@@ -14,11 +13,17 @@ class CreateKubeCluster(HelperView, APIView):
 
     def post(self, request):
         required_params = [
-            "Action",
             "KeyName",
         ]
+        optional_params = []
         if missing_params := self.require_parameters(request, required_params):
             return self.missing_parameter_response(missing_params)
+        
+        manager = KubeClusterManager()
+        cluster_id = manager.prepare_cluster()
+
+        task_create_cluster(cluster_id, request.user)
+        return self.success_response({"kube_cluster_id": cluster_id})
         
 
 

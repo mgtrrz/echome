@@ -64,12 +64,14 @@ class VmManager:
             NetworkProfile (str): Network profile to use for the virtual machine. Use the name rather than the ID.
             ImageId (str): Guest or User image ID to spawn the virtual machine from.
             DiskSize (str): Disk size for the virtual machine. (e.g. 10G, 200G, 10000M). Defaults to 10G.
-            KeyName (str): Name of the SSH Keystore item to add a public ssh key to the VM.
-            PrivateIp (str): Private IP address to assign.
-            UserDataScript (str): User-data shell script to boot the instance with.
-            Tags (dict): Dictionary of tags to apply to this instance.
-            EnableVnc (bool): Whether this machine will have VNC enabled.
-            VncPort (str): Value for the VNC port (if enabled above).
+            KeyName (str, optional): Name of the SSH Keystore item to add a public ssh key to the VM.
+            PrivateIp (str, optional): Private IP address to assign.
+            UserDataScript (str, optional): User-data shell script to boot the instance with.
+            Tags (dict, optional): Dictionary of tags to apply to this instance.
+            EnableVnc (bool, optional): Whether this machine will have VNC enabled.
+            VncPort (str, optional): Value for the VNC port (if enabled above).
+            Files (List[CloudInitFile], optional): Files to upload to the virtual machine
+            RunCommands (List[str], optional): List of commands to run
 
         Raises:
             InvalidLaunchConfiguration: If supplied arguments are invalid for this virtual machine.
@@ -160,7 +162,9 @@ class VmManager:
         # This includes the public keys and user data scripts if any exist.
         self.cloudinit.generate_userdata_config(
             public_keys = [public_key],
-            user_data_script = kwargs["UserDataScript"] if "UserDataScript" in kwargs else None
+            user_data_script = kwargs["UserDataScript"] if "UserDataScript" in kwargs else None,
+            files = kwargs["Files"] if "Files" in kwargs else None,
+            run_command = kwargs["RunCommands"] if "RunCommands" in kwargs else None
         )
         
         # Provides some generic information about our environment to the VM.

@@ -8,7 +8,7 @@ from .models import VirtualMachine, Volume, Image
 from .serializers import VirtualMachineSerializer, VolumeSerializer, ImageSerializer
 from .image_manager import ImageManager
 from .vm_manager import VmManager
-from .tasks import task_create_image, task_stop_instance, task_terminate_instance
+from .tasks import task_create_image, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
 from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
 
