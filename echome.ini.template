@@ -11,10 +11,18 @@ metadata_api_url=http://<IP-ADDRESS>
 metadata_api_port=8080
 
 
+[Vault]
+; Keys for accessing Vault
+addr=http://vault:8200
+key=
+root_token=
+
+
 [Metadata]
 ; Metadata about your ecHome instance passed to virtual machines
 ; You can have fun with these as these do not serve any other
-; purpose other than to provide information about your homelab
+; purpose other than to provide information to guest machines 
+; about your homelab
 
 ;region=us-central-tx
 ;availability_zone=home

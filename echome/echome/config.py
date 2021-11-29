@@ -55,16 +55,13 @@ class AppConfig:
         metadata_api_url = None
         metadata_api_port = None
     
-    class Database(__base_section):
-        ini_section = "database"
-
-        url = None
     
     class Vault(__base_section):
         ini_section = "Vault"
 
         addr = None
-        token = None
+        root_token = None
+        key = None
         secret_id = None
         secret_id_accessor = None
         
