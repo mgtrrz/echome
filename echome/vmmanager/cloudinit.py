@@ -46,9 +46,9 @@ class CloudInitFile():
         return {
             "encoding": 'b64',
             "content": self.base64_encode_content(),
+            "path": self.path,
             "owner": self.owner,
             "permissions": self.permissions,
-            "owner": self.owner
         }
 
 
@@ -153,10 +153,11 @@ class CloudInit:
         files_json = {}
 
         if files:
+            file_list = []
             for file_obj in files:
-                file_list = []
                 file_list.append(file_obj.render_json())
-                files_json["write_files"] = file_list
+            
+            files_json["write_files"] = file_list
 
         run_commands_json = {}
         

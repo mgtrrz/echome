@@ -1,4 +1,6 @@
 import logging
+import json
+from django.apps import apps
 from identity.models import User
 from vault.vault import Vault
 from network.manager import VirtualNetworkManager
@@ -6,8 +8,8 @@ from keys.manager import UserKeyManager
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
 from vmmanager.cloudinit import CloudInitFile
+from vmmanager.image_manager import ImageManager
 from .models import KubeCluster
-from .tasks import task_create_cluster
 from .exceptions import ClusterConfigurationError
 
 logger = logging.getLogger(__name__)
@@ -23,11 +25,19 @@ class KubeClusterManager:
             self.cluster_db = KubeCluster()
 
 
-    def _prepare_cluster_db(self, tags:dict = None):
+    def _prepare_cluster_db(self, user:User, tags:dict = None):
         self.cluster_db.generate_id()
         self.cluster_db.tags = tags if tags else {}
+        self.cluster_db.account = user.account
         self.cluster_db.save()
         return self.cluster_db.cluster_id
+    
+
+    def delete_cluster_db(self):
+        pass
+
+    def mark_cluster_as_failed(self):
+        pass
     
 
     def get_cluster_config(self, cluster_id:str, user:User):
@@ -69,9 +79,9 @@ class KubeClusterManager:
 
     def prepare_cluster(self, user:User, instance_def: InstanceDefinition, \
         controller_ip:str, image_id:str, network_profile:str, kubernetes_version:str = "1.22", 
-        key_name:str = None, disk_size:str = "30G", tags:dict = None):
-        """Create Kubernetes cluster. This function checks all the values to make sure they're
-        valid, then sends the data to a task queue for it to complete asynchronously.
+        key_name:str = None, tags:dict = None):
+        """This function checks all the values to make sure they're
+        valid, then creates a row in the database for this cluster in the BUILDING state.
 
         Args:
             user (User): [description]
@@ -85,23 +95,18 @@ class KubeClusterManager:
         """
 
         # Checking inputs to make sure everything is correct
-        instance_definition = InstanceDefinition(instance_def)
-        network_profile = VirtualNetworkManager(network_profile)
-        if key_name:
+        try:
+            instance_definition = InstanceDefinition(instance_def)
+            network = VirtualNetworkManager(network_profile, user)
+            network.validate_ip(controller_ip)
+            if key_name:
+                UserKeyManager(key_name, user)
+            image = ImageManager(image_id)
+        except Exception as e:
+            logger.exception(e)
+            raise ClusterConfigurationError
 
-
-        cluster_id = self._prepare_cluster_db(tags=tags)
-        task_create_cluster(
-            prepared_cluster_id = cluster_id,
-            user = user.user_id,
-            instance_def = str(instance_definition),
-            image_id = image_id,
-            network_profile = network_profile,
-            controller_ip = controller_ip,
-            kubernetes_version = kubernetes_version,
-            key_name = key_name,
-            disk_size = disk_size
-        )
+        cluster_id = self._prepare_cluster_db(user, tags=tags)
         return cluster_id
 
 
@@ -123,19 +128,21 @@ class KubeClusterManager:
             controller_ip, self.cluster_db.cluster_id, kubernetes_version)
         cluster_file = CloudInitFile(
             path = cluster_info_file_path,
-            content = deploy_details
+            content = json.dumps(deploy_details)
         )
         files.append(cluster_file)
 
         # Kubeadm template file
-        with open("./kubeadm_templates/init_cluster_template.yaml") as f:
+        path = apps.get_app_config('kube').path
+        logger.debug(f"Path: {path}")
+        with open(f"{path}/kubeadm_templates/init_cluster_template.yaml") as f:
             template_file = CloudInitFile(
                 path = kubeadm_template_path,
                 content = f.read()
             )
             files.append(template_file)
 
-        with open("./cloudinit_scripts/02-init_kube_debian.sh") as f:
+        with open(f"{path}/cloudinit_scripts/02-init_kube_debian.sh") as f:
             init_kube_script = CloudInitFile(
                 path = sh_script_path,
                 content = f.read(),

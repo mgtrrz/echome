@@ -288,7 +288,7 @@ class VmManager:
         if vnet.type == VirtualNetwork.Type.BRIDGE_TO_LAN:
             logger.debug("New virtual machine is using vnet type BridgeToLan")
             # If the IP is specified, check that the IP is valid for their network
-            if private_ip and not VirtualNetworkManager().validate_ip(vnet, private_ip):
+            if private_ip and not VirtualNetworkManager().validate_ip(private_ip, vnet):
                 raise InvalidLaunchConfiguration("Provided Private IP address is not valid for the specified network profile.")
             
             # Generate the Cloudinit Networking config

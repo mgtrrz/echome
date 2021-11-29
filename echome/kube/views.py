@@ -1,8 +1,11 @@
 import logging
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework import status
 from api.api_view import HelperView
+from .exceptions import ClusterConfigurationError
 from .manager import KubeClusterManager
+from .tasks import task_create_cluster
 from .serializers import KubeClusterSerializer
 
 logger = logging.getLogger(__name__)
@@ -19,17 +22,32 @@ class CreateKubeCluster(HelperView, APIView):
             "ControllerIp",
         ]
         optional_params = {
-            "KubeVersion": "1.22",
+            "KubeVersion": "1.22.0",
             "KeyName": None,
-            "DiskSize": "30G"
+            "DiskSize": "30G",
+            "Tags": {}
         }
         if missing_params := self.require_parameters(request, required_params):
             return self.missing_parameter_response(missing_params)
         
+        tags = self.unpack_tags(request)
+
         manager = KubeClusterManager()
 
         try:
             cluster_id = manager.prepare_cluster(
+                user = request.user,
+                instance_def = request.POST["InstanceType"],
+                image_id = request.POST["ImageId"],
+                network_profile = request.POST["NetworkProfile"],
+                controller_ip = request.POST["ControllerIp"],
+                kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
+                key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
+                tags = tags,
+            )
+
+            task_create_cluster.delay(
+                prepared_cluster_id = cluster_id,
                 user_id = request.user.user_id,
                 instance_def = request.POST["InstanceType"],
                 image_id = request.POST["ImageId"],
@@ -37,10 +55,17 @@ class CreateKubeCluster(HelperView, APIView):
                 controller_ip = request.POST["ControllerIp"],
                 kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
                 key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
-                disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else optional_params["DiskSize"],
+                disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else optional_params["DiskSize"]
+            )
+        except ClusterConfigurationError as e:
+            logger.exception(e)
+            return self.error_response(
+                "There was an error when creating the cluster.",
+                status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as e:
-            pass
+            logger.exception(e)
+            return self.internal_server_error_response()
         return self.success_response({"kube_cluster_id": cluster_id})
         
 

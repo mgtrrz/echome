@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 class VirtualNetworkManager:
 
-    def __init__(self, network_name:str = None, user:User = None) -> None:
+    vnet_db: VirtualNetwork = None
+
+    def __init__(self, network_name:str = None, user:User = None):
         if network_name:
             try:
                 self.vnet_db = VirtualNetwork.objects.get(
@@ -17,10 +19,13 @@ class VirtualNetworkManager:
                 )
             except VirtualNetwork.DoesNotExist:
                 raise InvalidNetworkName
+        
 
-
-    def validate_ip(self, vnet_db:VirtualNetwork, ip:str):
+    def validate_ip(self, ip:str, vnet_db:VirtualNetwork = None):
         """Checks to see if the IP provided for a VM is valid for this network"""
+
+        if not vnet_db:
+            vnet_db = self.vnet_db
 
         network_addr = f'{vnet_db.config["network"]}/{vnet_db.config["prefix"]}'
         logger.debug(f"Checking network address: {network_addr} for network {vnet_db.name}")

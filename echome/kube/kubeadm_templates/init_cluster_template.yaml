@@ -29,10 +29,10 @@ etcd:
   local:
     dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
-kubernetesVersion: {{ cluster_version }} #1.22.0
+kubernetesVersion: {{ cluster_version }}
 networking:
   dnsDomain: cluster.local
-  serviceSubnet: {{ cluster_service_subnet }} #10.96.0.0/12
+  serviceSubnet: {{ cluster_service_subnet }}
 scheduler: {}
 # ---
 # apiVersion: kubeadm.k8s.io/v1beta1
