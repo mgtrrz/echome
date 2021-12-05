@@ -1,8 +1,10 @@
-import time
 import logging
 import hvac
 from typing import List
 from echome.config import AppConfig
+from .exceptions import CannotUnsealVaultServerError
+
+logger = logging.getLogger(__name__)
 
 class Vault:
     client = None
@@ -25,10 +27,11 @@ class Vault:
 
     def unseal(self, keys:List[str]):
         self.client.sys.submit_unseal_keys(keys=keys)
+        if self.client.sys.is_sealed():
+            raise CannotUnsealVaultServerError
     
 
     def store_sshkey(self, mount_point:str, path_name:str, key:str):
-
         self.client.secrets.kv.v2.create_or_update_secret(
             mount_point=mount_point,
             path=path_name,

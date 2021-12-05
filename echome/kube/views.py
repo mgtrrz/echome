@@ -35,6 +35,9 @@ class CreateKubeCluster(HelperView, APIView):
         manager = KubeClusterManager()
 
         try:
+            # I don't like doing this
+            # Need to figure out a way to clean this up
+            
             cluster_id = manager.prepare_cluster(
                 user = request.user,
                 instance_def = request.POST["InstanceType"],
