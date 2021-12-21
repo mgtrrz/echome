@@ -107,10 +107,12 @@ class VirtualMachineInstance():
         self.vnc = vnc_xml_def
     
 
-    def configure_core(self, instance_def:InstanceDefinition):
+    def configure_core(self, instance_def:InstanceDefinition, efi_boot:bool = False):
+        logger.debug(f"configure_core, efi_boot: {efi_boot}")
         self.core = KvmXmlCore(
             cpu_count=instance_def.get_cpu(),
-            memory=instance_def.get_memory()
+            memory=instance_def.get_memory(),
+            efi_boot=efi_boot,
         )
 
 

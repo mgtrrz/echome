@@ -10,7 +10,14 @@ from .image_manager import ImageManager
 from .vm_manager import VmManager
 from .tasks import task_create_image, task_terminate_instance
 from .vm_instance import VirtualMachineInstance
-from .exceptions import InvalidLaunchConfiguration, LaunchError, VirtualMachineDoesNotExist, VirtualMachineConfigurationError
+from .exceptions import (
+    InvalidLaunchConfiguration, 
+    LaunchError,
+    VirtualMachineDoesNotExist,
+    VirtualMachineConfigurationError, 
+    InvalidImagePath, 
+    ImageAlreadyExistsError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +71,8 @@ class CreateVM(HelperView, APIView):
                 DiskSize=disk_size,
                 EnableVnc=True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
                 VncPort=request.POST["VncPort"] if "VncPort" in request.POST else None,
-                UserDataScript=request.POST["UserDataScript"] if "UserDataScript" in request.POST else None
+                UserDataScript=request.POST["UserDataScript"] if "UserDataScript" in request.POST else None,
+                EfiBoot="false", #TODO: Configurable Option
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)
@@ -251,7 +259,34 @@ class ModifyVolume(HelperView, APIView):
 
 
 class RegisterImage(HelperView, APIView):
-    pass
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if missing_params := self.require_parameters(request, ["ImagePath", "ImageName", "ImageDescription"]):
+            return self.missing_parameter_response(missing_params)
+        
+        image_manager = ImageManager()
+        try:
+            id = image_manager.register_guest_image(
+                request.POST["ImagePath"],
+                request.POST["ImageName"],
+                request.POST["ImageDescription"],
+            )
+        except InvalidImagePath:
+            return self.error_response(
+                "ValueError: Image does not exist at specified path.",
+                status = status.HTTP_400_BAD_REQUEST
+            )
+        except ImageAlreadyExistsError:
+            return self.error_response(
+                "ValueError: Image already exists.",
+                status = status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+            
+        return self.success_response(id)
 
 
 class DeleteImage(HelperView, APIView):

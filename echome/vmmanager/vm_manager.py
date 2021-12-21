@@ -140,6 +140,7 @@ class VmManager:
         key_name:str    = kwargs["KeyName"] if "KeyName" in kwargs else None
         enable_vnc:bool = True if "EnableVnc" in kwargs and kwargs["EnableVnc"] == "true" else False
         vnc_port:str    = kwargs["VncPort"] if "VncPort" in kwargs else None
+        efi_boot:bool   = True if "EfiBoot" in kwargs and kwargs["EfiBoot"] == "true" else False
 
         # Prepare our boot disk image and save the metadata to the DB
         self.vm_db.image_metadata = self.prepare_disk(kwargs["ImageId"], kwargs["DiskSize"])
@@ -157,6 +158,9 @@ class VmManager:
         if key_name:
             public_key, key_dict = self.prepare_ssh_keys(key_name)
             self.vm_db.key_name = key_name
+        else:
+            public_key = None
+            key_dict = None
 
         # Generate the cloudinit Userdata
         # This includes the public keys and user data scripts if any exist.
@@ -181,7 +185,7 @@ class VmManager:
             raise VirtualMachineConfigurationError
             
         if cloudinit_iso_path:
-            self.instance.add_removable_media(cloudinit_iso_path, "hda")
+            self.instance.add_removable_media(cloudinit_iso_path, "hdb")
     
         # VNC?
         metadata = {}
@@ -189,7 +193,7 @@ class VmManager:
             metadata += self.configure_vnc(vnc_port)
             
         # Generate the virtual machine XML document and (try to) launch our VM!
-        self.instance.configure_core(instance_def)
+        self.instance.configure_core(instance_def, efi_boot)
         self.instance.define(self.vm_db)
         self.instance.start()
 

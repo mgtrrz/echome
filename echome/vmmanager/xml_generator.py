@@ -11,10 +11,19 @@ logger = logging.getLogger(__name__)
 class KvmXmlCore():
     memory: int
     cpu_count: int
-
+    
+    efi_boot: bool = False
+    chipset: str = "legacy"
     os_arch: str = "x86_64"
     os_type: str = "hvm"
     bios: str = "bios"
+
+    @property
+    def machine_type(self) -> str:
+        if self.chipset == "modern":
+            return "q35"
+        elif self.chipset == "legacy":
+            return "pc"
 
 
 @dataclass
@@ -36,8 +45,7 @@ class KvmXmlRemovableMedia():
     device: str = "cdrom"
     driver: str = "qemu"
     type: str = "raw"
-    target_dev: str = "hda"
-    bus: str = "ide"
+    target_dev: str = "hdb"
     read_only: bool = True
 
 
@@ -97,7 +105,7 @@ class KvmXmlObject():
 
         # Hard Disk or removal drive devices
         devices = list(self.hard_disks.values()) + self.removable_media
-        obj['disk'] = self._generate_disk_devices(devices)
+        obj['disk'] = self._generate_disk_devices(devices, self.core.efi_boot)
 
         # Network devices
         for net_dev in self.network_interfaces:
@@ -144,9 +152,16 @@ class KvmXmlObject():
         return vnc_obj
     
 
-    def _generate_disk_devices(self, devices:list):
+    def _generate_disk_devices(self, devices:list, is_efi_boot:bool = False):
         rendered_devices = []
+        chars = 'abcdefghijklmnop'
+        iter = 0
         for dev in devices:
+            if is_efi_boot:
+                dev_name = f"sd{chars[iter]}"
+            else:
+                dev_name = dev.target_dev
+
             d = {
                 '@type': 'file',
                 '@device': dev.device,
@@ -161,15 +176,17 @@ class KvmXmlObject():
                     '@name': dev.alias
                 },
                 'target': {
-                    '@dev': dev.target_dev,
-                    '@bus': dev.bus
+                    '@dev': dev_name,
+                    '@bus': "sata" if is_efi_boot else "ide"
                 }
             }
+
             
             if isinstance(dev, KvmXmlRemovableMedia):
                 d['readonly'] = {}
             
             rendered_devices.append(d)
+            iter += 1
         
         return rendered_devices
 
@@ -249,6 +266,7 @@ class KvmXmlObject():
                     'type': {
                         # https://libvirt.org/formatcaps.html#elementGuest
                         '@arch': self.core.os_arch,
+                        '@machine': self.core.machine_type,
                         '#text': self.core.os_type
                     },
                     'boot': {
@@ -277,6 +295,15 @@ class KvmXmlObject():
                 'devices': self._render_devices()
             }
         }
+
+        # readonly=‘yes’ type=‘rom’>/usr/share/edk2.git/ovmf-x64/OVMF_CODE-pure-efi.fd
+        if self.core.efi_boot:
+            obj['domain']['os']['loader'] = {
+                '@readonly': 'yes',
+                '@type': 'pflash',
+                '#text': '/usr/share/OVMF/OVMF_CODE.fd', #TODO: Change this, also libvirt 6.0 has auto selecting of firmware binaries
+            }
+
 
         if self.enable_smbios:
             obj['domain']['os']['smbios'] = {'@mode': 'sysinfo'}
