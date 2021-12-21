@@ -24,12 +24,12 @@ class ImageManager:
             self.image = self.__get_image_from_id(image_id)
 
 
-    def register_guest_image(self, path:str, name:str, description:str, host="localhost", tags=None):
+    def register_guest_image(self, path:str, name:str, description:str):
         """Instantly register an image for use. If you need to prepare an image that needs processing done
         in the background, use prepare_guest_image()."""
 
-        self.prepare_guest_image()
-        return self._register_image(path, name, description, host=host, tags=tags)
+        self.prepare_guest_image(name, description)
+        return self._register_image(path)
 
 
     def register_user_image(self, path:str, name:str, description:str, user:User, host="localhost", tags=None):
@@ -40,7 +40,7 @@ class ImageManager:
         return self._register_image(path, name, description, host=host, tags=tags)
 
     
-    def prepare_guest_image(self) -> str:
+    def prepare_guest_image(self, name=None, description=None) -> str:
         """Prepare a Guest image by instantiating an empty object with an ID which can then be later registered.
         Complete the image with finish_guest_image().
 
@@ -51,6 +51,8 @@ class ImageManager:
 
         self.image = Image(
             image_type =  Image.ImageType.GUEST,
+            name = name,
+            description = description
         )
         self.image.generate_id()
         self.image.save()
