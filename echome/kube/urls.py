@@ -4,6 +4,7 @@ from .views import (
     DescribeKubeCluster,
     TerminateKubeCluster,
     ModifyKubeCluster,
+    InitAdminKubeCluster,
 )
 
 app_name = 'kube'
@@ -12,4 +13,5 @@ urlpatterns = [
     path('cluster/describe/<str:cluster_id>', DescribeKubeCluster.as_view()),
     path('cluster/terminate/<str:cluster_id>', TerminateKubeCluster.as_view()),
     path('cluster/modify/<str:cluster_id>', ModifyKubeCluster.as_view()),
+    path('cluster-admin/init/<str:cluster_id>', InitAdminKubeCluster.as_view()),
 ]

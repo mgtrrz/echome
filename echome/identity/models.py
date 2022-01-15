@@ -57,6 +57,17 @@ class UserManager(BaseUserManager):
         user.save()
 
         return user
+    
+    
+    def create_service_account(self, account):
+        svc = self.model()
+        svc.account = account
+        svc.type = User.Type.SERVICE
+        svc.generate_id()
+        svc.username = svc.user_id
+        svc.save()
+
+        return svc
 
 
 class User(AbstractUser):

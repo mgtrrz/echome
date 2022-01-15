@@ -90,3 +90,10 @@ class TerminateKubeCluster(HelperView, APIView):
 
 class ModifyKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
+
+
+class InitAdminKubeCluster(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, key_name:str):
+        pass
