@@ -2,7 +2,7 @@
 
 # image prep
 apt update && apt upgrade -y
-apt install ebtables ethtool apt-transport-https curl -y
+apt install ebtables ethtool apt-transport-https nfs-common curl -y
 
 modprobe overlay
 modprobe br_netfilter

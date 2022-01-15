@@ -91,7 +91,7 @@ class InstanceDefinition(models.Model):
     tags = models.JSONField(default=dict)
 
     def __str__(self) -> str:
-        return self.instance_id
+        return self.instance_definition_id
 
 
 class OperatingSystem(models.TextChoices):
@@ -157,6 +157,16 @@ class Image(models.Model):
     def is_ready_for_use(self) -> bool:
         """Helper property to determine if the image can be used in a VM."""
         return True if self.state == Image.State.AVAILABLE and self.deactivated is False else False
+
+
+    @property
+    def is_ready_for_kubernetes(self) -> bool:
+        """Helper property to determine if this image can be used for Kubernetes. This must be an image
+        that has kubeadm installed with the appropriate bootstrap scripts."""
+        if "echome_kubernetes_ready" in self.metadata:
+            return self.metadata["echome_kubernetes_ready"]
+        else:
+            return False
 
 
     def generate_id(self):
@@ -246,4 +256,4 @@ class Volume(models.Model):
 
 
     def __str__(self) -> str:
-        return self.instance_id
+        return self.volume_id
