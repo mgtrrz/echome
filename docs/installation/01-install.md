@@ -37,3 +37,5 @@ cluster_size: 65536
 ```
 
 qcow2 images work best for what we're doing. But any image type should work.
+---
+Next Article: [Setup](./03-setup.md)

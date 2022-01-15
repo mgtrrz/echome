@@ -2,7 +2,7 @@
 
 Ensure you have your access key ID and secret handy. Your username and password will not work with the API.
 
-Note: ALL credentials and tokens that are retrieved or sent to the server must never be shared and kept secret. These tokens or keys can be used to authenticate to the server and make changes on your behalf. 
+> ⚠️ ALL credentials and tokens that are retrieved or sent to the server must never be shared and kept secret. These tokens or keys can be used to authenticate to the server and make changes on your behalf. 
 
 ## 1. Retrieve access token
 
@@ -78,9 +78,10 @@ If you had any virtual machines setup, you would receive a successful response s
 If during a request to the server you receive a 401 Unauthenticated response, try refreshing the access token
 
 ```
-ACCESS_TOKEN="wejZoi23vq25JCwoj23ewqIkORqwXOCXJASO.RJiyvPRt3NpRtdaXNzIiwiTckJ3ZBRt3guvEdbe0fiQqasxLeckJ3ZB_WtckJ3ZBBQjiM7aSPStWyiv9L_ePMCtA7NRxJANckJ3ZB93UL0LpcRJiDMKla4dxD2IG3W9gVBT_g25yrIpcRJi.ukmDtDoiYMkxh0LEyDkFnRaGilAOsvBH15ns3Xem6aY" \
-REFRESH_TOKEN="wejZoi23vq25JCwoj23ewqIkORqwXOCXJASO.eIISixTJGMpujOZ8ztWxLIe1J2IRmjGT3G9DMdM0YxNPwwsIvubtrruq86dnmfMuEDWVfBiehLIe1J2IRmjGT3G9DMdM0YxNPwwsIvubO7RUdekr9q_Fdubtrruq86UQPJEvaLefdza32gQg.7dJZ1P5fnaPWwTZlYeoqja0zW5lVEgx9WzX2wuypkZM" \
-curl -X POST -H 'Accept: application/json' -H "Authorization: Bearer ${ACCESS_TOKEN}" [SERVER_URL]/api/v1/identity/token/refresh -d "refresh=${REFRESH_TOKEN}"
+$ ACCESS_TOKEN="wejZoi23vq25JCwoj23ew..."
+$ REFRESH_TOKEN="wejZoi23vq25JCwoj..."
+
+$ curl -X POST -H 'Accept: application/json' -H "Authorization: Bearer ${ACCESS_TOKEN}" [SERVER_URL]/api/v1/identity/token/refresh -d "refresh=${REFRESH_TOKEN}"
 ```
 
 Notice how the original access token is still required in the Authorization header. If it is omitted, refreshing will not work. The response will contain the new access token which should be used for all new requests.
