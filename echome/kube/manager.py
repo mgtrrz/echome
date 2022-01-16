@@ -261,7 +261,7 @@ class KubeClusterManager:
 
         files = []
         
-        node_template_file = "/root/node_template.yaml"
+        node_template_file = "/root/node.yaml"
         echome_info_file_path = "/root/server_info.yaml"
         sh_script_path = "/root/init_kube_node_debian.sh"
         
