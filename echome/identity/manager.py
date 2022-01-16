@@ -7,10 +7,11 @@ logger = logging.getLogger(__name__)
 
 class ServiceAccount:
 
-    def create(self):
-        pass
+    def create(self, account:Account):
+        return User.objects.create_service_account(account=account)
 
-    def generate_jwt_token(self, service_acount:User):
+
+    def generate_jwt_token(self, service_acount:User, expiration=None):
         if service_acount.type != User.Type.SERVICE:
             raise Exception #TODO: Clarify
         

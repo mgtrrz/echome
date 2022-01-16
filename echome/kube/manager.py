@@ -1,7 +1,10 @@
 import logging
 import json
 from django.apps import apps
+from django.urls import reverse
+from echome.config import ecHomeConfig
 from identity.models import User
+from identity.manager import ServiceAccount
 from vault.vault import Vault
 from network.manager import VirtualNetworkManager
 from keys.manager import UserKeyManager
@@ -120,17 +123,37 @@ class KubeClusterManager:
         files = []
 
         cluster_info_file_path = "/root/cluster_info.yaml"
+        echome_info_file_path = "/root/server_info.yaml"
         kubeadm_template_path = "/root/kubeadm_template.yaml"
         sh_script_path = "/root/init_kube_debian.sh"
         
-        # Cluster deploy JSON details
-        deploy_details = self.generate_cluster_deploy_details(
-            controller_ip, self.cluster_db.cluster_id, kubernetes_version)
-        cluster_file = CloudInitFile(
+
+        # Create a service account and token for the controller to send
+        # information back to us
+        svc_acct = ServiceAccount()
+        service_account = svc_acct.create(user.account)
+        token = svc_acct.generate_jwt_token(service_account)
+
+        files.append(CloudInitFile(
+            path = echome_info_file_path,
+            content = json.dumps({
+                "server_addr": ecHomeConfig.EcHome.api_url,
+                "endpoint": reverse('api:kube:cluster-admin-init', args=[self.cluster_db.cluster_id]),
+                "auth_token": token
+            })
+        ))
+        
+        # Kube Cluster details
+        files.append(CloudInitFile(
             path = cluster_info_file_path,
-            content = json.dumps(deploy_details)
-        )
-        files.append(cluster_file)
+            content = json.dumps(
+                self.generate_cluster_deploy_details(
+                    controller_ip, 
+                    self.cluster_db.cluster_id, 
+                    kubernetes_version
+                )
+            )
+        ))
 
         # Kubeadm template file
         path = apps.get_app_config('kube').path
