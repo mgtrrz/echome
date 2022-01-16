@@ -1,8 +1,7 @@
 import logging
 import hvac
-from typing import List
-from echome.config import AppConfig
-from .exceptions import CannotUnsealVaultServerError
+from echome.config import ecHomeConfig
+from .exceptions import CannotUnsealVaultServerError, VaultIsSealedError
 
 logger = logging.getLogger(__name__)
 
@@ -10,25 +9,50 @@ class Vault:
     client = None
 
     def __init__(self):
-        config = AppConfig()
         self.client = hvac.Client(
-            url=config.Vault().addr, 
-            token=config.Vault().root_token
+            url=ecHomeConfig.Vault().addr, 
+            token=ecHomeConfig.Vault().root_token
         )
-
-        self.check_seal_status()
+        self.unseal()
     
 
-    def check_seal_status(self):
-        config = AppConfig()
-        if self.client.sys.is_sealed():
-            self.unseal([config.Vault().key])
+    @property
+    def has_root(self) -> bool:
+        capabilities = self.client.lookup_token()['data']
+        return capabilities['path'] == 'auth/token/root'
+    
 
-
-    def unseal(self, keys:List[str]):
-        self.client.sys.submit_unseal_keys(keys=keys)
+    def unseal(self):
+        """Unseals Vault"""
         if self.client.sys.is_sealed():
-            raise CannotUnsealVaultServerError
+            if ecHomeConfig.Vault().key is not None:
+                keys = [ecHomeConfig.Vault().key]
+            else:
+                raise VaultIsSealedError("There are no keys configure to unseal Vault.")
+
+            logger.debug("Attempting to unseal")
+            self.client.sys.submit_unseal_keys(keys=keys)
+            if self.client.sys.is_sealed():
+                raise CannotUnsealVaultServerError
+        else:
+            logger.debug("Vault is already unsealed!")
+    
+
+    def create_secret_engine(self, path:str, type:str = "kv"):
+        logger.debug(f"Creating secrets engine of type: {type} at path {path}")
+        options = {}
+        if type == "kv":
+            options['version'] = "2"
+
+        self.client.sys.enable_secrets_engine(
+            backend_type=type,
+            path=path,
+            options=options
+        )
+    
+    def check_if_path_exists(self, path:str) -> bool:
+        engines = self.client.sys.list_mounted_secrets_engines()['data']
+        return f"{path}/" in engines.keys()
     
 
     def store_sshkey(self, mount_point:str, path_name:str, key:str):

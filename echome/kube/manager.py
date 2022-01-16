@@ -13,17 +13,18 @@ from vmmanager.vm_manager import VmManager
 from vmmanager.cloudinit import CloudInitFile
 from vmmanager.image_manager import ImageManager
 from .models import KubeCluster
-from .exceptions import ClusterConfigurationError
+from .exceptions import ClusterConfigurationError, ClusterGetConfigurationError
 
 logger = logging.getLogger(__name__)
 
 class KubeClusterManager:
 
     cluster_db: KubeCluster = None
+    vault_mount_point = "kube"
 
     def __init__(self, cluster_id:str = None) -> None:
         if cluster_id:
-            self.cluster_db = KubeCluster(cluster_id=cluster_id)
+            self.cluster_db = KubeCluster.objects.get(cluster_id=cluster_id)
         else:
             self.cluster_db = KubeCluster()
 
@@ -39,44 +40,50 @@ class KubeClusterManager:
     def delete_cluster_db(self):
         pass
 
-    def mark_cluster_as_failed(self):
-        pass
+    def set_cluster_as_failed(self):
+        logger.debug("Setting cluster status as FAILED")
+        self.cluster_db.status = KubeCluster.Status.FAILED
+        self.cluster_db.save()
+    
+    def set_cluster_as_ready(self):
+        logger.debug("Setting cluster status as READY")
+        self.cluster_db.status = KubeCluster.Status.READY
+        self.cluster_db.save()
     
 
-    def get_cluster_config(self, cluster_id:str, user:User):
-
-            vault = Vault()
-            try:
-                conf = vault.get_secret(self.vault_mount_point, f"{cluster_id}/admin")
-                conf = conf["data"]["data"]["admin.conf"]
-            except Exception:
-                logger.debug(f"Could not extract config from Vault for {cluster_id}/admin")
-                raise ServerError("Could not retrieve config for specified cluster.")
-            
-            return conf
-    
-    def delete_cluster(self, cluster_id:str, user:User):
-
-        cluster = self.get_cluster_by_id(cluster_id, user)
-        if not cluster:
-            raise ClusterDoesNotExist()
-
-        self.status = self.Status.DELETING
-
-        vmanager = VmManager()
-        logger.debug(f"Terminating primary controller: {cluster.primary_controller}")
-        vmanager.terminateInstance(user, cluster.primary_controller)
-        logger.debug("Terminating nodes..")
-        for inst in cluster.assoc_instances:
-            logger.debug(f"..node {inst}")
-            vmanager.terminateInstance(user, inst)
-
-        # Delete Vault entries
+    def get_cluster_config(self, user:User):
         vault = Vault()
-        vault.client.sys.delete_policy(f"kubesvc-{cluster_id}")
-        vault.delete_kv_dir(mount_point=self.vault_mount_point, path_name=cluster_id)
+        try:
+            conf = vault.get_secret(
+                self.vault_mount_point, 
+                f"{user.account.account_id}/{self.cluster_db.cluster_id}/admin"
+            )
+            conf = conf["data"]["data"]["admin.conf"]
+        except Exception:
+            logger.debug(f"Could not extract config from Vault for {self.cluster_db.cluster_id}/admin")
+            raise ClusterGetConfigurationError("Could not retrieve config for specified cluster.")
         
-        cluster.delete()
+        return conf
+    
+
+    def set_cluster_secrets(self, user:User, details:dict):
+        vault = Vault()
+
+        secrets = {
+            'ca_sha': details['CaSha'],
+            'admin.conf': details['AdminConf'],
+            'kubeadm_token': details['KubeadmToken']
+        }
+
+        vault.store_dict(
+            self.vault_mount_point, 
+            path_name=f"{user.account.account_id}/{self.cluster_db.cluster_id}",
+            value=secrets
+        )
+    
+
+    def delete_cluster(self, cluster_id:str, user:User):
+        # TODO: This
         return True
     
 

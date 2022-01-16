@@ -6,6 +6,7 @@ from rest_framework import status
 from api.api_view import HelperView
 from identity.models import User
 from .exceptions import ClusterConfigurationError
+from .models import KubeCluster
 from .manager import KubeClusterManager
 from .tasks import task_create_cluster
 from .serializers import KubeClusterSerializer
@@ -98,11 +99,27 @@ class InitAdminKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, cluster_id:str):
-        print(request.user)
+        # This endpoint is for service accounts
         if request.user.type != User.Type.SERVICE:
             return self.error_response(
                 "Forbidden",
                 status.HTTP_403_FORBIDDEN
+            )
+        
+        # Also don't allow this request to modify anything
+        # other than the account's cluster
+        try:
+            cluster_manager = KubeClusterManager(cluster_id)
+        except KubeCluster.DoesNotExist:
+            return self.error_response(
+                "Cluster is not configured",
+                status.HTTP_400_BAD_REQUEST
+            )
+        
+        if cluster_manager.cluster_db.account != request.user.account:
+            return self.error_response(
+                "Cluster is not configured",
+                status.HTTP_400_BAD_REQUEST
             )
         
         json_data = json.loads(request.body)
@@ -113,10 +130,13 @@ class InitAdminKubeCluster(HelperView, APIView):
                 "Malformed Data",
                 status.HTTP_400_BAD_REQUEST
             )
+        
+        # Store cluster secrets
+        cluster_manager.set_cluster_secrets(request.user, data)
+        
+        if data["InitSuccess"] == "true":
+            cluster_manager.set_cluster_as_ready()
+        else:
+            cluster_manager.set_cluster_as_failed()
 
-        print(cluster_id)
-        print(request)
-        print(request.POST)
-        print("Json data:")
-        print(data)
         return self.success_response()

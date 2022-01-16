@@ -1,7 +1,7 @@
 class ClusterDoesNotExist(Exception):
     pass
 
-class ServerError(Exception):
+class ClusterGetConfigurationError(Exception):
     pass
 
 class ClusterConfigurationError(Exception):
