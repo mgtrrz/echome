@@ -4,6 +4,8 @@ from configparser import ConfigParser
 
 CONFIG_FILE="/etc/echome/echome.ini"
 
+logger = logging.getLogger(__name__)
+
 class AppConfig:
     
     def __init__(self):
@@ -16,11 +18,11 @@ class AppConfig:
 
     def check_config_file(self, file):
         if not path.exists(file):
-            logging.error("ecHome config file at {file} not found or readable.")
+            logger.error("ecHome config file at {file} not found or readable.")
             raise EcHomeConfigNotSet(f"ecHome config file at {file} not found or readable!")
 
         if(len(file) <= 0):
-            logging.error("ecHome config file at {file} empty.")
+            logger.error("ecHome config file at {file} empty.")
             raise EcHomeConfigNotSet(f"ecHome config file at {file} empty!")
     
     class __base_section():

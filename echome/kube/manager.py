@@ -137,7 +137,7 @@ class KubeClusterManager:
         files.append(CloudInitFile(
             path = echome_info_file_path,
             content = json.dumps({
-                "server_addr": ecHomeConfig.EcHome.api_url,
+                "server_addr": ecHomeConfig.EcHome().api_url,
                 "endpoint": reverse('api:kube:cluster-admin-init', args=[self.cluster_db.cluster_id]),
                 "auth_token": token
             })

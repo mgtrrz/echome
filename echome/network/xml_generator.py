@@ -1,10 +1,7 @@
 import xmltodict
 import logging
-from typing import List
 from enum import Enum
 from dataclasses import dataclass, field
-# from .models import VirtualNetwork
-# from echome.config import ecHomeConfig
 
 logger = logging.getLogger(__name__)
 
