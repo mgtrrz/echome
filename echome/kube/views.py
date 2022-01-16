@@ -1,8 +1,10 @@
 import logging
+import json
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import status
 from api.api_view import HelperView
+from identity.models import User
 from .exceptions import ClusterConfigurationError
 from .manager import KubeClusterManager
 from .tasks import task_create_cluster
@@ -22,7 +24,7 @@ class CreateKubeCluster(HelperView, APIView):
             "ControllerIp",
         ]
         optional_params = {
-            "KubeVersion": "1.22.0",
+            "KubeVersion": "1.23.0",
             "KeyName": None,
             "DiskSize": "30G",
             "Tags": {}
@@ -95,5 +97,26 @@ class ModifyKubeCluster(HelperView, APIView):
 class InitAdminKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, key_name:str):
-        pass
+    def post(self, request, cluster_id:str):
+        print(request.user)
+        if request.user.type != User.Type.SERVICE:
+            return self.error_response(
+                "Forbidden",
+                status.HTTP_403_FORBIDDEN
+            )
+        
+        json_data = json.loads(request.body)
+        try:
+            data = json_data['data']
+        except KeyError:
+            return self.error_response(
+                "Malformed Data",
+                status.HTTP_400_BAD_REQUEST
+            )
+
+        print(cluster_id)
+        print(request)
+        print(request.POST)
+        print("Json data:")
+        print(data)
+        return self.success_response()

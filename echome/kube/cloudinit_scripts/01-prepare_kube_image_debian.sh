@@ -2,7 +2,8 @@
 
 # image prep
 apt update && apt upgrade -y
-apt install ebtables ethtool apt-transport-https nfs-common curl -y
+apt install ebtables ethtool apt-transport-https nfs-common curl jq python3-pip -y
+pip install j2cli
 
 modprobe overlay
 modprobe br_netfilter

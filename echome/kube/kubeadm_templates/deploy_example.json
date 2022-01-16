@@ -1,7 +1,0 @@
-{
-    "controller_ip": "172.16.9.90",
-    "cluster_name": "kube-01234567",
-    "cluster_version": "1.22.0",
-    "cluster_service_subnet": "10.96.0.0/12",
-    "token_ttl": "0h1m0s"
-}

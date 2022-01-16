@@ -37,7 +37,7 @@ class HelperView():
         }, status=status.HTTP_400_BAD_REQUEST)
     
 
-    def error_response(self, message:str, status:status) -> Response:
+    def error_response(self, message:str, status) -> Response:
         msg = {
             'success': False,
             'details': message

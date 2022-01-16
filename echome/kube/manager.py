@@ -114,7 +114,7 @@ class KubeClusterManager:
 
 
     def create_cluster(self, user:User, instance_def: InstanceDefinition, \
-        controller_ip:str, image_id:str, network_profile:str, disk_size:str, kubernetes_version:str = "1.22", 
+        controller_ip:str, image_id:str, network_profile:str, disk_size:str, kubernetes_version:str = "1.23", 
         key_name:str = None):
 
         if self.cluster_db is None:
@@ -201,7 +201,7 @@ class KubeClusterManager:
             "cluster_name": cluster_id,
             "cluster_version": version,
             "cluster_service_subnet": cluster_svc_subnet,
-            "token_ttl": "0h1m0s",
+            "token_ttl": "1h0m0s",
         }
 
     
@@ -210,11 +210,3 @@ class KubeClusterManager:
         
         pass
     
-    # otp = one time policy
-    def _generate_vault_policy_otp(self, path:str):
-        return """
-path "kubesvc/data/%s/*" {
-  capabilities = ["read", "list", "create"]
-}
-""" % path
-
