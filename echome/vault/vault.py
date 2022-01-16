@@ -1,7 +1,8 @@
 import logging
 import hvac
+from hvac import exceptions
 from echome.config import ecHomeConfig
-from .exceptions import CannotUnsealVaultServerError, VaultIsSealedError
+from .exceptions import CannotUnsealVaultServerError, SecretDoesNotExistError, VaultIsSealedError
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +104,14 @@ class Vault:
     
 
     def get_secret(self, mount_point:str, path_name:str):
-        return self.client.secrets.kv.v2.read_secret_version(
-            mount_point=mount_point,
-            path=path_name
-        )
+        try:
+            return self.client.secrets.kv.v2.read_secret_version(
+                mount_point=mount_point,
+                path=path_name
+            )
+        except exceptions.InvalidPath:
+            raise SecretDoesNotExistError
+
     
 
     def create_policy(self, policy:str, name:str):

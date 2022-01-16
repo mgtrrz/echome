@@ -7,7 +7,11 @@ logger = logging.getLogger(__name__)
 
 class ServiceAccount:
 
-    def create(self, account:Account):
+    def create_or_get(self, account:Account):
+        objs = User.objects.filter(account=account,type=User.Type.SERVICE)
+        if objs:
+            return objs[0]
+        # TODO: Namespace service accounts
         return User.objects.create_service_account(account=account)
 
 

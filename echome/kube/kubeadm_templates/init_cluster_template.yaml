@@ -4,7 +4,7 @@ bootstrapTokens:
 - groups:
   - system:bootstrappers:kubeadm:default-node-token
   token: {{ env("KUBEADM_TOKEN") }}
-  ttl: {{ token_ttl }}
+  ttl: "{{ token_ttl }}"
   usages:
   - signing
   - authentication

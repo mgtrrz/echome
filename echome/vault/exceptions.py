@@ -3,3 +3,6 @@ class CannotUnsealVaultServerError(Exception):
 
 class VaultIsSealedError(Exception):
     pass
+
+class SecretDoesNotExistError(Exception):
+    pass
