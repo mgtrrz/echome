@@ -60,7 +60,7 @@ class KubeClusterManager:
         try:
             conf = vault.get_secret(
                 self.vault_mount_point, 
-                f"{user.account.account_id}/{self.cluster_db.cluster_id}/admin"
+                f"{user.account.account_id}/{self.cluster_db.cluster_id}"
             )
             conf = conf["data"]["data"]["admin.conf"]
         except Exception:

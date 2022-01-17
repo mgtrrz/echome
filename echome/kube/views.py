@@ -80,8 +80,28 @@ class CreateKubeCluster(HelperView, APIView):
 class DescribeKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, key_name:str):
+    def get(self, request, cluster_id:str):
         pass
+    
+
+class ConfigKubeCluster(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, cluster_id:str):
+        try:
+            cluster_manager = KubeClusterManager(cluster_id)
+        except KubeCluster.DoesNotExist:
+            return self.not_found_response()
+        
+        if cluster_manager.cluster_db.account != request.user.account:
+            return self.not_found_response()
+        
+        try:
+            config = cluster_manager.get_cluster_config(request.user)
+            return self.success_response({"admin.conf": config})
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
     
 
 
@@ -93,16 +113,10 @@ class TerminateKubeCluster(HelperView, APIView):
         try:
             cluster_manager = KubeClusterManager(cluster_id)
         except KubeCluster.DoesNotExist:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.not_found_response()
         
         if cluster_manager.cluster_db.account != request.user.account:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.not_found_response()
         
         try:
             cluster_manager.delete_cluster(request.user)
