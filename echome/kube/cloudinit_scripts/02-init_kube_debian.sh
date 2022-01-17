@@ -22,7 +22,7 @@ function cleanup() {
 function script_failure() {
     echo "[!] CAUGHT SIGINT OR ERR: CLEANING UP"
     jq -n '{data: $ARGS.named}' \
-        --arg InitSuccess "false" \
+        --arg Success "false" \
         --arg ErrorLog "$(tail -n25 /var/log/cloud-init-output.log)" > /root/script_fail.json
     
     auth_header="Authorization: Bearer ${echome_token}"
@@ -67,7 +67,7 @@ ca_sha_value=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa
 
 # Create JSON file with kube data
 jq -n '{data: $ARGS.named}' \
-    --arg InitSuccess "true" \
+    --arg Success "true" \
     --arg CaSha "${ca_sha_value}"  \
     --arg KubeadmToken "${KUBEADM_TOKEN}" \
     --arg AdminConf "$(cat /etc/kubernetes/admin.conf)" > /root/payload.json

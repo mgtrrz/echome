@@ -6,6 +6,7 @@ from rest_framework import status
 from api.api_view import HelperView
 from identity.models import User
 from vmmanager.instance_definitions import InstanceDefinition
+from vmmanager.models import VirtualMachine
 from .exceptions import ClusterConfigurationError
 from .models import KubeCluster
 from .manager import KubeClusterManager
@@ -221,15 +222,15 @@ class InitAdminKubeCluster(HelperView, APIView):
                 status.HTTP_400_BAD_REQUEST
             )
         
-        if data["InitSuccess"] == "true":
+        if data["Success"] == "true":
             # Store cluster secrets
             cluster_manager.set_cluster_secrets(request.user, data)
-
             cluster_manager.set_cluster_as_ready()
         else:
             cluster_manager.set_cluster_as_failed()
 
         return self.success_response()
+
 
 class NodeAddAdminKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
@@ -258,6 +259,26 @@ class NodeAddAdminKubeCluster(HelperView, APIView):
                 status.HTTP_400_BAD_REQUEST
             )
         
-        # DO  STUFF
+        if 'Self' not in request.POST:
+            return self.error_response(
+                "Cluster is not configured",
+                status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            vm = VirtualMachine.objects.get(instance_id=request.POST['Self'])
+        except VirtualMachine.DoesNotExist:
+            return self.error_response(
+                "Unrecognized instance to add to cluster",
+                status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.debug(request.POST)
+        if request.POST['Success'] == "true":
+            # Associate this instance with the cluster
+            cluster_manager.cluster_db.associated_instances.add(vm)
+            cluster_manager.cluster_db.save()
+        else:
+            pass
 
         return self.success_response()

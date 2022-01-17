@@ -12,6 +12,7 @@ from network.manager import VirtualNetworkManager
 from keys.manager import UserKeyManager
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
+from vmmanager.tasks import task_terminate_instance
 from vmmanager.cloudinit import CloudInitFile
 from vmmanager.image_manager import ImageManager
 from vmmanager.models import VirtualMachine
@@ -95,16 +96,15 @@ class KubeClusterManager:
         vault = Vault()
         vault.delete_key(self.vault_mount_point, f"{self.cluster_db.account.account_id}/{self.cluster_db.cluster_id}")
 
+        # Delete kube cluster by setting state to TERMINATED
+        self.cluster_db.primary = None
+        self.cluster_db.status = KubeCluster.Status.TERMINATED
+        self.cluster_db.save()
+
         # Delete controller VM
         controller = self.cluster_db.primary
         logger.debug("Terminating controller instance")
-        vm_manager = VmManager()
-        vm_manager.terminate_instance(vm_id=controller.instance_id, user=user)
-        self.cluster_db.primary = None
-
-        # Delete kube cluster by setting state to TERMINATED
-        self.cluster_db.status = KubeCluster.Status.TERMINATED
-        self.cluster_db.save()
+        task_terminate_instance.delay(controller.instance_id, user.user_id)
 
         return True
     
@@ -241,6 +241,8 @@ class KubeClusterManager:
     def add_node_to_cluster(self, user:User, instance_def: InstanceDefinition, node_ip:str, \
         image_id:str, network_profile:str, disk_size:str, key_name:str = None, tags:dict = None):
 
+        tags = tags if tags else {}
+
         if self.cluster_db is None:
             raise ClusterConfigurationError("cluster_db is not set!")
 
@@ -276,7 +278,7 @@ class KubeClusterManager:
             content = json.dumps({
                 "server_addr": ecHomeConfig.EcHome().api_url,
                 "endpoint": reverse('api:kube:cluster-admin-node-add', args=[self.cluster_db.cluster_id]),
-                "auth_token": token
+                "auth_token": token,
             })
         ))
 

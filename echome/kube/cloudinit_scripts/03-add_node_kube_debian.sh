@@ -21,7 +21,8 @@ function cleanup() {
 function script_failure() {
     echo "[!] CAUGHT SIGINT OR ERR: CLEANING UP"
     auth_header="Authorization: Bearer ${echome_token}"
-    curl -s -X POST -d "Success=false&ErrorLog=$(tail -n25 /var/log/cloud-init-output.log)" -H 'Accept: application/json'  -H "${auth_header}" "${echome_url}" 
+    curl -s -X POST -d "Success=false&Self=$(cat /var/lib/cloud/data/instance-id)&ErrorLog=$(tail -n25 /var/log/cloud-init-output.log)" \
+        -H 'Accept: application/json'  -H "${auth_header}" "${echome_url}" 
 
     # Finally cleanup
     cleanup
@@ -33,13 +34,13 @@ trap script_failure SIGINT ERR
 echo "[*] Joining Kubernetes cluster with Kubeadm.."
 
 # Init the cluster
-kubeadm join --config node.yaml
+kubeadm join --config /root/node.yaml
 
 echo "[*] Posting to ecHome.."
 
 # Upload data to echome
 auth_header="Authorization: Bearer ${echome_token}"
-curl -s -X POST -d "Success=true" -H 'Accept: application/json'  -H "${auth_header}" "${echome_url}" 
+curl -s -X POST -d "Success=true&Self=$(cat /var/lib/cloud/data/instance-id)" -H 'Accept: application/json'  -H "${auth_header}" "${echome_url}" 
 
 echo "[*] Complete"
 

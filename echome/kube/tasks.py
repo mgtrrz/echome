@@ -8,12 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
-def task_terminate_cluster(cluster_id:str, user_id:str):
-    logger.debug(f"Received async task to terminate VM: {cluster_id}")
-    user = User.objects.get(user_id=user_id)
-
-
-@shared_task
 def task_create_cluster(prepared_cluster_id:str, user_id:str, instance_def: str, image_id:str, 
         network_profile:str, controller_ip:str, kubernetes_version:str, key_name:str, disk_size:str):
     logger.debug(f"Received async task to create cluster for: {prepared_cluster_id}")

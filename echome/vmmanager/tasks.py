@@ -25,3 +25,8 @@ def task_create_image(vm_id:str, user_id:str, prepared_id:str):
         logger.error("Image creation process from VM failed")
         logger.error(e)
         manager.mark_image_as_failed()
+
+
+@shared_task
+def task_create_vm(vm_id:str, user_id:str, prepared_id:str):
+    pass
