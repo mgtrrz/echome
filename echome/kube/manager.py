@@ -56,6 +56,7 @@ class KubeClusterManager:
     
 
     def get_cluster_config(self, user:User):
+        """Return the admin.conf file for the cluster"""
         vault = Vault()
         try:
             conf = vault.get_secret(
@@ -71,6 +72,7 @@ class KubeClusterManager:
     
 
     def set_cluster_secrets(self, user:User, details:dict):
+        """Sets a clusters secrets from the controller initialization"""
         vault = Vault()
 
         secrets = {
@@ -87,6 +89,7 @@ class KubeClusterManager:
     
 
     def delete_cluster(self, user:User):
+        """Terminates a Kubernetes cluster by deleting associated resources"""
         logger.debug(f"Received request to terminate cluster: {self.cluster_db.cluster_id}")
         self.cluster_db.status = KubeCluster.Status.DELETING
         self.cluster_db.save()
@@ -145,6 +148,8 @@ class KubeClusterManager:
     def create_cluster(self, user:User, instance_def: InstanceDefinition, \
         controller_ip:str, image_id:str, network_profile:str, disk_size:str, kubernetes_version:str = "1.23", 
         key_name:str = None):
+        """Creates a new Kubernetes cluster with a primary controller. The function creates an instance then 
+        uses UserData scripts to add files onto the cluster for kubeadm to initialize."""
 
         if self.cluster_db is None:
             raise ClusterConfigurationError("cluster_db is not set!")
@@ -240,6 +245,8 @@ class KubeClusterManager:
 
     def add_node_to_cluster(self, user:User, instance_def: InstanceDefinition, node_ip:str, \
         image_id:str, network_profile:str, disk_size:str, key_name:str = None, tags:dict = None):
+        """Adds a node to an existing cluster. This will create an instance, add the UserData scripts and use
+        kubeadm to join the primary controller in the cluster."""
 
         tags = tags if tags else {}
 
