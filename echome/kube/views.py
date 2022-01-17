@@ -81,7 +81,39 @@ class DescribeKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, cluster_id:str):
-        pass
+        i = []
+
+        try:
+            if cluster_id == "all":
+                vms = KubeCluster.objects.filter(
+                    account=request.user.account
+                )
+            else:
+                vms = []
+                vms.append(KubeCluster.objects.get(
+                    account=request.user.account,
+                    cluster_id=cluster_id
+                ))
+            
+            for cluster in vms:
+                assoc_instances = []
+                s_obj = KubeClusterSerializer(cluster).data
+                for a_inst in s_obj['associated_instances']:
+                    vm = VirtualMachine.objects.get(id=a_inst)
+                    assoc_instances.append({
+                        'instance_id': vm.instance_id,
+                        'name': vm.tags['Name'] if "Name" in vm.tags else ""
+                    })
+                s_obj['associated_instances'] = assoc_instances
+                i.append(s_obj)
+        except KubeCluster.DoesNotExist as e:
+            logger.debug(e)
+            return self.not_found_response()
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+
+        return self.success_response(i)
     
 
 class ConfigKubeCluster(HelperView, APIView):

@@ -13,15 +13,15 @@ class KubeCluster(models.Model):
     last_modified = models.DateTimeField(auto_now=True)
     
     class Status(models.TextChoices):
-        BUILDING = 1, 'Building'
-        FAILED = 2, 'Failed'
-        READY = 3, 'Ready'
-        UPDATING = 4, 'Updating'
-        DELETING = 5, 'Deleting'
-        TERMINATED = 6, 'Terminated'
+        BUILDING = 'BUILDING', 'Building'
+        FAILED = 'FAILED', 'Failed'
+        READY = 'READY', 'Ready'
+        UPDATING = 'UPDATING', 'Updating'
+        DELETING = 'DELETING', 'Deleting'
+        TERMINATED = 'TERMINATED', 'Terminated'
 
     status = models.CharField(
-        max_length=4,
+        max_length=20,
         choices=Status.choices,
         default=Status.BUILDING,
     )
