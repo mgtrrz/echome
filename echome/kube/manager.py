@@ -99,15 +99,15 @@ class KubeClusterManager:
         vault = Vault()
         vault.delete_key(self.vault_mount_point, f"{self.cluster_db.account.account_id}/{self.cluster_db.cluster_id}")
 
-        # Delete kube cluster by setting state to TERMINATED
-        self.cluster_db.primary = None
-        self.cluster_db.status = KubeCluster.Status.TERMINATED
-        self.cluster_db.save()
-
         # Delete controller VM
         controller = self.cluster_db.primary
         logger.debug("Terminating controller instance")
         task_terminate_instance.delay(controller.instance_id, user.user_id)
+
+        # Delete kube cluster by setting state to TERMINATED
+        self.cluster_db.primary = None
+        self.cluster_db.status = KubeCluster.Status.TERMINATED
+        self.cluster_db.save()
 
         return True
     
