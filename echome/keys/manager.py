@@ -17,7 +17,7 @@ class UserKeyManager:
 
     user_key_db:UserKey = None
 
-    def __init__(self, user_key_name:str, user:User = None) -> None:
+    def __init__(self, user_key_name:str = None, user:User = None) -> None:
         if user_key_name:
             try:
                 self.user_key_db = UserKey.objects.get(

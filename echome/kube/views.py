@@ -112,7 +112,6 @@ class DescribeKubeCluster(HelperView, APIView):
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
-
         return self.success_response(i)
     
 

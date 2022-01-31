@@ -59,13 +59,12 @@ class HelperView():
         }, status=status.HTTP_404_NOT_FOUND)
 
 
-    def success_response(self, extra_info:dict = {}, message:str = None) -> Response:
+    def success_response(self, extra_info:dict = None, message:str = None) -> Response:
         msg = {
             'success': True,
             'details': message if message is not None else "",
+            'results': extra_info if extra_info else []
         }
-        if extra_info:
-            msg['results'] = extra_info
 
         return Response(msg, status=status.HTTP_200_OK)
 
