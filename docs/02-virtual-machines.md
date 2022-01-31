@@ -14,4 +14,4 @@ Virtual Machine management is the primary feature of ecHome. There's a couple of
 
 ### Adding Guest Machine Images
 
-
+To take advantage of ecHome, you'll need to obtain cloud images. Most Linux distributions publish a "Cloud" version of their operating system that's designed specifically for environments where fast and programmatic provisioning is required.
