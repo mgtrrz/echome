@@ -1,14 +1,19 @@
 import logging
 from django.db import models
+from identity.models import User
 from echome.id_gen import IdGenerator
 from echome.exceptions import AttemptedOverrideOfImmutableIdException
 
 logger = logging.getLogger(__name__)
 
+class KubeDbManager(models.Manager):
+    def get_cluster_with_id_or_name(self, user:User, cluster_identifier:str):
+        pass
+
 class KubeCluster(models.Model):
     cluster_id = models.CharField(max_length=20, unique=True, db_index=True)
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id", null=True)
-
+    name = models.CharField(max_length=30, null=True, unique=False)
     created = models.DateTimeField(auto_now_add=True, null=False)
     last_modified = models.DateTimeField(auto_now=True)
     
@@ -37,6 +42,8 @@ class KubeCluster(models.Model):
     image_metadata = models.JSONField(default=dict)
     deactivated = models.BooleanField(default=False)
     tags = models.JSONField(default=dict)
+
+    objects = KubeDbManager()
 
     def generate_id(self):
         if self.cluster_id is None or self.cluster_id == "":

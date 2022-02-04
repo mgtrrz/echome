@@ -1,6 +1,9 @@
 class ClusterDoesNotExist(Exception):
     pass
 
+class ClusterAlreadyExists(Exception):
+    pass
+
 class ClusterGetConfigurationError(Exception):
     pass
 

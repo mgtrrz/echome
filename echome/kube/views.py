@@ -7,7 +7,7 @@ from api.api_view import HelperView
 from identity.models import User
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.models import VirtualMachine
-from .exceptions import ClusterConfigurationError
+from .exceptions import ClusterConfigurationError, ClusterAlreadyExists, ClusterDoesNotExist
 from .models import KubeCluster
 from .manager import KubeClusterManager
 from .tasks import task_create_cluster
@@ -20,6 +20,7 @@ class CreateKubeCluster(HelperView, APIView):
 
     def post(self, request):
         required_params = [
+            "Name",
             "InstanceType",
             "ImageId",
             "NetworkProfile",
@@ -44,6 +45,7 @@ class CreateKubeCluster(HelperView, APIView):
             
             cluster_id = manager.prepare_cluster(
                 user = request.user,
+                name = request.POST["Name"],
                 instance_def = request.POST["InstanceType"],
                 image_id = request.POST["ImageId"],
                 network_profile = request.POST["NetworkProfile"],
@@ -70,6 +72,11 @@ class CreateKubeCluster(HelperView, APIView):
                 "There was an error when creating the cluster.",
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        except ClusterAlreadyExists as e:
+            return self.error_response(
+                "Cluster with that name already exists.",
+                status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
@@ -80,11 +87,11 @@ class CreateKubeCluster(HelperView, APIView):
 class DescribeKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, cluster_id:str):
+    def get(self, request, cluster_name:str):
         i = []
 
         try:
-            if cluster_id == "all":
+            if cluster_name == "all":
                 vms = KubeCluster.objects.filter(
                     account=request.user.account
                 )
@@ -92,7 +99,7 @@ class DescribeKubeCluster(HelperView, APIView):
                 vms = []
                 vms.append(KubeCluster.objects.get(
                     account=request.user.account,
-                    cluster_id=cluster_id
+                    name=cluster_name
                 ))
             
             for cluster in vms:
@@ -118,10 +125,10 @@ class DescribeKubeCluster(HelperView, APIView):
 class ConfigKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, cluster_id:str):
+    def get(self, request, cluster_name:str):
         try:
-            cluster_manager = KubeClusterManager(cluster_id)
-        except KubeCluster.DoesNotExist:
+            cluster_manager = KubeClusterManager(cluster_name)
+        except ClusterDoesNotExist:
             return self.not_found_response()
         
         if cluster_manager.cluster_db.account != request.user.account:
@@ -139,11 +146,11 @@ class ConfigKubeCluster(HelperView, APIView):
 class TerminateKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, cluster_id:str):
+    def post(self, request, cluster_name:str):
 
         try:
-            cluster_manager = KubeClusterManager(cluster_id)
-        except KubeCluster.DoesNotExist:
+            cluster_manager = KubeClusterManager(cluster_name)
+        except ClusterDoesNotExist:
             return self.not_found_response()
         
         if cluster_manager.cluster_db.account != request.user.account:
@@ -161,13 +168,13 @@ class TerminateKubeCluster(HelperView, APIView):
 class ModifyKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, cluster_id):
+    def post(self, request, cluster_name):
         if missing_params := self.require_parameters(request, ["Action"]):
             return self.missing_parameter_response(missing_params)
 
         try:
-            cluster_manager = KubeClusterManager(cluster_id)
-        except KubeCluster.DoesNotExist:
+            cluster_manager = KubeClusterManager(cluster_name)
+        except ClusterDoesNotExist:
             return self.not_found_response()
         
         if cluster_manager.cluster_db.account != request.user.account:
@@ -245,8 +252,8 @@ class InitAdminKubeCluster(HelperView, APIView):
         # Also don't allow this request to modify anything
         # other than the account's cluster
         try:
-            cluster_manager = KubeClusterManager(cluster_id)
-        except KubeCluster.DoesNotExist:
+            cluster_manager = KubeClusterManager(cluster_id = cluster_id)
+        except ClusterDoesNotExist:
             return self.error_response(
                 "Cluster is not configured",
                 status.HTTP_400_BAD_REQUEST
@@ -291,8 +298,8 @@ class NodeAddAdminKubeCluster(HelperView, APIView):
         # Also don't allow this request to modify anything
         # other than the account's cluster
         try:
-            cluster_manager = KubeClusterManager(cluster_id)
-        except KubeCluster.DoesNotExist:
+            cluster_manager = KubeClusterManager(cluster_id = cluster_id)
+        except ClusterDoesNotExist:
             return self.error_response(
                 "Cluster is not configured",
                 status.HTTP_400_BAD_REQUEST

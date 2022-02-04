@@ -18,7 +18,13 @@ from vmmanager.cloudinit import CloudInitFile
 from vmmanager.image_manager import ImageManager
 from vmmanager.models import VirtualMachine
 from .models import KubeCluster
-from .exceptions import ClusterConfigurationError, ClusterGetConfigurationError
+from .exceptions import (
+    ClusterConfigurationError, 
+    ClusterDoesNotExist, 
+    ClusterGetConfigurationError, 
+    ClusterAlreadyExists
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +33,22 @@ class KubeClusterManager:
     cluster_db: KubeCluster = None
     vault_mount_point = "kube"
 
-    def __init__(self, cluster_id:str = None) -> None:
-        if cluster_id:
-            self.cluster_db = KubeCluster.objects.get(cluster_id=cluster_id)
-        else:
-            self.cluster_db = KubeCluster()
+    def __init__(self, cluster_name:str = None, cluster_id:str = None) -> None:
+        try:
+            if cluster_name:
+                self.cluster_db = KubeCluster.objects.get(name=cluster_name)
+            elif cluster_id:
+                self.cluster_db = KubeCluster.objects.get(cluster_id=cluster_id)
+            else:
+                self.cluster_db = KubeCluster()
+        except KubeCluster.DoesNotExist:
+            logger.debug("Cluster does not exist")
+            raise ClusterDoesNotExist
 
 
-    def _prepare_cluster_db(self, user:User, tags:dict = None):
+    def _prepare_cluster_db(self, user:User, name:str, tags:dict = None):
         self.cluster_db.generate_id()
+        self.cluster_db.name = name
         self.cluster_db.tags = tags if tags else {}
         self.cluster_db.account = user.account
         self.cluster_db.save()
@@ -115,18 +128,19 @@ class KubeClusterManager:
 
         # Delete controller VM
         controller = self.cluster_db.primary
-        logger.debug("Terminating controller instance")
-        task_terminate_instance.delay(controller.instance_id, user.user_id)
+        if controller:
+            logger.debug("Terminating controller instance")
+            task_terminate_instance.delay(controller.instance_id, user.user_id)
 
         # Delete kube cluster by setting state to TERMINATED
         self.cluster_db.primary = None
         self.cluster_db.status = KubeCluster.Status.TERMINATED
-        self.cluster_db.save()
+        self.cluster_db.delete()
 
         return True
     
 
-    def prepare_cluster(self, user:User, instance_def: InstanceDefinition, \
+    def prepare_cluster(self, user: User, name: str, instance_def: InstanceDefinition, \
         controller_ip:str, image_id:str, network_profile:str, kubernetes_version:str = "1.22", 
         key_name:str = None, tags:dict = None):
         """This function checks all the values to make sure they're
@@ -143,6 +157,19 @@ class KubeClusterManager:
             tags (dict, optional): [description]. Defaults to None.
         """
 
+        # Check to see if this cluster name already exists for this account
+        try:
+            c = KubeCluster.objects.exclude(status=KubeCluster.Status.TERMINATED).get(name=name, account=user.account)
+            if c:
+                raise ClusterAlreadyExists
+        except KubeCluster.DoesNotExist:
+            pass
+        except ClusterAlreadyExists:
+            raise
+        except Exception as e:
+            logger.exception(e)
+            raise
+
         # Checking inputs to make sure everything is correct
         try:
             instance_definition = InstanceDefinition(instance_def)
@@ -155,7 +182,7 @@ class KubeClusterManager:
             logger.exception(e)
             raise ClusterConfigurationError
 
-        cluster_id = self._prepare_cluster_db(user, tags=tags)
+        cluster_id = self._prepare_cluster_db(user, name, tags=tags)
         return cluster_id
 
 
