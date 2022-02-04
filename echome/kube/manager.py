@@ -1,5 +1,6 @@
 import logging
 import json
+import yaml
 from string import Template
 from django.apps import apps
 from django.urls import reverse
@@ -77,7 +78,7 @@ class KubeClusterManager:
 
         secrets = {
             'ca_sha': details['CaSha'],
-            'admin.conf': details['AdminConf'],
+            'admin.conf': self._make_kubeconfig_user_unique(details['AdminConf']),
             'kubeadm_token': details['KubeadmToken']
         }
 
@@ -86,6 +87,19 @@ class KubeClusterManager:
             path_name=f"{user.account.account_id}/{self.cluster_db.cluster_id}",
             value=secrets
         )
+    
+
+    def _make_kubeconfig_user_unique(self, kubeconfig:str) -> str:
+        """ The context/user by default with Kubeadm is simply 'kubernetes-admin'. For 
+        users managing multiple clusters, we'll want to make these are more unique
+        so we'll use the context user with includes the cluster Id at the end.
+        """
+        kube_config = yaml.safe_load(kubeconfig)
+        name = kube_config['contexts'][0]['name']
+        kube_config['contexts'][0]['context']['user'] = name
+        kube_config['users'][0]['name'] = name
+
+        return yaml.dump(kube_config)
     
 
     def delete_cluster(self, user:User):
