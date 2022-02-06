@@ -38,8 +38,7 @@ class KubeCluster(models.Model):
         null=True)
     associated_instances = models.ManyToManyField("vmmanager.VirtualMachine")
 
-    minimum_requirements = models.JSONField(default=dict)
-    image_metadata = models.JSONField(default=dict)
+    metadata = models.JSONField(default=dict)
     deactivated = models.BooleanField(default=False)
     tags = models.JSONField(default=dict)
 
