@@ -24,12 +24,12 @@ services:
       - db
       - rabbitmq
     volumes:
-      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
       - /etc/echome:/etc/echome
       - /mnt:/mnt
     devices:
       - /dev/kvm
-    command: "celery -A echome worker"
+    command: "/app/bin/worker"
   api:
     build: .
     environment:
@@ -42,11 +42,12 @@ services:
       - db
       - vault
     volumes:
-      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock 
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock
       - /etc/echome:/etc/echome
       - /mnt:/mnt
     devices:
       - /dev/kvm
+    command: "/app/bin/api"
   #  privileged: true
   # utils:
   #   build: ./utils-app

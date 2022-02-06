@@ -6,22 +6,25 @@ ENV TZ=America/Central
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install -y tzdata
-RUN apt install python3 python3-dev python3-pip libvirt-dev libpq-dev pkg-config -y
+RUN apt install python3 python3-venv python3-pip libvirt-dev libpq-dev pkg-config -y
 RUN apt install qemu-utils cloud-init libguestfs-tools cloud-image-utils linux-image-generic -y
+
+RUN mkdir /app
+WORKDIR /app/
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV ENV=${ENV}
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/etc/poetry python3 - --version 1.1.12
+
+COPY poetry.lock pyproject.toml /app/
+RUN /etc/poetry/bin/poetry config virtualenvs.in-project true
+RUN /etc/poetry/bin/poetry install $(test "$ENV" == prod && echo "--no-dev") --no-interaction --no-ansi
 
 # Copy project
 COPY ./echome/ /app/
-
-# Set work directory
-WORKDIR /app/
+COPY ./bin/ /app/bin/
 
 EXPOSE 8000
-
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "echome.wsgi"]
