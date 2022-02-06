@@ -23,6 +23,12 @@ dbstop: ## Stop the database
 dropdb: ## Drop the database
 	${DOCKER_COMPOSE_EXEC} python3 manage.py reset_db --noinput
 
+dbmakemigrations: ## Create Database migrations locally to execute on the server.
+	python echome/manage.py makemigrations
+
+dbshowmigrations: ## Migrate the database to apply changes made with manage.py makemigrations
+	${DOCKER_COMPOSE_EXEC} python3 manage.py showmigrations
+
 dbmigrate: ## Migrate the database to apply changes made with manage.py makemigrations
 	${DOCKER_COMPOSE_EXEC} python3 manage.py migrate
 
