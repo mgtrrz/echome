@@ -67,8 +67,22 @@ class HelperView():
         }
 
         return Response(msg, status=status.HTTP_200_OK)
-
     
+
+    def forbidden_response(self) -> Response:
+        return self.error_response(
+            "Forbidden",
+            status.HTTP_403_FORBIDDEN
+        )
+
+
+    def bad_request(self, message:str) -> Response:
+        return self.error_response(
+            message,
+            status.HTTP_400_BAD_REQUEST
+        )
+    
+
     def request_success_response(self, new_id:str = None) -> Response:
         msg = {
             'request': 'Accepted',
