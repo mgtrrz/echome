@@ -16,7 +16,7 @@ echome_token=$(jq -r '.auth_token' < $server_file )
 
 function cleanup() {
     echo "[*] Deleting files"
-    #find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
+    find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
 }
 
 function script_failure() {

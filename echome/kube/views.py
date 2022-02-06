@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import status
 from api.api_view import HelperView
+from vmmanager.exceptions import VirtualMachineDoesNotExist
 from identity.models import User
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.models import VirtualMachine
@@ -22,12 +23,11 @@ class CreateKubeCluster(HelperView, APIView):
         required_params = [
             "Name",
             "InstanceType",
-            "ImageId",
             "NetworkProfile",
             "ControllerIp",
         ]
         optional_params = {
-            "KubeVersion": "1.23.0",
+            "KubeVersion": "1.22.0",
             "KeyName": None,
             "DiskSize": "30G",
             "Tags": {}
@@ -47,7 +47,6 @@ class CreateKubeCluster(HelperView, APIView):
                 user = request.user,
                 name = request.POST["Name"],
                 instance_def = request.POST["InstanceType"],
-                image_id = request.POST["ImageId"],
                 network_profile = request.POST["NetworkProfile"],
                 controller_ip = request.POST["ControllerIp"],
                 kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
@@ -59,7 +58,6 @@ class CreateKubeCluster(HelperView, APIView):
                 prepared_cluster_id = cluster_id,
                 user_id = request.user.user_id,
                 instance_def = request.POST["InstanceType"],
-                image_id = request.POST["ImageId"],
                 network_profile = request.POST["NetworkProfile"],
                 controller_ip = request.POST["ControllerIp"],
                 kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
@@ -238,41 +236,97 @@ class ModifyKubeCluster(HelperView, APIView):
             )
 
 
+class CreateKubeImage(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        required_params = [
+            "ImageId",
+            "NetworkProfile",
+            "KubeVersion",
+        ]
+        optional_params = {
+            "KeyName": None,
+        }
+        if missing_params := self.require_parameters(request, required_params):
+            return self.missing_parameter_response(missing_params)
+        
+        manager = KubeClusterManager()
+        try:
+            manager.generate_kubernetes_image(
+                user = request.user,
+                base_image = request.POST['ImageId'],
+                network_profile = request.POST['NetworkProfile'],
+                kubernetes_version = request.POST['KubeVersion'],
+                key_name = request.POST.get('KeyName', optional_params['KeyName'])
+            )
+        except ClusterConfigurationError:
+            return self.bad_request("Kubernetes version is not valid.")
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+        
+        return self.request_success_response()
+
+
+
+class PrepareAdminKubeCluster(HelperView, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        if request.user.type != User.Type.SERVICE:
+            return self.forbidden_response()
+        
+        if 'Self' not in request.POST:
+            return self.forbidden_response()
+        
+        instance_id = request.POST['Self']
+        logger.debug(f"Instance ID: {instance_id}")
+
+        cluster_manager = KubeClusterManager()
+        
+        logger.debug(request.POST)
+        if request.POST['Success'] != "true":
+            logger.debug("PrepareAdminKubeCluster: Instance posted failed status")
+            logger.debug(request.POST['ErrorLog'])
+            return self.success_response()
+
+        logger.debug("PrepareAdminKubeCluster: Instance posted success status")
+        try:
+            cluster_manager.register_kubernetes_image(request.user, instance_id)
+        except VirtualMachineDoesNotExist:
+            return self.forbidden_response()
+        except Exception as e:
+            logger.exception(e)
+            return self.internal_server_error_response()
+
+        return self.success_response()
+
+
 class InitAdminKubeCluster(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, cluster_id:str):
         # This endpoint is for service accounts
         if request.user.type != User.Type.SERVICE:
-            return self.error_response(
-                "Forbidden",
-                status.HTTP_403_FORBIDDEN
-            )
+            return self.forbidden_response()
         
         # Also don't allow this request to modify anything
         # other than the account's cluster
         try:
             cluster_manager = KubeClusterManager(cluster_id = cluster_id)
         except ClusterDoesNotExist:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster is not configured")
         
         if cluster_manager.cluster_db.account != request.user.account:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster is not configured")
         
         json_data = json.loads(request.body)
         try:
             data = json_data['data']
         except KeyError:
-            return self.error_response(
-                "Malformed Data",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Malformed Data")
         
         if data["Success"] == "true":
             # Store cluster secrets
@@ -290,32 +344,20 @@ class NodeAddAdminKubeCluster(HelperView, APIView):
     def post(self, request, cluster_id:str):
         # This endpoint is for service accounts
         if request.user.type != User.Type.SERVICE:
-            return self.error_response(
-                "Forbidden",
-                status.HTTP_403_FORBIDDEN
-            )
+            return self.forbidden_response()
         
         # Also don't allow this request to modify anything
         # other than the account's cluster
         try:
             cluster_manager = KubeClusterManager(cluster_id = cluster_id)
         except ClusterDoesNotExist:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster is not configured")
         
         if cluster_manager.cluster_db.account != request.user.account:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster is not configured")
         
         if 'Self' not in request.POST:
-            return self.error_response(
-                "Cluster is not configured",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster is not configured")
         
         try:
             vm = VirtualMachine.objects.get(instance_id=request.POST['Self'])
@@ -331,6 +373,8 @@ class NodeAddAdminKubeCluster(HelperView, APIView):
             cluster_manager.cluster_db.associated_instances.add(vm)
             cluster_manager.cluster_db.save()
         else:
+            logger.debug("Instance posted Success = False message")
+            logger.debug(request.POST['ErrorLog'])
             pass
 
         return self.success_response()

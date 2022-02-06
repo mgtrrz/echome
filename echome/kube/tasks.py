@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
-def task_create_cluster(prepared_cluster_id:str, user_id:str, instance_def: str, image_id:str, 
+def task_create_cluster(prepared_cluster_id:str, user_id:str, instance_def: str,  
         network_profile:str, controller_ip:str, kubernetes_version:str, key_name:str, disk_size:str):
     logger.debug(f"Received async task to create cluster for: {prepared_cluster_id}")
 
@@ -20,11 +20,10 @@ def task_create_cluster(prepared_cluster_id:str, user_id:str, instance_def: str,
             user = user,
             instance_def = InstanceDefinition(instance_def),
             controller_ip = controller_ip,
-            image_id = image_id,
             network_profile = network_profile,
+            disk_size = disk_size, 
             kubernetes_version = kubernetes_version,
             key_name = key_name,
-            disk_size = disk_size, 
         )
     except Exception as e:
         logger.error("KubeCluster creation process failed")

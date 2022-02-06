@@ -1,5 +1,7 @@
-import logging
 import json
+import logging
+import re
+import time
 import yaml
 from string import Template
 from django.apps import apps
@@ -11,12 +13,13 @@ from vault.vault import Vault
 from vault.exceptions import SecretDoesNotExistError
 from network.manager import VirtualNetworkManager
 from keys.manager import UserKeyManager
+from vmmanager.exceptions import VirtualMachineDoesNotExist
 from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
 from vmmanager.tasks import task_terminate_instance
 from vmmanager.cloudinit import CloudInitFile
 from vmmanager.image_manager import ImageManager
-from vmmanager.models import VirtualMachine
+from vmmanager.models import VirtualMachine, Image
 from .models import KubeCluster
 from .exceptions import (
     ClusterConfigurationError, 
@@ -140,8 +143,8 @@ class KubeClusterManager:
         return True
     
 
-    def prepare_cluster(self, user: User, name: str, instance_def: InstanceDefinition, \
-        controller_ip:str, image_id:str, network_profile:str, kubernetes_version:str = "1.22", 
+    def prepare_cluster(self, user: User, name: str, instance_def: str, \
+        controller_ip:str, network_profile:str, kubernetes_version:str, 
         key_name:str = None, tags:dict = None):
         """This function checks all the values to make sure they're
         valid, then creates a row in the database for this cluster in the BUILDING state.
@@ -170,30 +173,48 @@ class KubeClusterManager:
             logger.exception(e)
             raise
 
+        if not self.kubernetes_version_is_valid(kubernetes_version):
+            raise ClusterConfigurationError("Kubernetes version is not valid")
+
         # Checking inputs to make sure everything is correct
         try:
-            instance_definition = InstanceDefinition(instance_def)
+            InstanceDefinition(instance_def)
             network = VirtualNetworkManager(network_profile, user)
             network.validate_ip(controller_ip)
             if key_name:
                 UserKeyManager(key_name, user)
-            image = ImageManager(image_id)
         except Exception as e:
             logger.exception(e)
             raise ClusterConfigurationError
+        
+        # Check to see if we already have a prepared image for this version
+        images = Image.objects.filter(
+            tags__has_key='ecHome_kubernetes__image', 
+            tags__contains={'ecHome_kubernetes__version': kubernetes_version}
+        )
+        if not images:
+            raise ClusterConfigurationError("No prepared Kubernetes images exist for specified version. \
+                    Please create a new Kubernetes prepared image for this Kubernetes version.")
 
         cluster_id = self._prepare_cluster_db(user, name, tags=tags)
         return cluster_id
 
 
     def create_cluster(self, user:User, instance_def: InstanceDefinition, \
-        controller_ip:str, image_id:str, network_profile:str, disk_size:str, kubernetes_version:str = "1.23", 
+        controller_ip:str, network_profile:str, disk_size:str, kubernetes_version:str, 
         key_name:str = None):
         """Creates a new Kubernetes cluster with a primary controller. The function creates an instance then 
         uses UserData scripts to add files onto the cluster for kubeadm to initialize."""
 
         if self.cluster_db is None:
             raise ClusterConfigurationError("cluster_db is not set!")
+        
+        images = Image.objects.filter(
+            tags__has_key='ecHome_kubernetes__image', 
+            tags__contains={'ecHome_kubernetes__version': kubernetes_version}
+        )
+        if not images:
+            raise ClusterConfigurationError("No prepared images exist for this Kubernetes version.")
 
         files = []
 
@@ -258,7 +279,7 @@ class KubeClusterManager:
             user, 
             instance_def=instance_def, 
             NetworkProfile = network_profile,
-            ImageId = image_id,
+            ImageId = images[0].image_id,
             DiskSize = disk_size,
             PrivateIp = controller_ip,
             KeyName = key_name,
@@ -375,10 +396,115 @@ class KubeClusterManager:
         )
 
         return vm_id
+    
+
+    def kubernetes_version_is_valid(self, kubernetes_version:str):
+        pattern = re.compile("^(\d+)\.(\d+)$")
+        return True if pattern.match(kubernetes_version) else False
 
     
-    def generate_kubernetes_image(self):
-        """Creates a Kubernetes image with kubeadm that will be used to launch clusters and nodes"""
+    def generate_kubernetes_image(self, user:User, base_image:str, network_profile:str, kubernetes_version:str, key_name:str = None):
+        """Creates a Kubernetes base image with kubeadm that will be used to launch clusters and nodes.
+        This launches a Virtual Machine. Once the VM is complete, sends a message back to us if it was successful
+        then shuts down to create the base image."""
+
+        # TODO: Create a JobToken to authenticate requests where we're waiting for an instance to complete
+        # a job.
+
+        if not self.kubernetes_version_is_valid(kubernetes_version):
+            raise ClusterConfigurationError("Kubernetes version is not valid")
+
+        files = []
+
+        # Init template
+        path = apps.get_app_config('kube').path
+        logger.debug(f"Path: {path}")
+
+        with open(f"{path}/cloudinit_scripts/01-prepare_kube_image_debian.sh", 'r') as f:
+            files.append(CloudInitFile(
+                path = "/root/init_prepare_kubernetes.sh",
+                content = f.read(),
+                permissions = '0775'
+            ))
         
-        pass
-    
+        # Create a service account and token for the image to send
+        # information back to us
+        svc_acct = ServiceAccount()
+        service_account = svc_acct.create_or_get(user.account)
+        token = svc_acct.generate_jwt_token(service_account)
+
+        files.append(CloudInitFile(
+            path = "/root/server_info.yaml",
+            content = json.dumps({
+                "server_addr": ecHomeConfig.EcHome().api_url,
+                "endpoint": reverse('api:kube:cluster-admin-prepare'),
+                "auth_token": token,
+            })
+        ))
+
+        files.append(CloudInitFile(
+            path = "/root/kube_version",
+            content = str(kubernetes_version)
+        ))
+
+        tags = {
+            "echome_managed": True, 
+            "ephemeral": True, 
+            "kubernetes_version": kubernetes_version
+        }
+
+        vm_manager = VmManager()
+        vm_id = vm_manager.create_vm(
+            user, 
+            instance_def=InstanceDefinition("standard", "nano"), 
+            NetworkProfile = network_profile,
+            ImageId = base_image,
+            DiskSize = "10G",
+            Tags = tags,
+            Files = files,
+            KeyName = key_name,
+            RunCommands = ["/root/init_prepare_kubernetes.sh"]
+        )
+
+
+    def register_kubernetes_image(self, user:User, instance_id:str):
+        """Registers a Virtual Machine Image (vmi) for Kubernetes created by the generate_kubernetes_image function.
+        These images will be used for creating Kubernetes clusters"""
+        vm_manager = VmManager()
+
+        try:
+            vm_db = vm_manager.get_vm_db_from_id(instance_id)
+        except VirtualMachineDoesNotExist:
+            logger.debug("Did not find VM with this instance ID")
+            raise
+        
+        if user.account != vm_db.account:
+            logger.debug("Requested user or service account does not have permission to this virtual machine.")
+            raise VirtualMachineDoesNotExist
+        
+        image_name = vm_db.image_metadata['image_name']
+        image_id = vm_db.image_metadata['image_id']
+        kube_ver = vm_db.tags['kubernetes_version']
+
+        build_time = str(int(time.time()))
+
+        vmi_tags = {
+            "ecHome_kubernetes__image": "",
+            "ecHome_kubernetes__base_image_id": image_id,
+            "ecHome_kubernetes__version": kube_ver,
+            "echome_kubernetes__build_date": build_time
+        }
+
+        try:
+            vmi = vm_manager.create_virtual_machine_image(
+                vm_id = instance_id,
+                user = user,
+                name = f"kubernetes-image-{kube_ver}",
+                description = f"ecHome-Kubernetes base image from {image_name} ({image_id}) - {build_time}",
+                tags = vmi_tags,
+                terminate_after_creation = True
+            )
+        except Exception as e:
+            logger.exception(e)
+            raise
+
