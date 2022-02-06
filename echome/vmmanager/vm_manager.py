@@ -322,7 +322,7 @@ class VmManager:
             raise ValueError("Specified SSH Key Name does not exist.")
 
 
-    def get_vm_db_from_id(self, vm_id:str):
+    def get_vm_db_from_id(self, vm_id:str) -> VirtualMachine:
         try:
             return VirtualMachine.objects.get(instance_id=vm_id)
         except VirtualMachine.DoesNotExist:
@@ -331,7 +331,7 @@ class VmManager:
 
     def create_virtual_machine_image(self, 
             vm_id:str, user:User, name:str = None, description:str = None, 
-            tags:dict = None, prepared_manager:ImageManager = None):
+            tags:dict = None, prepared_manager:ImageManager = None, terminate_after_creation = False):
         """Create a virtual machine image to create new virtual machines from."""
 
         logger.debug(f"Creating VMI from {vm_id}")
@@ -365,8 +365,13 @@ class VmManager:
         if not QemuImg().convert(current_image_full_path, new_image_full_path, 'qcow2'):
             raise ImagePrepError("Failed copying image with QemuImg() convert")
 
+        
+        if terminate_after_creation:
+            logger.debug("terminate_after_creation set to True. Deleting instance")
+            self.terminate_instance(vm_id, user)
+
         # Revert the state of the VM (if it was running, turn it back on)
-        if before_state == "running":
+        if before_state == "running" and not terminate_after_creation:
             instance.start()
 
         # Prep the image for use in a new VM
