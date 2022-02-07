@@ -23,6 +23,7 @@ dj-database-url = "^0.5.0"
 sshpubkeys = "^3.3.1"
 cryptography = "3.4.8"
 "ruamel.yaml" = "^0.17.20"
+PyYAML = "^6.0"
 
 [tool.poetry.dev-dependencies]
 
