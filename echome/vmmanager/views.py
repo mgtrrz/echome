@@ -40,6 +40,15 @@ class CreateVM(HelperView, APIView):
             "InstanceType", 
             "NetworkProfile",
         ]
+        optional_params = {
+            "KeyName": None,
+            "DiskSize": "10G",
+            "PrivateIp": "",
+            "EnableVnc": "false",
+            "VncPort": "false",
+            "UserDataScript": None,
+            "Tags": {}
+        }
         if missing_params := self.require_parameters(request, req_params):
             return self.missing_parameter_response(missing_params)
 
@@ -48,44 +57,32 @@ class CreateVM(HelperView, APIView):
             instanceDefinition = InstanceDefinition(instance_class_size[0], instance_class_size[1])
         except Exception as e:
             logger.debug(e)
-            return self.error_response(
-                "Provided InstanceSize is not a valid type or size.",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Provided InstanceSize is not a valid type or size.")
         
         tags = self.unpack_tags(request)
-
-        disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else "10G"
         
         vm = VmManager()
-
         try:
             vm_id = vm.create_vm(
-                user=request.user, 
-                instance_def=instanceDefinition, 
-                Tags=tags,
-                KeyName=request.POST["KeyName"] if "KeyName" in request.POST else None,
-                NetworkProfile=request.POST["NetworkProfile"],
-                PrivateIp=request.POST["PrivateIp"] if "PrivateIp" in request.POST else "",
-                ImageId=request.POST["ImageId"],
-                DiskSize=disk_size,
-                EnableVnc=True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
-                VncPort=request.POST["VncPort"] if "VncPort" in request.POST else None,
-                UserDataScript=request.POST["UserDataScript"] if "UserDataScript" in request.POST else None,
-                EfiBoot="false", #TODO: Configurable Option
+                user = request.user, 
+                instance_def = instanceDefinition, 
+                Tags = tags,
+                KeyName = request.POST.get("KeyName", optional_params["KeyName"]),
+                NetworkProfile = request.POST["NetworkProfile"],
+                PrivateIp = request.POST.get("PrivateIp", optional_params["PrivateIp"]),
+                ImageId = request.POST["ImageId"],
+                DiskSize = request.POST.get("DiskSize", optional_params["DiskSize"]),
+                EnableVnc = True if "EnableVnc" in request.POST and request.POST["EnableVnc"] == "true" else False,
+                VncPort = request.POST.get("VncPort", optional_params['VncPort']),
+                UserDataScript = request.POST.get("UserDataScript", optional_params['UserDataScript']),
+                EfiBoot = "false", #TODO: Configurable Option
             )
         except InvalidLaunchConfiguration as e:
             logger.debug(e)
-            return self.error_response(
-                "InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine.",
-                status = status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("InvalidLaunchConfiguration: A supplied value was invalid and could not successfully build the virtual machine.")
         except ValueError as e:
             logger.debug(e)
-            return self.error_response(
-                "ValueError: A supplied value was invalid and could not successfully build the virtual machine.",
-                status = status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("ValueError: A supplied value was invalid and could not successfully build the virtual machine.")
         except LaunchError as e:
             logger.exception(e)
             return self.error_response(
@@ -141,7 +138,7 @@ class TerminateVM(HelperView, APIView):
     def post(self, request, vm_id:str):
 
         try:
-            instance = VirtualMachineInstance(vm_id)
+            VirtualMachineInstance(vm_id)
         except VirtualMachineDoesNotExist:
             return self.not_found_response()
 
@@ -188,7 +185,10 @@ class ModifyVM(HelperView, APIView):
                 logger.exception(e)
                 return self.internal_server_error_response()
         elif action == 'create-image':
-            req_params = ["Name", "Description"]
+            req_params = [
+                "Name", 
+                "Description"
+            ]
             if missing_params := self.require_parameters(request, req_params):
                 return self.missing_parameter_response(missing_params)
             
@@ -209,10 +209,7 @@ class ModifyVM(HelperView, APIView):
 
             return self.request_success_response(new_vmi_id)
         else:
-            return self.error_response(
-                    "Unknown action",
-                    status = status.HTTP_400_BAD_REQUEST
-                )
+            return self.bad_request("Unknown action")
         return self.success_response()
 
 
@@ -262,7 +259,12 @@ class RegisterImage(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if missing_params := self.require_parameters(request, ["ImagePath", "ImageName", "ImageDescription"]):
+        req_params = [
+            "ImagePath", 
+            "ImageName", 
+            "ImageDescription"
+        ]
+        if missing_params := self.require_parameters(request, req_params):
             return self.missing_parameter_response(missing_params)
         
         image_manager = ImageManager()
@@ -330,6 +332,8 @@ class DescribeImage(HelperView, APIView):
                         image_id=img_id,
                         account=request.user.account,
                     ))
+            else:
+                return self.bad_request("Image is type other than Guest or User")
             
             for image in images:
                 i.append(ImageSerializer(image).data)
