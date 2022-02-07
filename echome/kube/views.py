@@ -27,7 +27,7 @@ class CreateKubeCluster(HelperView, APIView):
             "ControllerIp",
         ]
         optional_params = {
-            "KubeVersion": "1.22.0",
+            "KubeVersion": "1.22",
             "KeyName": None,
             "DiskSize": "30G",
             "Tags": {}

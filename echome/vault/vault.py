@@ -67,10 +67,21 @@ class Vault:
     
     
     def store_dict(self, mount_point:str, path_name:str, value:dict):
+        # First check to see if there's already stuff here. If there is, merge it
+        data = {}
+        try:
+            contents = self.get_secret(mount_point, path_name)
+            data = contents['data']['data']
+        except SecretDoesNotExistError:
+            pass
+        except Exception as e:
+            logger.exception(e)
+            raise
+
         self.client.secrets.kv.v2.create_or_update_secret(
             mount_point=mount_point,
             path=path_name,
-            secret=value,
+            secret={**data, **value},
         )
 
 

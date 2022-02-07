@@ -1,6 +1,8 @@
 import json
 import logging
 import re
+import secrets
+import string
 import time
 import yaml
 from string import Template
@@ -27,6 +29,7 @@ from .exceptions import (
     ClusterGetConfigurationError, 
     ClusterAlreadyExists
 )
+from .kubeadm_config import KubeadmInitConfig, KubeadmJoinConfig, KubeadmClusterConfig
 
 
 logger = logging.getLogger(__name__)
@@ -95,7 +98,21 @@ class KubeClusterManager:
         secrets = {
             'ca_sha': details['CaSha'],
             'admin.conf': self._make_kubeconfig_user_unique(details['AdminConf']),
-            'kubeadm_token': details['KubeadmToken']
+        }
+
+        vault.store_dict(
+            self.vault_mount_point, 
+            path_name=f"{user.account.account_id}/{self.cluster_db.cluster_id}",
+            value=secrets
+        )
+    
+
+    def set_cluster_token(self, user:User, token:str):
+        """Sets the kubeadm token for this cluster"""
+        vault = Vault()
+
+        secrets = {
+            'kubeadm_token': token
         }
 
         vault.store_dict(
@@ -106,7 +123,7 @@ class KubeClusterManager:
     
 
     def _make_kubeconfig_user_unique(self, kubeconfig:str) -> str:
-        """ The context/user by default with Kubeadm is simply 'kubernetes-admin'. For 
+        """ The context/user created by default is 'kubernetes-admin'. For 
         users managing multiple clusters, we'll want to make these are more unique
         so we'll use the context user with includes the cluster Id at the end.
         """
@@ -215,6 +232,8 @@ class KubeClusterManager:
         )
         if not images:
             raise ClusterConfigurationError("No prepared images exist for this Kubernetes version.")
+        
+        logger.debug(f"Using image: {images[0]}")
 
         files = []
 
@@ -238,28 +257,41 @@ class KubeClusterManager:
                 "auth_token": token
             })
         ))
-        
-        # Kube Cluster details
+
+        logger.debug("Generating Kubeadm token..")
+        kubeadm_token = self.generate_kubeadm_token()
+
+        # Save this token in Vault
+        self.set_cluster_token(user, kubeadm_token)
+
+        # Kubeadm template file
+        kubeadm_init_config = KubeadmInitConfig(
+            version = kubernetes_version,
+            kubeadm_token = kubeadm_token,
+            controller_ip = controller_ip,
+            hostname = self.cluster_db.cluster_id,
+        )
+
+        kubeadm_cluster_config = KubeadmClusterConfig(
+            version = kubernetes_version,
+            cluster_name = self.cluster_db.cluster_id,
+        )
+
+        logger.debug("Generated the Kubeadm config files:")
+        logger.debug(kubeadm_init_config.generate_yaml())
+        logger.debug(kubeadm_cluster_config.generate_yaml())
+
+        # Write kubeadm config files
         files.append(CloudInitFile(
-            path = cluster_info_file_path,
-            content = json.dumps(
-                self.generate_cluster_deploy_details(
-                    controller_ip, 
-                    self.cluster_db.cluster_id, 
-                    kubernetes_version
-                )
+            path = "/root/kube_init.yaml",
+            content = kubeadm_init_config.generate_yaml(
+                additional_documents = [kubeadm_cluster_config.generate_document()]
             )
         ))
 
-        # Kubeadm template file
+        # write cluster bootstrap script
         path = apps.get_app_config('kube').path
         logger.debug(f"Path: {path}")
-        with open(f"{path}/kubeadm_templates/init_cluster_template.yaml") as f:
-            files.append(CloudInitFile(
-                path = kubeadm_template_path,
-                content = f.read()
-            ))
-
         with open(f"{path}/cloudinit_scripts/02-init_kube_debian.sh") as f:
             files.append(CloudInitFile(
                 path = sh_script_path,
@@ -294,16 +326,6 @@ class KubeClusterManager:
 
         return self.cluster_db.cluster_id
     
-
-    def generate_cluster_deploy_details(self, controller_ip, cluster_id, version, cluster_svc_subnet = "10.96.0.0/12"):
-        return {
-            "controller_ip": controller_ip,
-            "cluster_name": cluster_id,
-            "cluster_version": version,
-            "cluster_service_subnet": cluster_svc_subnet,
-            "token_ttl": "0",
-        }
-
 
     def add_node_to_cluster(self, user:User, instance_def: InstanceDefinition, node_ip:str, \
         image_id:str, network_profile:str, disk_size:str, key_name:str = None, tags:dict = None):
@@ -396,7 +418,21 @@ class KubeClusterManager:
         )
 
         return vm_id
-    
+
+
+    def generate_kubeadm_token(self):
+        # https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/
+        # [a-z0-9]{6}.[a-z0-9]{16}
+        return f"{self.gen_secret_string(6)}.{self.gen_secret_string(16)}"
+
+
+    def gen_secret_string(self, length:int) -> str:
+        return ''.join(
+            secrets.choice(
+                string.ascii_lowercase + string.digits
+            ) for _ in range(length)
+        )
+
 
     def kubernetes_version_is_valid(self, kubernetes_version:str):
         pattern = re.compile("^(\d+)\.(\d+)$")

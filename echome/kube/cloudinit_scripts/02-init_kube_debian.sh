@@ -16,7 +16,7 @@ echome_token=$(jq -r '.auth_token' < $server_file )
 
 function cleanup() {
     echo "[*] Deleting files"
-    find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
+    #find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
 }
 
 function script_failure() {
@@ -34,18 +34,6 @@ function script_failure() {
 
 # Notify of script failure
 trap script_failure SIGINT ERR
-
-echo "[*] Preparing variables.."
-
-# Generate the kubeadm config file
-KUBEADM_TOKEN=$(kubeadm token generate)
-HOSTNAME=$(cat /etc/hostname)
-export KUBEADM_TOKEN
-export HOSTNAME
-
-echo "[*] Creating initial kubernetes cluster template.."
-
-j2 -f yaml /root/kubeadm_template.yaml /root/cluster_info.yaml -o /root/kube_init.yaml
 
 echo "[*] Initializing Kubernetes with Kubeadm.."
 
@@ -69,7 +57,6 @@ ca_sha_value=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa
 jq -n '{data: $ARGS.named}' \
     --arg Success "true" \
     --arg CaSha "${ca_sha_value}"  \
-    --arg KubeadmToken "${KUBEADM_TOKEN}" \
     --arg AdminConf "$(cat /etc/kubernetes/admin.conf)" > /root/payload.json
 
 echo "[*] Posting to ecHome.."

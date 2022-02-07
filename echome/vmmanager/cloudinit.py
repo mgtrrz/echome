@@ -168,10 +168,10 @@ class CloudInit:
         # This is an incredibly hacky way to get json flow style output (retaining {expire: false} in the yaml output)
         # I'm unsure if cloudinit would actually just be happy receiving all YAML input.
         configfile = "#cloud-config\n"
-        config_yaml = yaml.dump(config_json, default_flow_style=None, sort_keys=False)
-        ssh_keys_yaml = yaml.dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
-        write_files = yaml.dump(files_json, default_flow_style=False, sort_keys=False, width=1000)
-        run_commands = yaml.dump(run_commands_json, default_flow_style=False, sort_keys=False, width=1000)
+        config_yaml = yaml.safe_dump(config_json, default_flow_style=None, sort_keys=False)
+        ssh_keys_yaml = yaml.safe_dump(ssh_keys_json, default_flow_style=False, sort_keys=False, width=1000)
+        write_files = yaml.safe_dump(files_json, default_flow_style=False, sort_keys=False, width=1000)
+        run_commands = yaml.safe_dump(run_commands_json, default_flow_style=False, sort_keys=False, width=1000)
 
         yaml_config = configfile + config_yaml + ssh_keys_yaml + write_files + run_commands
 

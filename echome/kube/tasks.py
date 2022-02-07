@@ -26,6 +26,7 @@ def task_create_cluster(prepared_cluster_id:str, user_id:str, instance_def: str,
             key_name = key_name,
         )
     except Exception as e:
+        manager.set_cluster_as_failed()
+        logger.exception(e)
         logger.error("KubeCluster creation process failed")
-        logger.error(e)
         
