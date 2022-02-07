@@ -52,9 +52,10 @@ class KubeClusterManager:
             raise ClusterDoesNotExist
 
 
-    def _prepare_cluster_db(self, user:User, name:str, tags:dict = None):
+    def _prepare_cluster_db(self, user:User, name:str, kubernetes_version:str, tags:dict = None):
         self.cluster_db.generate_id()
         self.cluster_db.name = name
+        self.cluster_db.version = kubernetes_version
         self.cluster_db.tags = tags if tags else {}
         self.cluster_db.account = user.account
         self.cluster_db.save()
@@ -213,7 +214,7 @@ class KubeClusterManager:
             raise ClusterConfigurationError("No prepared Kubernetes images exist for specified version. \
                     Please create a new Kubernetes prepared image for this Kubernetes version.")
 
-        cluster_id = self._prepare_cluster_db(user, name, tags=tags)
+        cluster_id = self._prepare_cluster_db(user, name, kubernetes_version, tags=tags)
         return cluster_id
 
 
@@ -226,22 +227,13 @@ class KubeClusterManager:
         if self.cluster_db is None:
             raise ClusterConfigurationError("cluster_db is not set!")
         
-        images = Image.objects.filter(
-            tags__has_key='ecHome_kubernetes__image', 
-            tags__contains={'ecHome_kubernetes__version': kubernetes_version}
-        )
-        if not images:
-            raise ClusterConfigurationError("No prepared images exist for this Kubernetes version.")
-        
-        logger.debug(f"Using image: {images[0]}")
+        kube_image = self._find_image_for_kubernetes(kubernetes_version)
+        logger.debug(f"Using image: {kube_image}")
 
         files = []
 
-        cluster_info_file_path = "/root/cluster_info.yaml"
         echome_info_file_path = "/root/server_info.yaml"
-        kubeadm_template_path = "/root/kubeadm_template.yaml"
-        sh_script_path = "/root/init_kube_debian.sh"
-        
+        sh_script_path = "/root/init_kube_debian.sh"        
 
         # Create a service account and token for the controller to send
         # information back to us
@@ -311,7 +303,7 @@ class KubeClusterManager:
             user, 
             instance_def=instance_def, 
             NetworkProfile = network_profile,
-            ImageId = images[0].image_id,
+            ImageId = kube_image.image_id,
             DiskSize = disk_size,
             PrivateIp = controller_ip,
             KeyName = key_name,
@@ -328,7 +320,7 @@ class KubeClusterManager:
     
 
     def add_node_to_cluster(self, user:User, instance_def: InstanceDefinition, node_ip:str, \
-        image_id:str, network_profile:str, disk_size:str, key_name:str = None, tags:dict = None):
+         network_profile:str, disk_size:str, key_name:str = None, image_id:str = None, tags:dict = None):
         """Adds a node to an existing cluster. This will create an instance, add the UserData scripts and use
         kubeadm to join the primary controller in the cluster."""
 
@@ -343,6 +335,13 @@ class KubeClusterManager:
         if not self.cluster_db.primary:
             raise ClusterConfigurationError("No controller set for this cluster")
         
+        if not image_id:
+            kube_image = self._find_image_for_kubernetes(self.cluster_db.version)
+            logger.debug(f"Using image: {kube_image}")
+        else:
+            logger.debug("Image ID was specified, check to see if it can be used by ecHome")
+            kube_image = self._verify_image_for_kubernetes(image_id)
+        
         controller_addr = self.cluster_db.primary.interfaces['config_at_launch']['private_ip']
         controller_addr = f"{controller_addr}:6443"
 
@@ -354,7 +353,7 @@ class KubeClusterManager:
 
         files = []
         
-        node_template_file = "/root/node.yaml"
+        node_template_file = "/root/join_node.yaml"
         echome_info_file_path = "/root/server_info.yaml"
         sh_script_path = "/root/init_kube_node_debian.sh"
         
@@ -376,17 +375,18 @@ class KubeClusterManager:
         # Kubeadm template file
         path = apps.get_app_config('kube').path
 
-        with open(f"{path}/kubeadm_templates/init_node_template.yaml", 'r') as f:
-            src = Template(f.read())
-            result = src.substitute({
-                'controller_addr': controller_addr,
-                'ca_cert_hash': secrets['ca_sha'],
-                'token': secrets['kubeadm_token'],
-            })
-            files.append(CloudInitFile(
-                path = node_template_file,
-                content = result
-            ))
+        # Create our Kubeadm Join config
+        join_config = KubeadmJoinConfig(
+            version = self.cluster_db.version,
+            controller_address = controller_addr,
+            token = secrets['kubeadm_token'],
+            ca_cert_hashes = secrets['ca_sha']
+        )
+
+        files.append(CloudInitFile(
+            path = node_template_file,
+            content = join_config.generate_yaml()
+        ))
         
         with open(f"{path}/cloudinit_scripts/03-add_node_kube_debian.sh") as f:
             files.append(CloudInitFile(
@@ -408,7 +408,7 @@ class KubeClusterManager:
             user, 
             instance_def=instance_def, 
             NetworkProfile = network_profile,
-            ImageId = image_id,
+            ImageId = kube_image.image_id,
             DiskSize = disk_size,
             PrivateIp = node_ip,
             KeyName = key_name,
@@ -434,7 +434,29 @@ class KubeClusterManager:
         )
 
 
+    def _find_image_for_kubernetes(self, kubernetes_version:str):
+        images = Image.objects.filter(
+            tags__has_key='ecHome_kubernetes__image', 
+            tags__contains={'ecHome_kubernetes__version': kubernetes_version}
+        )
+        if not images:
+            raise ClusterConfigurationError("No prepared images exist for this Kubernetes version.")
+        
+        return images[0]
+    
+    def _verify_image_for_kubernetes(self, image_id:str):
+        images = Image.objects.filter(
+            image_id = image_id,
+            tags__has_key='ecHome_kubernetes__image'
+        )
+        if not images:
+            raise ClusterConfigurationError("Given images was not prepared for launching Kubernetes.")
+        
+        return images[0]
+
     def kubernetes_version_is_valid(self, kubernetes_version:str):
+        # TODO: Validate against an online API with actual Kubernetes versions
+        # (is that a thing? Tried to find it)
         pattern = re.compile("^(\d+)\.(\d+)$")
         return True if pattern.match(kubernetes_version) else False
 

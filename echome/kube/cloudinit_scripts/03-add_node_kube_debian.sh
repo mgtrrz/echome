@@ -15,7 +15,7 @@ echome_token=$(jq -r '.auth_token' < $server_file )
 
 function cleanup() {
     echo "[*] Deleting files"
-    #find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
+    find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
 }
 
 function script_failure() {
@@ -34,7 +34,7 @@ trap script_failure SIGINT ERR
 echo "[*] Joining Kubernetes cluster with Kubeadm.."
 
 # Init the cluster
-kubeadm join --config /root/node.yaml
+kubeadm join --config /root/join_node.yaml
 
 echo "[*] Posting to ecHome.."
 

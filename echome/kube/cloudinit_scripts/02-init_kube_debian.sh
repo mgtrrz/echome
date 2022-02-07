@@ -7,8 +7,7 @@ echo "[*] Installing dependencies.."
 
 apt update && apt upgrade -y
 
-apt install python3-pip jq -y
-pip install j2cli
+apt install jq -y
 
 server_file="/root/server_info.yaml"
 echome_url=$(jq -r '.server_addr + .endpoint' < $server_file )
@@ -16,7 +15,7 @@ echome_token=$(jq -r '.auth_token' < $server_file )
 
 function cleanup() {
     echo "[*] Deleting files"
-    #find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
+    find /root/ -maxdepth 1 -not -path '*/.*' -type f -print -delete
 }
 
 function script_failure() {

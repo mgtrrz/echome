@@ -15,6 +15,7 @@ class KubeCluster(models.Model):
     account = models.ForeignKey("identity.Account", on_delete=models.CASCADE, to_field="account_id", null=True)
     name = models.CharField(max_length=30, null=True, unique=False)
     created = models.DateTimeField(auto_now_add=True, null=False)
+    version = models.CharField(max_length=8, unique=False, null=True)
     last_modified = models.DateTimeField(auto_now=True)
     
     class Status(models.TextChoices):

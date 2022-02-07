@@ -184,12 +184,12 @@ class ModifyKubeCluster(HelperView, APIView):
         if action == 'add-node':
             required_params = [
                 "InstanceType",
-                "ImageId",
                 "NetworkProfile",
                 "NodeIp",
             ]
             optional_params = {
                 "KeyName": None,
+                "ImageId": None,
                 "DiskSize": "30G",
                 "Tags": {}
             }
@@ -213,10 +213,10 @@ class ModifyKubeCluster(HelperView, APIView):
                     request.user,
                     instanceDefinition,
                     node_ip = request.POST['NodeIp'],
-                    image_id = request.POST['ImageId'],
                     network_profile = request.POST['NetworkProfile'],
-                    disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else optional_params["DiskSize"],
-                    key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
+                    disk_size = request.POST.get("DiskSize", optional_params["DiskSize"]),
+                    key_name = request.POST.get("KeyName", optional_params["KeyName"]),
+                    image_id = request.POST.get("ImageId", optional_params['ImageId']),
                     tags = tags
                 )
             except ClusterConfigurationError as e:
