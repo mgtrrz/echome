@@ -49,8 +49,8 @@ class CreateKubeCluster(HelperView, APIView):
                 instance_def = request.POST["InstanceType"],
                 network_profile = request.POST["NetworkProfile"],
                 controller_ip = request.POST["ControllerIp"],
-                kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
-                key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
+                kubernetes_version = request.POST.get("KubeVersion", optional_params["KubeVersion"]),
+                key_name = request.POST.get("KeyName", optional_params["KeyName"]),
                 tags = tags,
             )
 
@@ -60,9 +60,9 @@ class CreateKubeCluster(HelperView, APIView):
                 instance_def = request.POST["InstanceType"],
                 network_profile = request.POST["NetworkProfile"],
                 controller_ip = request.POST["ControllerIp"],
-                kubernetes_version = request.POST["KubeVersion"] if "KubeVersion" in request.POST else optional_params["KubeVersion"],
-                key_name = request.POST["KeyName"] if "KeyName" in request.POST else optional_params["KeyName"],
-                disk_size = request.POST["DiskSize"] if "DiskSize" in request.POST else optional_params["DiskSize"]
+                kubernetes_version = request.POST.get("KubeVersion", optional_params["KubeVersion"]),
+                key_name = request.POST.get("KeyName", optional_params["KeyName"]),
+                disk_size = request.POST.get("DiskSize", optional_params["DiskSize"])
             )
         except ClusterConfigurationError as e:
             logger.exception(e)
@@ -71,10 +71,7 @@ class CreateKubeCluster(HelperView, APIView):
                 status = status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except ClusterAlreadyExists as e:
-            return self.error_response(
-                "Cluster with that name already exists.",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Cluster with that name already exists.")
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
@@ -117,6 +114,7 @@ class DescribeKubeCluster(HelperView, APIView):
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()
+            
         return self.success_response(i)
     
 
@@ -201,10 +199,7 @@ class ModifyKubeCluster(HelperView, APIView):
                 instanceDefinition = InstanceDefinition(instance_class_size[0], instance_class_size[1])
             except Exception as e:
                 logger.debug(e)
-                return self.error_response(
-                    "Provided InstanceSize is not a valid type or size.",
-                    status.HTTP_400_BAD_REQUEST
-                )
+                return self.bad_request("Provided InstanceSize is not a valid type or size.")
             
             tags = self.unpack_tags(request)
             
@@ -220,20 +215,14 @@ class ModifyKubeCluster(HelperView, APIView):
                     tags = tags
                 )
             except ClusterConfigurationError as e:
-                return self.error_response(
-                    message = str(e),
-                    status = status.HTTP_400_BAD_REQUEST
-                )
+                return self.bad_request(str(e))
             except Exception as e:
                 logger.exception(e)
                 return self.internal_server_error_response()
 
             return self.request_success_response()
         else:
-            return self.error_response(
-                "Unknown action",
-                status = status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Unknown action")
 
 
 class CreateKubeImage(HelperView, APIView):
@@ -362,10 +351,7 @@ class NodeAddAdminKubeCluster(HelperView, APIView):
         try:
             vm = VirtualMachine.objects.get(instance_id=request.POST['Self'])
         except VirtualMachine.DoesNotExist:
-            return self.error_response(
-                "Unrecognized instance to add to cluster",
-                status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Unrecognized instance to add to cluster")
         
         logger.debug(request.POST)
         if request.POST['Success'] == "true":
