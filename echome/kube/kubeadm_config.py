@@ -36,10 +36,16 @@ class KubeadmConfig(ABC):
     
     @abstractmethod
     def generate_document(self) -> dict:
-        """Generate the document"""
+        """Generate the document. This function returns a Python dictionary with all of the
+        Kubeadm options defined. Use generate_yaml() to generate the YAML from the dict"""
     
 
     def generate_yaml(self, additional_documents:List[dict] = None):
+        """Returns a YAML document generated from the Kubeadm dataclass. Additional documents
+        can be provided in the additional_documents list and this function will neatly separate
+        them with triple dashes
+        ---
+        """
         if additional_documents is None:
             additional_documents = []
         return self._yaml_dump([self.generate_document()] + additional_documents)
@@ -52,7 +58,8 @@ class KubeadmConfig(ABC):
 
 @dataclass
 class KubeadmJoinConfig(KubeadmConfig):
-
+    """Creates the Kubeadm Join configuration file that will be used by Kubeadm
+    to join existing Kubernetes clusters"""
     controller_address: str
     token: str
     ca_cert_hashes: str
@@ -76,7 +83,8 @@ class KubeadmJoinConfig(KubeadmConfig):
 
 @dataclass
 class KubeadmInitConfig(KubeadmConfig):
-
+    """Creates the Kubeadm Init configuration file that will be used by Kubeadm
+    to initialize the cluster. This is combined with KubeadmClusterConfig."""
     kubeadm_token: str
     controller_ip: str
     hostname: str
@@ -116,7 +124,8 @@ class KubeadmInitConfig(KubeadmConfig):
 
 @dataclass
 class KubeadmClusterConfig(KubeadmConfig):
-
+    """Creates the Kubeadm Init configuration file that will be used by Kubeadm
+    to configure details about the Kubernetes cluster. This is combined with KubeadmInitConfig"""
     cluster_name: str
     service_subnet: str = "10.96.0.0/12"
     dns_domain: str = "cluster.local"

@@ -5,7 +5,6 @@ import secrets
 import string
 import time
 import yaml
-from string import Template
 from django.apps import apps
 from django.urls import reverse
 from echome.config import ecHomeConfig
@@ -20,7 +19,6 @@ from vmmanager.instance_definitions import InstanceDefinition
 from vmmanager.vm_manager import VmManager
 from vmmanager.tasks import task_terminate_instance
 from vmmanager.cloudinit import CloudInitFile
-from vmmanager.image_manager import ImageManager
 from vmmanager.models import VirtualMachine, Image
 from .models import KubeCluster
 from .exceptions import (
@@ -421,6 +419,8 @@ class KubeClusterManager:
 
 
     def generate_kubeadm_token(self):
+        """Generates a Kubeadm token used to authenticate requests between Nodes and controllers
+        (i think?)"""
         # https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/
         # [a-z0-9]{6}.[a-z0-9]{16}
         return f"{self.gen_secret_string(6)}.{self.gen_secret_string(16)}"
@@ -455,6 +455,8 @@ class KubeClusterManager:
         return images[0]
 
     def kubernetes_version_is_valid(self, kubernetes_version:str):
+        """Primitive way to check if the Kubernetes version is valid. Ideally we'll want to check
+        an online database of some kind to see if it's a real version and can be installed with apt."""
         # TODO: Validate against an online API with actual Kubernetes versions
         # (is that a thing? Tried to find it)
         pattern = re.compile("^(\d+)\.(\d+)$")
