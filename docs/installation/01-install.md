@@ -19,23 +19,5 @@ Set up two new directories for guest images and user accounts. These can be defi
 
 Once these directories are created, edit /etc/echome/echome.ini and specify the directories in there.
 
-### Post setup
-
-Grab your cloud images and place them into your `guestimages` directory. In this example, I'm grabbing the Ubuntu 18.04 cloud image from Ubuntu's [Cloud Image directories](https://cloud-images.ubuntu.com/). Download the `amd64` architecture image, being careful to avoid `arm64`:
-
-```
-echome:/mnt/nvme/guestimages$ wget https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
-
-# You can confirm the image type by running qemu-img
-
-echome:/mnt/nvme/guestimages$ qemu-img info bionic-server-cloudimg-amd64.img
-image: bionic-server-cloudimg-amd64.img
-file format: qcow2
-virtual size: 2.2G (2361393152 bytes)
-disk size: 330M
-cluster_size: 65536
-```
-
-qcow2 images work best for what we're doing. But any image type should work.
 ---
-Next Article: [Setup](./03-setup.md)
+Next Article: [Setup](./02-setup.md)
