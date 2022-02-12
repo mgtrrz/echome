@@ -162,7 +162,11 @@ optional arguments:
 
 Specify the name you wish to give the key and where to output the key. If you specify `--file`, the contents of the key will be placed on a file in the location you specify. If you specify `--no-file`, the contents of the key will be displayed but not saved to any file
 
+<br>
+
 > Make sure you save this key as you will not be able to retrieve the private key contents after its created!
+
+<br>
 
 ```
 $ echome keys create-sshkey my-new-key --file mykey.pem
@@ -174,6 +178,12 @@ When logging in to the virtual machine with the key applied, you can specify whi
 ```
 ssh ubuntu@10.0.0.10 -i ~/mykey.pem
 ```
+
+### **Defining a network**
+
+Next, we'll define a network to launch our virtual machines into. You need to define a network even if you plan on only launching VMs into your home network. This process helps define what IP space to use.
+
+
 
 ---
 Next Article: [Virtual Machines](./02-virtual-machines.md)

@@ -1,5 +1,13 @@
 # ecHome
 
+## About/Foreward
+
+ecHome is a project started in 2020 by Marcus Gutierrez and is an homage to cloud providers such as AWS. It aims to mimic the technologies that cloud providers use to rapidly provision virtual machines. ecHome is, at its current state, more of a demo than a product but is mostly functional but this project has always been more of an excuse to learn new technologies such as virtualization, containerization, software, etc. than it is to deliver a fully functional "cloud". 
+
+As this project is under the MIT license, you are welcome to use my findings/code for your projects but is provided 'AS-IS'. if you would like to contribute, see the [Developing for ecHome](#developing-for-echome) section below.
+
+## Introduction
+
 Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
 
 ecHome is an easy to deploy python docker application designed to run and manage virtual machines while exposing an HTTP API that allows management of various aspects of ecHome. It's responsible for managing virtual machines, ssh keys, images, users, and more while being much simpler to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
@@ -111,6 +119,9 @@ $ echome sshkeys describe test_key --format json
 ]
 ```
 
+## <a name="developing-for-echome"></a>Developing for ecHome
+
+Getting started with developing ecHome is easy. Follow the [Installation document](docs/installation/01-install.md) for steps on installing and configuring ecHome to your server. In its current iteration, you can make changes to the code in a branch and use the `Make` commands for testing your changes. Run `make start` to start all the docker-compose components, then run `make dbmigrate` to prepare the database.
 
 ## Authors
 
