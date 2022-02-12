@@ -1,26 +1,33 @@
 # ecHome
 
-## About/Foreward
+## About
 
-ecHome is a project started in 2020 by Marcus Gutierrez and is an homage to cloud providers such as AWS. It aims to mimic the technologies that cloud providers use to rapidly provision virtual machines. ecHome is, at its current state, more of a demo than a product but is mostly functional but this project has always been more of an excuse to learn new technologies such as virtualization, containerization, software, etc. than it is to deliver a fully functional "cloud". 
+ecHome is a home network virtualization project started in 2020 by Marcus Gutierrez. It mimics the technologies cloud providers like AWS use to rapidly provision virtual machines. ecHome is, in its current state, more of a demo than a product. It is (mostly) functional, but has always been more of an excuse to personally learn new things than to deliver a fully functional cloud. 
 
-As this project is under the MIT license, you are welcome to use my findings/code for your projects but is provided 'AS-IS'. if you would like to contribute, see the [Developing for ecHome](#developing-for-echome) section below.
+This project is under the MIT license, you are welcome to use my findings/code for your projects but is provided 'AS-IS'. If you would like to contribute, see the [Developing for ecHome](#developing-for-echome) section below.
 
 ## Introduction
 
-Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
+ecHome is an easy to deploy Python docker application. It runs and manages your virtual machine's SSH keys, images, users, and more through an exposed API. It is simpler to implement and easier to learn than other existing solutions such as OpenStack.
 
-ecHome is an easy to deploy python docker application designed to run and manage virtual machines while exposing an HTTP API that allows management of various aspects of ecHome. It's responsible for managing virtual machines, ssh keys, images, users, and more while being much simpler to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
+When fully setup, you can create a virtual machine in seconds from any other computer in your home with a single command.
 
-When fully setup, you can create a virtual machine in seconds from any other computer in your home with a single command:
+## Example
+
+A user wants to set up a new virtual machine to run OpenVPN on their network. They need it to meet the following requirements:
+
+- Ubuntu 20
+- 1 core, 2 GB memory
+- 30 GB disk size
+- Accessible via their own SSH key
+
+They install ecHome and then run a single command to get the virtual machine they need:
 
 ```
 echome vm create --image-id gmi-492384f \
     --instance-size standard.small --network-profile home-network \
     --key my-ssh-key --disk-size 30G --name openvpn
 ```
-
-If there's any issues, bugs, or features you'd like to see, please use the Issues tab above.
 
 ## Features
 
