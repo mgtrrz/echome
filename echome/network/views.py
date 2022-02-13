@@ -1,9 +1,9 @@
 import logging
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework import viewsets, status
 from api.api_view import HelperView
 from .models import VirtualNetwork
+from .manager import VirtualNetworkManager
 from .exceptions import InvalidNetworkConfiguration, InvalidNetworkName
 from .serializers import NetworkSerializer
 
@@ -13,7 +13,7 @@ class CreateNetwork(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        req_params = [
+        required_params = [
             "Type",
             "Name",
             "Network", 
@@ -22,22 +22,20 @@ class CreateNetwork(HelperView, APIView):
             "DnsServers", 
             "Bridge",
         ]
-        if self.require_parameters(request, req_params):
-            return self.missing_parameter_response()
+        if missing_params := self.require_parameters(request, required_params):
+            return self.missing_parameter_response(missing_params)
         
         if request.POST["Type"] == "BridgeToLan":
             type = VirtualNetwork.Type.BRIDGE_TO_LAN
         else:
             type = VirtualNetwork.Type.NAT
-            return self.error_response(
-                message="Other network types not currently supported",
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return self.bad_request("Other network types not currently supported")
 
         tags = self.unpack_tags(request)
+        vnet_manager = VirtualNetworkManager()
 
         try:
-            new_network_id = VirtualNetwork().create(
+            new_network_id = vnet_manager.create_bridge_to_lan_network(
                 name=request.POST["Name"],
                 user=request.user,
                 type=type,
@@ -49,15 +47,9 @@ class CreateNetwork(HelperView, APIView):
                 tags=tags,
             )
         except InvalidNetworkName as e:
-            return self.error_response(
-                message=str(e),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self.bad_request(str(e))
         except InvalidNetworkConfiguration as e:
-            return self.error_response(
-                message=str(e),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self.bad_request(str(e))
         except Exception as e:
             logger.exception(e)
             return self.internal_server_error_response()

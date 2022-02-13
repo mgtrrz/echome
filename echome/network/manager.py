@@ -2,23 +2,24 @@ import logging
 import ipaddress
 from identity.models import User
 from .models import VirtualNetwork
-from .exceptions import InvalidNetworkConfiguration, InvalidNetworkName, InvalidNetworkType
+from .exceptions import InvalidNetworkConfiguration, InvalidNetworkName
 
 logger = logging.getLogger(__name__)
 
 class VirtualNetworkManager:
 
-    vnet_db: VirtualNetwork = None
+    vnet_db: VirtualNetwork
 
-    def __init__(self, network_name:str = None, user:User = None):
+    def __init__(self, network_name:str = None):
         if network_name:
             try:
                 self.vnet_db = VirtualNetwork.objects.get(
-                    name=network_name,
-                    account=user.account
+                    name=network_name
                 )
             except VirtualNetwork.DoesNotExist:
                 raise InvalidNetworkName
+        else:
+            self.vnet_db = VirtualNetwork()
         
 
     def validate_ip(self, ip:str, vnet_db:VirtualNetwork = None):
