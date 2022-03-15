@@ -1,16 +1,10 @@
 # ecHome
 
-## About/Foreward
-
-ecHome is a project started in 2020 by Marcus Gutierrez and is an homage to cloud providers such as AWS. It aims to mimic the technologies that cloud providers use to rapidly provision virtual machines. ecHome is, at its current state, more of a demo than a product but is mostly functional but this project has always been more of an excuse to learn new technologies such as virtualization, containerization, software, etc. than it is to deliver a fully functional "cloud". 
-
-As this project is under the MIT license, you are welcome to use my findings/code for your projects but is provided 'AS-IS'. if you would like to contribute, see the [Developing for ecHome](#developing-for-echome) section below.
-
 ## Introduction
 
-Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ECHome allows you to bring some of the convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots and image creation.
+Deploy cloud images to your local home network for ultra fast provisioning of linux instances. ecHome provides convenient cloud features such as cloud-init user-data scripts on boot, SSH key insertion, VM snapshots, and image creation.
 
-ecHome is an easy to deploy python docker application designed to run and manage virtual machines while exposing an HTTP API that allows management of various aspects of ecHome. It's responsible for managing virtual machines, ssh keys, images, users, and more while being much simpler to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
+ecHome is easy to deploy and exposes an HTTP API that allows management of virtual machines, ssh keys, images, users, and more. ecHome is also much simpler to implement in a home-lab environment and easier to learn than more complicated cloud infrastructure alternatives such as OpenStack.
 
 When fully setup, you can create a virtual machine in seconds from any other computer in your home with a single command:
 
@@ -21,6 +15,14 @@ echome vm create --image-id gmi-492384f \
 ```
 
 If there's any issues, bugs, or features you'd like to see, please use the Issues tab above.
+
+## Why?
+
+ecHome is a project started in 2020 by Marcus Gutierrez and is designed to mimic some of the technologies that cloud providers use to rapidly provision virtual machines and utilize Cloudinit to bootstrap them. 
+
+ecHome is, at its current state, mostly functional but has always been more of an excuse to learn new technologies such as virtualization, containerization, software, etc. than it is to deliver a fully functional "cloud" environment. 
+
+As this project is under the MIT license, you are welcome to use my findings/code for your projects but is provided 'AS-IS'. if you would like to contribute, see the [Developing for ecHome](#developing-for-echome) section below.
 
 ## Features
 
@@ -36,7 +38,7 @@ If there's any issues, bugs, or features you'd like to see, please use the Issue
 
 ## Safety
 
-ecHome isn't designed to run in a public cloud or in a datacenter. Do not expose any ports of your ecHome installation to the outside world and only use within a home network. While ecHome requires authentication before making any changes, the safer option is to access your environment from outside by using a VPN to get into your home network. Treat any VM in your environment as you would an unauthorized computer by ensuring that all VMs and its packages are up-to-date.
+ecHome isn't designed to run in a public cloud or in a datacenter. Do not expose any ports of your ecHome installation to the outside world and only use within a secured home network. If external access is needed, the safer option is to access your environment from outside by using a VPN to get into your home network. Treat any VM in your environment as you would an unauthorized computer by ensuring that all VMs and its packages are up-to-date.
 
 
 ## Requirements
@@ -66,7 +68,7 @@ See the [Installation document](docs/installation/01-install.md) for steps on in
 
 ### Backend/API
 
-ecHome is a Python django application with Postgres as the database backend and Rabbitmq as the message queuing service. At the root of the stack is the API. The API runs on the computer/host designated to run virtual machines and exposes an HTTP API that allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
+ecHome is a Python django application with Postgres as the database backend and Rabbitmq as the message queuing service. At the root of the stack is the API. The API service runs on the computer/host designated to run virtual machines and allows management of various aspects of ecHome. Its responsible for managing virtual machines, ssh keys, users, images, etc.
 
 Documentation can be found [here](docs/web-api/01-introduction.md). Code for all of the services exists in `./echome/`
 
@@ -88,7 +90,7 @@ server=localhost:5000
 format=table
 ```
 
-Code for the CLI exists in the [echome-cli repository](https://github.com/mgtrrz/echome-cli). Install it with `pip install echome-cli` and run it with `echome`.
+The source code for the CLI is in [echome-cli repository](https://github.com/mgtrrz/echome-cli). Install it with `pip install echome-cli` and run it with `echome`.
 
 #### Example commands
 
