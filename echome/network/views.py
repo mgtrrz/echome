@@ -61,22 +61,18 @@ class DescribeNetwork(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, net_id:str):
-        networks = []
-
         try:
             if net_id == "all":
                 vnets = VirtualNetwork.objects.filter(
                     account=request.user.account,
                 )
             else:
-                vnets = []
-                vnets.append(VirtualNetwork.objects.get(
+                vnets = [VirtualNetwork.objects.get(
                     network_id=net_id,
                     account=request.user.account,
-                ))
+                )]
             
-            for vnet in vnets:
-                networks.append(NetworkSerializer(vnet).data)
+            networks = [NetworkSerializer(vnet).data for vnet in vnets]
 
         except VirtualNetwork.DoesNotExist as e:
             logger.debug(e)

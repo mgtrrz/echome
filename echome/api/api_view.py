@@ -18,11 +18,7 @@ class HelperView():
         logger.debug("View supplied required parameters:")
         logger.debug(required)
         logger.debug(request.POST)
-        missing_params = []
-        for req in required:
-            if req not in request.POST:
-                missing_params.append(req)
-        
+        missing_params = [req for req in required if req not in request.POST]
         return missing_params
     
 

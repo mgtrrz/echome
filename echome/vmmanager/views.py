@@ -225,8 +225,6 @@ class DescribeVolume(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, vol_id:str):
-        i = []
-
         try:
             if vol_id == "all":
                 vols = Volume.objects.filter(
@@ -239,8 +237,7 @@ class DescribeVolume(HelperView, APIView):
                     volume_id=vol_id
                 ))
             
-            for vol in vols:
-                i.append(VolumeSerializer(vol).data)
+            i = [VolumeSerializer(vol).data for vol in vols]
         except Volume.DoesNotExist as e:
             logger.debug(e)
             return self.not_found_response()
@@ -299,8 +296,6 @@ class DescribeImage(HelperView, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, img_type:str, img_id:str):
-        i = []
-
         if img_type not in ["guest", "user"]:
             return self.error_response(
                 "Unknown type",
@@ -335,8 +330,7 @@ class DescribeImage(HelperView, APIView):
             else:
                 return self.bad_request("Image is type other than Guest or User")
             
-            for image in images:
-                i.append(ImageSerializer(image).data)
+            i = [ImageSerializer(image).data for image in images]
         except Image.DoesNotExist as e:
             logger.debug(e)
             return self.not_found_response()
